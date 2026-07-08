@@ -387,7 +387,7 @@ function extractSetCount(t){
 }
 function detectCategory(title){
   var t=(title||'');
-  if(/card game|tcg|psa\s*\d|bgs|op\d{2}-\d{3}|holo|secret rare/i.test(t))return 'tcg_single';
+  if(/card game|trading card|tcg|psa\s*\d|bgs|\b(op|st|eb|prb)\d{2}-\d{3}\b|one piece card|pokemon card|holo|secret rare/i.test(t))return 'tcg_single';
   var n=extractSetCount(t);
   if(/art\s?book|illustrations?|artworks/i.test(t))return (n&&n>1)?'artbook_set':'artbook_1';
   if(/manga|comics?/i.test(t)||n!==null){
