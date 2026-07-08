@@ -500,10 +500,10 @@ function cardHtml(it,idx){
     (function(){
       var w=resolveWeight(it);
       var chips=WCLASSES.map(function(c){return '<button class="wchip'+(w.wc===c?' on':'')+'" onclick="onWchip('+idx+','+c+')">'+c.toFixed(1)+'</button>';}).join('')+'<button class="wchip'+(w.wc==='over10'?' on':'')+'" onclick="onWchip('+idx+',\'over10\')">10kg超</button>';
-      var sel='<select onchange="onWcat('+idx+',this.value)">'+(w.cat?'':'<option value="" selected>（未判定）</option>')+CAT_MASTER.map(function(c){var wl=(c.wc==='over10')?'10kg超':c.wc.toFixed(1)+'kg';return '<option value="'+c.k+'"'+(w.cat===c.k?' selected':'')+'>'+c.l+'｜'+wl+'</option>';}).join('')+'</select>';
+      var sel='<select onchange="onWcat('+idx+',this.value)">'+(w.cat?'':'<option value="" selected>（未判定）</option>')+CAT_MASTER.map(function(c){if(c.k==='custom')return '<option value="custom"'+(w.cat==='custom'?' selected':'')+'>'+c.l+'</option>';var wl=(c.wc==='over10')?'10kg超':c.wc.toFixed(1)+'kg';return '<option value="'+c.k+'"'+(w.cat===c.k?' selected':'')+'>'+c.l+'｜'+wl+'</option>';}).join('')+'</select>';
       return '<div class="wrow"><span class="lbl2">送料区分：</span>'+sel+
         '<span class="wsum'+(w.wc==='over10'||w.wc===null?' warn':'')+'">'+shipLabel(w.wc)+'</span>'+
-        (w.manual?'<span class="wbadge">手動設定</span><button class="wreset" onclick="onWreset('+idx+')" title="自動判定に戻す">↺</button>':'<span class="wauto">自動判定</span>')+
+        (w.manual?'<span class="wbadge">固定済み（自動で変わりません）</span><button class="wreset" onclick="onWreset('+idx+')" title="自動判定に戻す">↺</button>':'<span class="wauto">自動判定</span>')+
         '</div><details class="wdet"><summary>重量区分を直接選ぶ</summary><div class="wchips">'+chips+'</div></details>';
     })()+
     '<div class="existing"><div class="lbl">仕入れ元URLを手動追加'+(added?'：'+added:'')+'</div>'+
