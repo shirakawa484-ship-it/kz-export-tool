@@ -429,9 +429,8 @@ function onWcat(idx,key){
 }
 function onWchip(idx,wc){
   var it=ITEMS[idx]; var all=loadWeights();
-  var cur=all[String(it.id)]||{cat:'custom'};
-  cur.wc=(wc==='over10')?'over10':parseFloat(wc); if(!cur.cat)cur.cat='custom';
-  all[String(it.id)]=cur; saveWeights(all); renderAll();
+  all[String(it.id)]={cat:'custom', wc:(wc==='over10')?'over10':parseFloat(wc)};
+  saveWeights(all); renderAll();
 }
 function onWreset(idx){
   var it=ITEMS[idx]; var all=loadWeights(); delete all[String(it.id)]; saveWeights(all); renderAll();
@@ -501,7 +500,7 @@ function cardHtml(it,idx){
     (function(){
       var w=resolveWeight(it);
       var chips=WCLASSES.map(function(c){return '<button class="wchip'+(w.wc===c?' on':'')+'" onclick="onWchip('+idx+','+c+')">'+c.toFixed(1)+'</button>';}).join('')+'<button class="wchip'+(w.wc==='over10'?' on':'')+'" onclick="onWchip('+idx+',\'over10\')">10kg超</button>';
-      var sel='<select onchange="onWcat('+idx+',this.value)">'+(w.cat?'':'<option value="" selected>（未判定）</option>')+CAT_MASTER.map(function(c){return '<option value="'+c.k+'"'+(w.cat===c.k?' selected':'')+'>'+c.l+'</option>';}).join('')+'</select>';
+      var sel='<select onchange="onWcat('+idx+',this.value)">'+(w.cat?'':'<option value="" selected>（未判定）</option>')+CAT_MASTER.map(function(c){var wl=(c.wc==='over10')?'10kg超':c.wc.toFixed(1)+'kg';return '<option value="'+c.k+'"'+(w.cat===c.k?' selected':'')+'>'+c.l+'｜'+wl+'</option>';}).join('')+'</select>';
       return '<div class="wrow"><span class="lbl2">送料区分：</span>'+sel+
         '<span class="wsum'+(w.wc==='over10'||w.wc===null?' warn':'')+'">'+shipLabel(w.wc)+'</span>'+
         (w.manual?'<span class="wbadge">手動設定</span><button class="wreset" onclick="onWreset('+idx+')" title="自動判定に戻す">↺</button>':'<span class="wauto">自動判定</span>')+
