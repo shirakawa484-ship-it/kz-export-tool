@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eBay輸出メンテツール（統合版 v1.2）</title>
+<style>
+body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP',sans-serif}
+.shellhead{background:#fff;border-bottom:1px solid #ddd;padding:10px 16px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:200;flex-wrap:wrap}
+.shellhead h1{margin:0;font-size:16px;font-weight:700}
+.tabs{display:flex;gap:6px}
+.tabbtn{font-size:13px;padding:7px 16px;border-radius:9px;border:1px solid #ccc;background:#fff;cursor:pointer;font-weight:600}
+.tabbtn.on{background:#1d6f56;border-color:#1d6f56;color:#fff}
+#paBadge{display:none;background:#fff3d6;color:#8a5b00;border-radius:10px;padding:1px 8px;font-size:12px;margin-left:6px}
+.tabbtn.on #paBadge{background:#fff;color:#1d6f56}
+.loadwrap{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:#666}
+#tabInv .mythumb{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid #e2ded3;background:#f4f2ec;margin-right:12px;flex-shrink:0}
+#tabPa .mythumb{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e3e6ea;background:#f5f6f8;flex-shrink:0}
+#tabPa .pthumbs{float:left;display:flex;gap:8px;margin:0 12px 6px 0}
+#tabPa .pthumbs figure{margin:0;text-align:center}
+#tabPa .pthumbs figcaption{font-size:10px;color:#7a8194;margin-top:2px}
+#tabPa .pthumbs .refimg{border-color:#2f6fed}
+#tabInv .head{display:flex;align-items:flex-start}
+#tabInv .head > div:nth-child(2), #tabInv .head > div:first-child:not(img){flex:1}
+#tabInv .nfbadge{display:inline-block;font-size:10px;font-weight:700;background:#faece7;color:#a8341f;padding:2px 8px;border-radius:4px;margin-left:6px}
+</style>
+<style>#tabInv{--bg:#f4f2ec;--card:#ffffff;--ink:#23221e;--muted:#6b6a63;--line:#e2ded3;--accent:#1d6f56;--accent-ink:#0f5540;--danger:#a8341f;--danger-bg:#faece7;--ok:#3b6d11;--ok-bg:#eaf3de;--warn-bg:#faeeda;--warn-ink:#854f0b;--blue-bg:#e6f1fb;--blue-ink:#0c447c;--gray-bg:#efece4}
+#tabInv *{box-sizing:border-box}
+#tabInv{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;line-height:1.6;font-size:15px}
+#tabInv header{background:var(--card);border-bottom:1px solid var(--line);padding:14px 16px;position:sticky;top:0;z-index:10}
+#tabInv header h1{margin:0;font-size:17px;font-weight:600}
+#tabInv header .sub{color:var(--muted);font-size:12px;margin-top:2px}
+#tabInv .wrap{max-width:920px;margin:0 auto;padding:16px}
+#tabInv .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+#tabInv .chip{font-size:12px;padding:5px 11px;border-radius:20px;font-weight:600;cursor:pointer;user-select:none}
+#tabInv .chip:hover{filter:brightness(0.95)}
+#tabInv .sitesnote{font-size:10.5px;color:var(--muted);margin-top:4px}
+.wrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px;padding-top:8px;border-top:1px dashed var(--line)}
+.wrow .lbl2{font-size:12px;color:var(--muted)}
+.wrow select{padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px}
+.wsum{font-size:12.5px;font-weight:600}
+.wsum.warn{color:#b45309}
+.wbadge{font-size:10px;font-weight:700;background:#e8f2ee;color:#1d6f56;padding:2px 8px;border-radius:4px}
+.wauto{font-size:10px;color:var(--muted)}
+.wreset{font-size:12px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;padding:2px 7px}
+details.wdet{margin:2px 0 6px}
+details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
+.wchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.wchip{font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+.wchip.on{background:#1d6f56;border-color:#1d6f56;color:#fff}
+#tabInv .chip.out{background:var(--danger-bg);color:var(--danger)}
+#tabInv .chip.err{background:var(--warn-bg);color:var(--warn-ink)}
+#tabInv .chip.in{background:var(--ok-bg);color:var(--ok)}
+#tabInv .btn{font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-weight:500}
+#tabInv .btn:hover{border-color:var(--muted)}
+#tabInv .btn.file{background:var(--accent);color:#fff;border-color:var(--accent)}
+#tabInv .toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:var(--ok-bg);color:var(--ok);padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.1);display:none}
+#tabInv .section{margin-bottom:22px}
+#tabInv .section h2{font-size:14px;font-weight:700;margin:0 0 10px;padding:6px 12px;border-radius:8px;display:inline-block}
+#tabInv .section.out h2{background:var(--danger-bg);color:var(--danger)}
+#tabInv .section.err h2{background:var(--warn-bg);color:var(--warn-ink)}
+#tabInv .section.in h2{background:var(--ok-bg);color:var(--ok)}
+#tabInv .section.in summary{font-size:14px;font-weight:700;cursor:pointer;list-style:none;background:var(--ok-bg);color:var(--ok);padding:6px 12px;border-radius:8px;display:inline-block}
+#tabInv .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:12px}
+#tabInv .card.out{border-left:4px solid var(--danger)}
+#tabInv .card.err{border-left:4px solid var(--warn-ink)}
+#tabInv .card.active{border:2px solid var(--accent);box-shadow:0 0 0 3px rgba(29,111,86,.1)}
+#tabInv .card .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#tabInv .card .name{font-weight:600;font-size:15px;line-height:1.4}
+#tabInv .card .meta{font-size:12px;color:var(--muted);margin-top:3px}
+#tabInv .st{font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;white-space:nowrap}
+#tabInv .st.out{background:var(--danger-bg);color:var(--danger)}
+#tabInv .st.err{background:var(--warn-bg);color:var(--warn-ink)}
+#tabInv .st.in{background:var(--ok-bg);color:var(--ok)}
+#tabInv .mentelabel{display:inline-block;font-size:10px;font-weight:700;background:var(--accent);color:#fff;padding:2px 8px;border-radius:4px;margin-left:6px}
+#tabInv .searchrow{display:flex;gap:8px;align-items:flex-end;margin-top:12px;flex-wrap:wrap}
+#tabInv .f{display:flex;flex-direction:column;gap:3px}
+#tabInv .f label{font-size:11px;color:var(--muted)}
+#tabInv .f input, #tabInv .f select{font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff}
+#tabInv .f input:focus, #tabInv .f select:focus{outline:none;border-color:var(--accent)}
+#tabInv .searchbtn{font-size:13px;padding:8px 12px;border-radius:7px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font-weight:600;white-space:nowrap}
+#tabInv .searchbtn.alt{background:#fff;color:var(--accent-ink)}
+#tabInv .existing{margin-top:10px;font-size:12px}
+#tabInv .existing .lbl{color:var(--muted);margin-bottom:3px}
+#tabInv .existing a{color:var(--blue-ink);word-break:break-all;margin-right:10px;font-size:12px}
+#tabInv .urladd{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+#tabInv .urladd input{flex:1;min-width:200px;font-size:12px;padding:6px 9px;border:1px solid var(--line);border-radius:7px}
+#tabInv .supply{margin-top:12px;border-top:1px solid var(--line);padding-top:11px}
+#tabInv .supply .lbl{font-size:12px;color:var(--muted);margin-bottom:6px}
+#tabInv .slot{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;margin-bottom:4px;font-size:13px;background:#f7f7f4}
+#tabInv .slot.min{background:var(--ok-bg)}
+#tabInv .slot .tag{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#fff;color:var(--ok)}
+#tabInv .slot .pr{font-weight:600;border:none;background:transparent;width:90px;font-size:13px;padding:2px 4px;border-radius:4px}
+#tabInv .slot .pr:focus{outline:1px solid var(--accent);background:#fff}
+#tabInv .slot .u{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+#tabInv .slot .del{cursor:pointer;color:var(--muted);font-size:16px;border:none;background:none}
+#tabInv .manualrow{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center}
+#tabInv .manualrow input{font-size:13px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;width:120px}
+#tabInv .addbtn{font-size:12px;padding:7px 12px;border-radius:7px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
+#tabInv .calc{margin-top:12px;background:#f7f9f4;border-radius:9px;padding:11px 13px;display:none;gap:16px;flex-wrap:wrap}
+#tabInv .calc.show{display:flex}
+#tabInv .calc .m{flex:1;min-width:105px}
+#tabInv .calc .m .l{font-size:11px;color:var(--muted)}
+#tabInv .calc .m .v{font-size:19px;font-weight:600}
+#tabInv .calc .v.loss{color:var(--danger)}
+#tabInv .calc .v.ok{color:var(--ok)}
+#tabInv details.settings, #tabInv details.howto{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;margin-bottom:14px}
+#tabInv details summary{padding:13px 0;cursor:pointer;font-weight:600;font-size:14px}
+#tabInv details.settings .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding-bottom:14px}
+#tabInv .howto ol{margin:0 0 10px;padding-left:20px;font-size:13px;color:var(--muted)}
+#tabInv .howto .bm{display:inline-block;background:var(--warn-bg);color:var(--warn-ink);padding:8px 14px;border-radius:8px;font-weight:600;text-decoration:none;margin:6px 0;cursor:grab}
+#tabInv .note{font-size:12px;background:var(--blue-bg);padding:10px 13px;border-radius:9px;margin-bottom:14px;color:var(--blue-ink)}
+#tabInv .empty{text-align:center;color:var(--muted);padding:20px 0;font-size:13px}</style>
+<style>#tabPa{
+    --bg:#f5f6f8; --card:#fff; --line:#e3e6ea; --ink:#1f2430; --sub:#6b7280;
+    --down:#d94848; --up:#2e9e5b; --warn-bg:#fff6e6; --warn-line:#f0c674; --warn-ink:#9a6b00;
+    --accent:#2f6fed; --pick:#eaf1ff; --pick-line:#2f6fed; --danger:#d94848; --danger-bg:#fbeaea;
+    --na:#f0f1f3;
+  }
+#tabPa *{box-sizing:border-box;}
+#tabPa{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+       background:var(--bg);color:var(--ink);margin:0;padding:24px 16px 130px;line-height:1.5;}
+#tabPa .wrap{max-width:940px;margin:0 auto;}
+#tabPa h1{font-size:1.3rem;margin:0 0 4px;}
+#tabPa .lead{color:var(--sub);font-size:.9rem;margin:0 0 16px;}
+#tabPa .loadbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--card);
+           border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:.9rem;}
+#tabPa .muted{color:var(--sub);font-size:.82rem;}
+#tabPa .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:.9rem;}
+#tabPa .toolbar button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:.85rem;}
+#tabPa .toolbar button:hover{background:#f0f2f5;}
+#tabPa .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+        margin-bottom:12px;display:grid;grid-template-columns:26px 1fr;gap:12px;}
+#tabPa .card.warn{border-color:var(--warn-line);}
+#tabPa .card.unchecked{opacity:.5;}
+#tabPa .chk input{width:18px;height:18px;cursor:pointer;margin-top:3px;}
+#tabPa .title{font-weight:600;font-size:.96rem;margin:0 0 3px;}
+#tabPa .cur{font-size:.85rem;color:var(--sub);margin-bottom:9px;}
+#tabPa .cur b{color:var(--ink);}
+#tabPa .lastpick{display:inline-block;font-size:.72rem;background:#eef3ff;color:var(--accent);border:1px solid #cfe0ff;border-radius:6px;padding:1px 7px;margin-left:8px;font-weight:600;}
+#tabPa .sel-line{font-size:.9rem;margin-bottom:9px;}
+#tabPa .sel-line b{font-size:1.05rem;}
+#tabPa .delta{font-weight:700;font-size:.8rem;padding:1px 7px;border-radius:999px;display:inline-block;margin-left:6px;}
+#tabPa .delta.down{color:var(--down);background:#fbeaea;}
+#tabPa .delta.up{color:var(--up);background:#e7f6ec;}
+#tabPa .options{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+#tabPa .options{grid-template-columns:repeat(2,1fr);}
+#tabPa .opt{border:1px solid var(--line);border-radius:10px;padding:9px 10px;cursor:pointer;background:#fff;position:relative;min-height:74px;}
+#tabPa .opt.selected{background:var(--pick);border-color:var(--pick-line);box-shadow:0 0 0 1px var(--pick-line) inset;}
+#tabPa .opt.na{background:var(--na);cursor:not-allowed;opacity:.7;}
+#tabPa .opt .lab{font-size:.74rem;color:var(--sub);margin-bottom:3px;font-weight:600;}
+#tabPa .opt .pr{font-size:1.05rem;font-weight:700;}
+#tabPa .opt .pf{font-size:.74rem;color:var(--sub);margin-top:2px;}
+#tabPa .opt .rec{position:absolute;top:7px;right:8px;font-size:.62rem;background:var(--accent);color:#fff;border-radius:5px;padding:1px 5px;}
+#tabPa .opt.manual input{width:100%;font-size:1rem;font-weight:700;border:1px solid var(--line);border-radius:7px;padding:3px 6px;margin-top:1px;}
+#tabPa .opt.manual.selected input{border-color:var(--pick-line);}
+#tabPa /* C案の利益率タブ */
+  .cwrap{grid-column:span 1;}
+#tabPa .cbtns{display:flex;gap:3px;margin-top:5px;flex-wrap:wrap;}
+#tabPa .cbtn{font-size:.72rem;border:1px solid var(--line);background:#fff;border-radius:6px;padding:1px 6px;cursor:pointer;color:var(--sub);}
+#tabPa .cbtn.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+#tabPa .warnbox{margin-top:9px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink);border-radius:8px;padding:7px 10px;font-size:.83rem;}
+#tabPa .dangerbox{margin-top:9px;background:var(--danger-bg);border:1px solid var(--danger);color:var(--danger);border-radius:8px;padding:7px 10px;font-size:.83rem;font-weight:600;}
+#tabPa .row-actions{margin-top:9px;font-size:.84rem;}
+#tabPa .row-actions a{color:var(--accent);text-decoration:none;}
+#tabPa .row-actions a:hover{text-decoration:underline;}
+#tabPa details.reb{margin-top:8px;}
+#tabPa details.reb summary{cursor:pointer;color:var(--accent);font-size:.84rem;}
+#tabPa .rival{display:grid;grid-template-columns:auto 44px 1fr auto;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:5px;font-size:.82rem;cursor:pointer;}
+#tabPa .rival.picked{border-color:var(--accent);background:#eef3ff;}
+#tabPa .rival img{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);background:#f2f3f5;}
+#tabPa .rival .noimg{width:44px;height:44px;border-radius:5px;border:1px dashed var(--line);background:#f7f8fa;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--sub);}
+#tabPa .rival .rt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#tabPa .rival .rt small{display:block;color:var(--sub);}
+#tabPa .rival input[type=radio]{accent-color:var(--accent);}
+#tabPa .rauto{display:flex;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:6px;font-size:.82rem;cursor:pointer;}
+#tabPa .rauto.picked{border-color:var(--accent);background:#eef3ff;}
+#tabPa .rgone{font-size:.77rem;color:#8a6d1a;background:#fff7e0;border:1px solid #eadfae;border-radius:7px;padding:5px 9px;margin-top:6px;}
+#tabPa .ph{font-size:.77rem;color:var(--sub);border:1px dashed var(--line);border-radius:8px;padding:6px 9px;margin-top:6px;background:#fafbfc;}
+#tabPa .excluded{grid-template-columns:1fr;opacity:.75;}
+#tabPa .exbadge{display:inline-block;font-size:.72rem;background:#eceef1;color:var(--sub);border-radius:6px;padding:1px 6px;margin-right:6px;}
+#tabPa .footer{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;display:flex;justify-content:center;}
+#tabPa .footer-inner{max-width:940px;width:100%;display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap;}
+#tabPa .count b{font-size:1.1rem;}
+#tabPa .approve{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 22px;font-size:.98rem;font-weight:700;cursor:pointer;}
+#tabPa .approve:disabled{background:#b9c4d8;cursor:not-allowed;}</style>
+</head>
+<body>
+<div class="shellhead">
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.2</span></h1>
+  <div class="tabs">
+    <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
+    <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
+  </div>
+  <div class="loadwrap">
+    <span>データ読み込み（複数選択可）：</span>
+    <input type="file" id="unifiedFile" accept=".json" multiple>
+  </div>
+</div>
+<div id="tabInv">
+
+<div class="toast" id="toast"></div>
+
+<div class="wrap">
+  <div class="note" id="rateNote">為替レート自動取得：1ドル = 161.39円（設定で変更できます）</div>
+
+  <details class="howto" id="howto">
+    <summary>はじめに：ブックマークレットの登録と使い方</summary>
+    <ol>
+      <li>下の黄色いボタンを、ブラウザのブックマークバーにドラッグ＆ドロップ（初回のみ）。</li>
+      <li>ツールで商品の検索ボタン（メルカリ/Yahoo!フリマ/駿河屋）を押す（＝メンテ中にする）。</li>
+      <li>各サイトで良い出品ページを開き、ブックマークレットをクリック。</li>
+      <li>価格を読み取り、この商品の仕入れ候補に自動追加（最大5件・最安値を採用）。価格は一覧で手修正できます。</li>
+    </ol>
+    <a class="bm" href="javascript:(function(){try{var u=location.href;var prices=[];document.querySelectorAll(&#39;script[type=&quot;application/ld+json&quot;]&#39;).forEach(function(sc){try{var d=JSON.parse(sc.textContent);var dd=Array.isArray(d)?d:[d];function dig(x){if(!x||typeof x!==&#39;object&#39;)return;if(x.offers){var of=Array.isArray(x.offers)?x.offers:[x.offers];of.forEach(function(f){if(f&amp;&amp;f.price)prices.push(parseInt(String(f.price).replace(/[^\d]/g,&#39;&#39;),10));if(f&amp;&amp;f.lowPrice)prices.push(parseInt(String(f.lowPrice).replace(/[^\d]/g,&#39;&#39;),10));});}if(x.price)prices.push(parseInt(String(x.price).replace(/[^\d]/g,&#39;&#39;),10));}dd.forEach(function(o){dig(o);if(o&amp;&amp;o[&#39;@graph&#39;])o[&#39;@graph&#39;].forEach(dig);});}catch(e){}});if(!prices.length){document.querySelectorAll(&#39;meta[itemprop=&quot;price&quot;],meta[property=&quot;product:price:amount&quot;],meta[property=&quot;og:price:amount&quot;],meta[property*=&quot;price&quot;]&#39;).forEach(function(m){var v=m.getAttribute(&#39;content&#39;);if(v)prices.push(parseInt(String(v).replace(/[^\d]/g,&#39;&#39;),10));});}if(!prices.length){document.querySelectorAll(&#39;[itemprop=&quot;price&quot;],[class*=&quot;price&quot;],[class*=&quot;Price&quot;],[data-testid*=&quot;price&quot;]&#39;).forEach(function(el){var v=el.getAttribute(&#39;content&#39;)||el.textContent;var t=String(v).replace(/[,\u00a5\uffe5\s\u5186]/g,&#39;&#39;);var m=t.match(/\d{2,8}/);if(m)prices.push(parseInt(m[0],10));});}prices=prices.filter(function(p){return p&amp;&amp;p&gt;=50&amp;&amp;p&lt;=3000000;});var price=prices.length?prices[0]:null;if(price===null){var inp=prompt(&#39;価格を自動取得できませんでした。手で入力してください（円）:&#39;,&#39;&#39;);if(!inp)return;price=parseInt(String(inp).replace(/[^\d]/g,&#39;&#39;),10);if(!price)return;}var target=&#39;https://shirakawa484-ship-it.github.io/kz-export-tool/&#39;+&#39;?price=&#39;+price+&#39;&amp;url=&#39;+encodeURIComponent(u);window.open(target,&#39;_blank&#39;);}catch(err){alert(&#39;エラー: &#39;+err.message);}})();">仕入れ値取得（これをブックマークバーへ）</a>
+    <div style="font-size:11px;color:var(--muted);padding-bottom:12px">※対応：メルカリ・Yahoo!フリマ・駿河屋。自分で開いた1ページだけを読み取ります。自動巡回はしません。</div>
+  </details>
+
+  <div class="bar">
+    <span class="chip out" id="outChip" onclick="jumpTo('secOut')" title="クリックでジャンプ">在庫切れ 2</span>
+    <span class="chip err" id="errChip" onclick="jumpTo('secErr')" title="クリックでジャンプ">要確認 2</span>
+    <span class="chip in" id="inChip" onclick="jumpTo('secIn')" title="クリックでジャンプ">在庫あり 4</span>
+    <input type="text" id="q" placeholder="商品名・IDで絞り込み" oninput="onQuery(this.value)" style="flex:1;min-width:150px;max-width:260px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
+    <select id="sortSel" onchange="onSort(this.value)" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px">
+      <option value="sheet">スプシ順</option>
+      <option value="name">名前順</option>
+      <option value="costHigh">仕入れ値が高い順</option>
+      <option value="costLow">仕入れ値が安い順</option>
+    </select>
+    
+    <button class="btn" id="exportCostBtn" onclick="exportCosts()" title="登録した仕入れ候補の最安値を、価格メンテツール（Python）用に書き出します">仕入れ値・重量を書き出す</button>
+  </div>
+
+  <details class="settings">
+    <summary>計算の設定（手数料率・目標利益など）</summary>
+    <div class="grid">
+      <div class="f"><label>為替レート（円/ドル）</label><input type="number" id="rate" value="155"></div>
+      <div class="f"><label>落札手数料 %（トレカ）</label><input type="number" id="fvf" value="14.5"></div>
+      <div class="f"><label>海外手数料 %</label><input type="number" id="intl" value="1.35"></div>
+      <div class="f"><label>為替手数料 %</label><input type="number" id="fx" value="2"></div>
+      <div class="f"><label>広告費 %</label><input type="number" id="promo" value="2.1"></div>
+      <div class="f"><label>固定費 $</label><input type="number" id="fixed" value="0.40"></div>
+      <div class="f"><label>目標利益率 %</label><input type="number" id="targetMargin" value="5"></div>
+      <div class="f"><label>米国向け送料（円）</label><input type="number" id="shipUS" value="2115"></div>
+      <div class="f"><label>その他国送料（円）</label><input type="number" id="shipOther" value="2243"></div>
+      <div class="f"><label>還付率 %</label><input type="number" id="refund" value="10"></div>
+    </div>
+  </details>
+
+  <div id="secOut" class="section out"><h2>在庫切れ（補充が必要） 2件</h2><div class="card out" id="card1"><div class="head"><div><div class="name">Portgas D Ace ST15-005 SP SR The Time Of Battle ONE PIECE Card Japanese 2026</div><div class="meta">eBay #358713510134</div></div><span class="st out">在庫なし</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="ST15-005" oninput="onKw(1,this.value)"></div><button class="searchbtn" onclick="doSearch(1,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(1,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(1,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(1,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(1,this.value)"></div></div><div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div><a href="https://jp.mercari.com/item/m59728095255" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m59728095255" data-mnex-title="仕入1" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入1<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au1" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(1)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots1"><div class="slot min"><span class="tag">最安</span><input class="pr" type="number" value="30000" onchange="editPrice(1,0,this.value)"><span style="font-size:11px">円</span><span class="u">https://jp.mercari.com/item/m50290482803</span><button class="del" onclick="delSupply(1,0)">×</button></div><div class="slot "><input class="pr" type="number" value="38000" onchange="editPrice(1,1,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z636958180</span><button class="del" onclick="delSupply(1,1)">×</button></div><div class="slot "><input class="pr" type="number" value="41111" onchange="editPrice(1,2,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z634347962</span><button class="del" onclick="delSupply(1,2)">×</button></div><div class="slot "><input class="pr" type="number" value="36800" onchange="editPrice(1,3,this.value)"><span style="font-size:11px">円</span><span class="u">https://www.suruga-ya.jp/product/detail/GU745828</span><button class="del" onclick="delSupply(1,3)">×</button></div><div class="slot "><input class="pr" type="number" value="38000" onchange="editPrice(1,4,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z636958180</span><button class="del" onclick="delSupply(1,4)">×</button></div></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp1" placeholder="価格（円）"><button class="addbtn" onclick="addManual(1)">追加</button></div></div><div class="calc show" id="calc1"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc1">30,000円</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp1">$306.52</div></div><div class="m"><div class="l">利益</div><div class="v ok" id="pf1">¥2,473</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg1">5.0%</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf1">¥3,717</div></div></div></div><div class="card out" id="card2"><div class="head"><div><div class="name">Tashigi R-SPC OP14-029 The Time Of Battle ONE PIECE Card Japanese 2026</div><div class="meta">eBay #358713546726</div></div><span class="st out">在庫なし</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP14-029" oninput="onKw(2,this.value)"></div><button class="searchbtn" onclick="doSearch(2,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(2,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(2,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(2,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(2,this.value)"></div></div><div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div><a href="https://jp.mercari.com/item/m54366159059" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m54366159059" data-mnex-title="仕入1" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入1<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m48588187869" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m48588187869" data-mnex-title="仕入2" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入2<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au2" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(2)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots2"><div class="slot "><input class="pr" type="number" value="11500" onchange="editPrice(2,0,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z638274868</span><button class="del" onclick="delSupply(2,0)">×</button></div><div class="slot "><input class="pr" type="number" value="11000" onchange="editPrice(2,1,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z630528120</span><button class="del" onclick="delSupply(2,1)">×</button></div><div class="slot "><input class="pr" type="number" value="13000" onchange="editPrice(2,2,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z635440026</span><button class="del" onclick="delSupply(2,2)">×</button></div><div class="slot min"><span class="tag">最安</span><input class="pr" type="number" value="9888" onchange="editPrice(2,3,this.value)"><span style="font-size:11px">円</span><span class="u">https://jp.mercari.com/item/m40471519597</span><button class="del" onclick="delSupply(2,3)">×</button></div></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp2" placeholder="価格（円）"><button class="addbtn" onclick="addManual(2)">追加</button></div></div><div class="calc show" id="calc2"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc2">9,888円</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp2">$114.95</div></div><div class="m"><div class="l">利益</div><div class="v ok" id="pf2">¥928</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg2">5.0%</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf2">¥1,258</div></div></div></div></div>
+  <div id="secErr" class="section err"><h2>要確認：URL未設定・監視対象外 2件</h2><div class="card err active" id="card3"><div class="head"><div><div class="name">Boa Hancock SR-P OP16-032 The Time Of Battle ONE PIECE Card Japanese 2026<span class="mentelabel">メンテ中</span></div><div class="meta">eBay #358716076492</div></div><span class="st err">要確認（URL未設定等）</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP16-032" oninput="onKw(3,this.value)"></div><button class="searchbtn" onclick="doSearch(3,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(3,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(3,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(3,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(3,this.value)"></div></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au3" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(3)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots3"><div class="slot min"><span class="tag">最安</span><input class="pr" type="number" value="12999" onchange="editPrice(3,0,this.value)"><span style="font-size:11px">円</span><span class="u">https://jp.mercari.com/item/m39520713159</span><button class="del" onclick="delSupply(3,0)">×</button></div><div class="slot "><input class="pr" type="number" value="15800" onchange="editPrice(3,1,this.value)"><span style="font-size:11px">円</span><span class="u">https://www.suruga-ya.jp/product/detail/GU745808</span><button class="del" onclick="delSupply(3,1)">×</button></div><div class="slot "><input class="pr" type="number" value="13800" onchange="editPrice(3,2,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z637172200</span><button class="del" onclick="delSupply(3,2)">×</button></div></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp3" placeholder="価格（円）"><button class="addbtn" onclick="addManual(3)">追加</button></div></div><div class="calc show" id="calc3"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc3">12,999円</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp3">$144.58</div></div><div class="m"><div class="l">利益</div><div class="v ok" id="pf3">¥1,167</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg3">5.0%</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf3">¥1,638</div></div></div></div><div class="card err" id="card6"><div class="head"><div><div class="name">Prisoner of Impel Down OP16-042 TR R The Time Of Battle ONE PIECE Card Japanese</div><div class="meta">eBay #358716120651</div></div><span class="st err">要確認（URL未設定等）</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP16-042" oninput="onKw(6,this.value)"></div><button class="searchbtn" onclick="doSearch(6,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(6,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(6,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(6,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(6,this.value)"></div></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au6" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(6)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots6"></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp6" placeholder="価格（円）"><button class="addbtn" onclick="addManual(6)">追加</button></div></div><div class="calc" id="calc6"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc6">—</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp6">—</div></div><div class="m"><div class="l">利益</div><div class="v" id="pf6">—</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg6">—</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf6">—</div></div></div></div></div>
+  <div id="secIn" class="section in"><details><summary>在庫あり（対応不要） 4件 ▼</summary><div style="margin-top:10px"><div class="card in" id="card0"><div class="head"><div><div class="name">ZEHAHAHAHAHA TEACH R Parallel OP16-116 ONE PIECE The Time of Battle Japanese</div><div class="meta">eBay #358713488131</div></div><span class="st in">在庫あり</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP16-116" oninput="onKw(0,this.value)"></div><button class="searchbtn" onclick="doSearch(0,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(0,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(0,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(0,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(0,this.value)"></div></div><div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div><a href="https://jp.mercari.com/item/m23915787484" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m23915787484" data-mnex-title="仕入1" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入1<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m52270915722" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m52270915722" data-mnex-title="仕入2" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入2<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m28425300480" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m28425300480" data-mnex-title="仕入3" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入3<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m79994546683" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m79994546683" data-mnex-title="仕入4" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入4<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m58831867045" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m58831867045" data-mnex-title="仕入5" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入5<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au0" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(0)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots0"><div class="slot "><input class="pr" type="number" value="39800" onchange="editPrice(0,0,this.value)"><span style="font-size:11px">円</span><span class="u">https://www.suruga-ya.jp/product/detail/GU745820</span><button class="del" onclick="delSupply(0,0)">×</button></div><div class="slot min"><span class="tag">最安</span><input class="pr" type="number" value="31800" onchange="editPrice(0,1,this.value)"><span style="font-size:11px">円</span><span class="u">https://www.suruga-ya.jp/product/detail/GU745820?branch_number=0077</span><button class="del" onclick="delSupply(0,1)">×</button></div><div class="slot "><input class="pr" type="number" value="36000" onchange="editPrice(0,2,this.value)"><span style="font-size:11px">円</span><span class="u">https://jp.mercari.com/item/m28425300480</span><button class="del" onclick="delSupply(0,2)">×</button></div></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp0" placeholder="価格（円）"><button class="addbtn" onclick="addManual(0)">追加</button></div></div><div class="calc show" id="calc0"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc0">31,800円</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp0">$323.66</div></div><div class="m"><div class="l">利益</div><div class="v ok" id="pf0">¥2,612</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg0">5.0%</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf0">¥3,937</div></div></div></div><div class="card in" id="card4"><div class="head"><div><div class="name">ONE PIECE Card Game Monkey D Luffy leader The Time of Battle OP16 japanese</div><div class="meta">eBay #358716089832</div></div><span class="st in">在庫あり</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="ONE PIECE" oninput="onKw(4,this.value)"></div><button class="searchbtn" onclick="doSearch(4,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(4,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(4,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(4,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(4,this.value)"></div></div><div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div><a href="https://jp.mercari.com/item/m36550973387" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m36550973387" data-mnex-title="仕入1" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入1<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m73810046382" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m73810046382" data-mnex-title="仕入2" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入2<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m91737221694" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m91737221694" data-mnex-title="仕入3" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入3<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au4" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(4)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots4"></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp4" placeholder="価格（円）"><button class="addbtn" onclick="addManual(4)">追加</button></div></div><div class="calc" id="calc4"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc4">—</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp4">—</div></div><div class="m"><div class="l">利益</div><div class="v" id="pf4">—</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg4">—</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf4">—</div></div></div></div><div class="card in" id="card5"><div class="head"><div><div class="name">Monkey D Luffy SR-P OP16-015 The Time Of Battle ONE PIECE Card Japanese 2026</div><div class="meta">eBay #358716115938</div></div><span class="st in">在庫あり</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP16-015" oninput="onKw(5,this.value)"></div><button class="searchbtn" onclick="doSearch(5,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(5,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(5,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(5,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(5,this.value)"></div></div><div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div><a href="https://jp.mercari.com/item/m66154102657" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m66154102657" data-mnex-title="仕入1" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入1<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m20067251799" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m20067251799" data-mnex-title="仕入2" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入2<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m94168091379" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m94168091379" data-mnex-title="仕入3" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入3<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au5" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(5)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots5"></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp5" placeholder="価格（円）"><button class="addbtn" onclick="addManual(5)">追加</button></div></div><div class="calc" id="calc5"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc5">—</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp5">—</div></div><div class="m"><div class="l">利益</div><div class="v" id="pf5">—</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg5">—</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf5">—</div></div></div></div><div class="card in" id="card7"><div class="head"><div><div class="name">One Piece Card Vinsmoke Reiju OP06-042 L Parallel Japanese Leader EB02 Gold</div><div class="meta">eBay #358716125423</div></div><span class="st in">在庫あり</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP06-042" oninput="onKw(7,this.value)"></div><button class="searchbtn" onclick="doSearch(7,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(7,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(7,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(7,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(7,this.value)"></div></div><div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div><a href="https://jp.mercari.com/item/m90303982651" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m90303982651" data-mnex-title="仕入1" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入1<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a><a href="https://jp.mercari.com/item/m31054169190" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m31054169190" data-mnex-title="仕入2" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入2<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
+			 
+			 
+			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
+			<ul class="mn_float_doc_menu_list"></ul></div></div></a></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au7" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(7)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots7"></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp7" placeholder="価格（円）"><button class="addbtn" onclick="addManual(7)">追加</button></div></div><div class="calc" id="calc7"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc7">—</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp7">—</div></div><div class="m"><div class="l">利益</div><div class="v" id="pf7">—</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg7">—</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf7">—</div></div></div></div></div></details></div>
+</div>
+
+
+</div>
+<div id="tabPa" style="display:none">
+
+<div class="wrap">
+  
+
+  <div class="loadbar">
+    <span>計画ファイル：</span>
+    <span class="muted" id="loadStatus">まだ読み込んでいません（下はサンプル表示）</span>
+  </div>
+  <div class="toolbar">
+    <button id="allOn">すべてチェック</button>
+    <button id="allOff">すべて外す</button>
+    <span class="muted">初期＝全部チェック済み・各商品はツール推奨の案を選択。気になる商品だけ調整してください。</span>
+  </div>
+  <div id="list"></div>
+</div>
+
+<div class="footer"><div class="footer-inner">
+  <div class="count">承認する商品：<b id="selCount">0</b> 件<span class="muted" id="warnCount"></span></div>
+  <button class="approve" id="approveBtn">選んだ商品をまとめて承認</button>
+</div></div>
+
+
+</div>
+<script>
+
+var ITEMS = [{"name": "ZEHAHAHAHAHA TEACH R Parallel OP16-116 ONE PIECE The Time of Battle Japanese", "id": "358713488131", "urls": ["https://jp.mercari.com/item/m23915787484", "https://jp.mercari.com/item/m52270915722", "https://jp.mercari.com/item/m28425300480", "https://jp.mercari.com/item/m79994546683", "https://jp.mercari.com/item/m58831867045"], "stock": "在庫あり", "method": "OR"}, {"name": "Portgas D Ace ST15-005 SP SR The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358713510134", "urls": ["https://jp.mercari.com/item/m59728095255"], "stock": "在庫なし", "method": "OR"}, {"name": "Tashigi R-SPC OP14-029 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358713546726", "urls": ["https://jp.mercari.com/item/m54366159059", "https://jp.mercari.com/item/m48588187869"], "stock": "在庫なし", "method": "OR"}, {"name": "Boa Hancock SR-P OP16-032 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358716076492", "urls": [], "stock": "エラー：フリマサイトURLが1つも入力されていません", "method": "OR"}, {"name": "ONE PIECE Card Game Monkey D Luffy leader The Time of Battle OP16 japanese", "id": "358716089832", "urls": ["https://jp.mercari.com/item/m36550973387", "https://jp.mercari.com/item/m73810046382", "https://jp.mercari.com/item/m91737221694"], "stock": "在庫あり", "method": "OR"}, {"name": "Monkey D Luffy SR-P OP16-015 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358716115938", "urls": ["https://jp.mercari.com/item/m66154102657", "https://jp.mercari.com/item/m20067251799", "https://jp.mercari.com/item/m94168091379"], "stock": "在庫あり", "method": "OR"}, {"name": "Prisoner of Impel Down OP16-042 TR R The Time Of Battle ONE PIECE Card Japanese", "id": "358716120651", "urls": [], "stock": "エラー：フリマサイトURLが1つも入力されていません", "method": "OR"}, {"name": "One Piece Card Vinsmoke Reiju OP06-042 L Parallel Japanese Leader EB02 Gold", "id": "358716125423", "urls": ["https://jp.mercari.com/item/m90303982651", "https://jp.mercari.com/item/m31054169190"], "stock": "在庫あり", "method": "OR"}];
+var LS_SUPPLY='ss_supplies_v1', LS_ACTIVE='ss_active_v1', LS_META='ss_meta_v1', LS_ADDURL='ss_addurl_v1', LS_INV='ss_inventory_v1';
+// ===== 送料自動化（v1.2）: カテゴリマスター・自動判定・重量永続化 =====
+var LS_WEIGHT='ss_weight_v1';
+var SHIP_OC={0.5:2115,1.0:2599,1.5:2840,2.0:3108,2.5:3383,3.0:3540,3.5:3593,4.0:4022,4.5:4451,5.0:4718,5.5:5043,6.0:5366,6.5:5735,7.0:6184,7.5:6683,8.0:6871,8.5:7060,9.0:7249,9.5:8865,10.0:9089};
+var WCLASSES=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.5,10.0];
+var CAT_MASTER=[
+ {k:'tcg_single',l:'トレカ（〜10枚）',wc:0.5},
+ {k:'tcg_bulk',l:'トレカ まとめ',wc:0.5},
+ {k:'book_small',l:'文庫・新書・ソフト1点',wc:1.0},
+ {k:'manga_1_3',l:'漫画 1〜3冊',wc:1.0},
+ {k:'artbook_1',l:'画集・大型本 1冊',wc:1.5},
+ {k:'artbook_set',l:'画集・大型本 2〜5冊',wc:3.5},
+ {k:'manga_10',l:'漫画セット 〜12巻',wc:3.0},
+ {k:'manga_20',l:'漫画セット 〜24巻',wc:6.0},
+ {k:'manga_30',l:'漫画セット 〜35巻',wc:9.5},
+ {k:'manga_40',l:'漫画セット 36巻〜',wc:'over10'},
+ {k:'dvd_single',l:'DVD/BD 1〜3枚',wc:1.0},
+ {k:'dvd_box',l:'DVD/BD-BOX',wc:1.5},
+ {k:'lp_1_3',l:'レコードLP 1〜3枚',wc:1.5},
+ {k:'lp_4_10',l:'レコードLP 4〜10枚',wc:3.5},
+ {k:'figure_prize',l:'フィギュア プライズ・小箱',wc:3.5},
+ {k:'figure_scale',l:'フィギュア スケール・大箱',wc:7.0},
+ {k:'plush_small',l:'ぬいぐるみ 小〜中',wc:3.5},
+ {k:'plush_large',l:'ぬいぐるみ 大',wc:9.5},
+ {k:'camera',l:'カメラ・レンズ',wc:1.5},
+ {k:'audio_small',l:'音響 小型',wc:3.5},
+ {k:'audio_large',l:'音響 大型',wc:'over10'},
+ {k:'reel',l:'釣具 リール',wc:1.5},
+ {k:'lure',l:'釣具 ルアー・小物',wc:0.5},
+ {k:'console',l:'ゲーム機本体',wc:3.0},
+ {k:'watch',l:'腕時計',wc:1.0},
+ {k:'accessory',l:'文具・アクセ小物',wc:0.5},
+ {k:'custom',l:'（区分を直接選択）',wc:0.5}
+];
+function catByKey(k){for(var i=0;i<CAT_MASTER.length;i++)if(CAT_MASTER[i].k===k)return CAT_MASTER[i];return null;}
+function extractSetCount(t){
+  var m=t.match(/vol(?:ume)?s?\.?\s*\d+\s*[-〜~‐–]\s*(\d+)/i); if(m)return parseInt(m[1],10);
+  m=t.match(/(\d+)\s*(?:set|books|volumes|巻)/i); if(m)return parseInt(m[1],10);
+  return null;
+}
+function detectCategory(title){
+  var t=(title||'');
+  if(/card game|tcg|psa\s*\d|bgs|op\d{2}-\d{3}|holo|secret rare/i.test(t))return 'tcg_single';
+  var n=extractSetCount(t);
+  if(/art\s?book|illustrations?|artworks/i.test(t))return (n&&n>1)?'artbook_set':'artbook_1';
+  if(/manga|comics?/i.test(t)||n!==null){
+    if(n===null||n<=3)return 'manga_1_3';
+    if(n<=12)return 'manga_10'; if(n<=24)return 'manga_20'; if(n<=35)return 'manga_30'; return 'manga_40';
+  }
+  if(/blu-?ray|dvd/i.test(t))return /box/i.test(t)?'dvd_box':'dvd_single';
+  if(/vinyl|lp\s*record|\b7\s*inch|\b12\s*inch|\bobi\b/i.test(t))return 'lp_1_3';
+  if(/nendoroid|figuarts|figma|pop up parade|figure|statue/i.test(t))return /scale|1\/\d/i.test(t)?'figure_scale':'figure_prize';
+  if(/plush|stuffed/i.test(t))return 'plush_small';
+  if(/\bcamera\b|\blens\b|nikon|canon|olympus|pentax|fujifilm/i.test(t))return 'camera';
+  if(/amplifier|turntable|\bspeaker\b|cd deck/i.test(t))return 'audio_large';
+  if(/headphone|earphone|walkman|cd player|audio/i.test(t))return 'audio_small';
+  if(/\breel\b|shimano|daiwa/i.test(t))return 'reel';
+  if(/\blure\b|fishing/i.test(t))return 'lure';
+  if(/nintendo switch|\bps[1-5]\b|famicom|game boy|console/i.test(t))return 'console';
+  if(/\bwatch\b|seiko|casio|citizen|g-shock/i.test(t))return 'watch';
+  if(/fountain pen|bracelet|necklace|keychain|charm|pin badge|\bpen\b/i.test(t))return 'accessory';
+  if(/novel|\bbook\b/i.test(t))return 'book_small';
+  return null;
+}
+function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
+function saveWeights(w){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
+function resolveWeight(it){
+  var w=loadWeights()[String(it.id)];
+  if(w&&w.wc!==undefined)return {cat:w.cat||'custom',wc:w.wc,manual:true};
+  var k=detectCategory(it.title||it.name);
+  if(k){var c=catByKey(k);return {cat:k,wc:c.wc,manual:false};}
+  return {cat:null,wc:null,manual:false}; // 未判定
+}
+function shipLabel(wc){
+  if(wc==='over10')return '⚠️ 10kg超・送料要手動（OC対象外）';
+  if(wc===null||wc===undefined)return '未判定（区分を選んでください）';
+  return wc.toFixed(1)+'kg → 送料 '+SHIP_OC[wc].toLocaleString()+'円';
+}
+function onWcat(idx,key){
+  var it=ITEMS[idx]; var c=catByKey(key); if(!c)return;
+  var all=loadWeights(); all[String(it.id)]={cat:key,wc:c.wc}; saveWeights(all); renderAll();
+}
+function onWchip(idx,wc){
+  var it=ITEMS[idx]; var all=loadWeights();
+  var cur=all[String(it.id)]||{cat:'custom'};
+  cur.wc=(wc==='over10')?'over10':parseFloat(wc); if(!cur.cat)cur.cat='custom';
+  all[String(it.id)]=cur; saveWeights(all); renderAll();
+}
+function onWreset(idx){
+  var it=ITEMS[idx]; var all=loadWeights(); delete all[String(it.id)]; saveWeights(all); renderAll();
+}
+
+var supplies={}, dests={}, duties={}, keywords={}, addUrls={}, activeIdx=null;
+
+function n(id){var v=parseFloat(document.getElementById(id).value);return isNaN(v)?0:v;}
+function yen(v){return '¥'+Math.round(v).toLocaleString();}
+function usd(v){return '$'+v.toFixed(2);}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function stockType(it){var s=it.stock||'';if(s.indexOf('なし')>=0)return 'out';if(s.indexOf('エラー')>=0||s.indexOf('ｴﾗｰ')>=0)return 'err';if(s.indexOf('あり')>=0)return 'in';return 'err';}
+
+function loadJSON(k){try{return JSON.parse(localStorage.getItem(k)||'{}');}catch(e){return {};}}
+function saveSupplies(){var b={};Object.keys(supplies).forEach(function(i){var it=ITEMS[i];if(it)b[it.id]=supplies[i];});try{localStorage.setItem(LS_SUPPLY,JSON.stringify(b));}catch(e){}}
+function saveMeta(){var b={};ITEMS.forEach(function(it,i){b[it.id]={kw:keywords[i],dest:dests[i],duty:duties[i]};});try{localStorage.setItem(LS_META,JSON.stringify(b));}catch(e){}}
+function saveAddUrls(){var b={};Object.keys(addUrls).forEach(function(i){var it=ITEMS[i];if(it)b[it.id]=addUrls[i];});try{localStorage.setItem(LS_ADDURL,JSON.stringify(b));}catch(e){}}
+function restoreAll(){
+  var sup=loadJSON(LS_SUPPLY),meta=loadJSON(LS_META),au=loadJSON(LS_ADDURL);
+  ITEMS.forEach(function(it,i){
+    if(sup[it.id])supplies[i]=sup[it.id];
+    if(meta[it.id]){var m=meta[it.id];if(m.kw!=null)keywords[i]=m.kw;if(m.dest!=null)dests[i]=m.dest;if(m.duty!=null)duties[i]=m.duty;}
+    if(au[it.id])addUrls[i]=au[it.id];
+  });
+}
+function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(function(){t.style.display='none';},2600);}
+
+function handleIncoming(){
+  var p=new URLSearchParams(location.search);var price=p.get('price');var url=p.get('url');
+  if(price){var pr=parseInt(price,10);var actId=localStorage.getItem(LS_ACTIVE);var idx=null;
+    ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))idx=i;});
+    if(idx!==null&&pr>0){if(!supplies[idx])supplies[idx]=[];
+      if(supplies[idx].length<5){supplies[idx].push({price:pr,url:url||''});saveSupplies();showToast('✓ '+pr.toLocaleString()+'円 を「'+ITEMS[idx].name.slice(0,18)+'…」に追加');}
+      else{showToast('仕入れ候補は最大5件です');}}
+    else{showToast('メンテ中の商品が不明です。先に検索ボタンを押してください');}
+    history.replaceState(null,'',location.pathname);return true;
+  }
+  return false;
+}
+
+(function(){var apis=[{url:'https://api.exchangerate-api.com/v4/latest/USD',pick:function(d){return d.rates&&d.rates.JPY;}},{url:'https://open.er-api.com/v6/latest/USD',pick:function(d){return d.rates&&d.rates.JPY;}},{url:'https://api.frankfurter.dev/v1/latest?base=USD&symbols=JPY',pick:function(d){return d.rates&&d.rates.JPY;}}];var i=0;function tn(){if(i>=apis.length){document.getElementById('rateNote').textContent='為替の自動取得に失敗。設定で手入力してください（現在155円）。';return;}fetch(apis[i].url).then(function(r){return r.json();}).then(function(d){var jpy=apis[i].pick(d);if(jpy){var adj=Math.round(jpy*100)/100;document.getElementById('rate').value=adj;document.getElementById('rateNote').textContent='為替レート自動取得：1ドル = '+adj+'円（設定で変更できます）';recalcAll();}else{i++;tn();}}).catch(function(){i++;tn();});}tn();})();
+
+function calcProfit(priceUsd,costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed'),refundRate=n('refund');var taxPct=10;/* 米国TAX目安。eBay手数料はTAX込み総額に課される(2026-07-08修正) */var fb=priceUsd*(1+taxPct/100);var fRak=fb*fvf/100,fIntl=fb*intl/100,fFx=fb*fx/100,fPromo=fb*promo/100;var fFixed=priceUsd>0?(priceUsd<=10?0.30:fixed):0;var fTot=fRak+fIntl+fFx+fPromo+fFixed;var netY=(priceUsd-fTot)*rate;var dutyY=dutyRate>0?(priceUsd*dutyRate/100*rate):0;var profit=netY-costYen-shipYen-dutyY;var salesY=priceUsd*rate;var margin=salesY>0?(profit/salesY*100):0;var refund=(costYen+fRak*rate)*refundRate/100;return {profit:profit,margin:margin,refund:refund};}
+function calcTarget(costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed');var t=n('targetMargin')/100;var taxPct=10;var r1=(fvf+intl+fx+promo)/100*(1+taxPct/100),d=dutyRate/100;var den=rate*(1-r1-d-t);if(den<=0)return null;return (fixed*rate+costYen+shipYen)/den;}
+function minCost(idx){var a=supplies[idx]||[];if(!a.length)return null;return Math.min.apply(null,a.map(function(x){return x.price;}));}
+function extractKw(name){var m=name.match(/[A-Z]{2}\d{2}-\d{3}/);if(m)return m[0];return name.split(' ').slice(0,2).join(' ');}
+
+function cardHtml(it,idx){
+  var t=stockType(it);
+  if(keywords[idx]===undefined)keywords[idx]=extractKw(it.title||it.name);
+  var isActive=(activeIdx===idx);
+  var stLabel=(t==='out'?'在庫なし':(t==='in'?'在庫あり':'要確認（URL未設定等）'));
+  var existing=(it.urls||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">仕入'+(i+1)+'</a>';}).join('');
+  var added=(addUrls[idx]||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">追加'+(i+1)+'</a> <button class="del" onclick="delAddUrl('+idx+','+i+')">×</button>';}).join(' ');
+  return '<div class="card '+t+(isActive?' active':'')+'" id="card'+idx+'">'+
+    '<div class="head">'+(it.image_url?'<img class="mythumb" src="'+esc(it.image_url)+'" loading="lazy" alt="">':'')+'<div><div class="name">'+esc(it.title||it.name)+(isActive?'<span class="mentelabel">メンテ中</span>':'')+(it.not_found_on_ebay?'<span class="nfbadge">eBayで見つかりません</span>':'')+'</div>'+
+    '<div class="meta">eBay #'+it.id+'</div></div><span class="st '+t+'">'+stLabel+'</span></div>'+
+    '<div class="searchrow">'+
+      '<div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="'+esc(keywords[idx])+'" oninput="onKw('+idx+',this.value)"></div>'+
+      '<button class="searchbtn" onclick="doSearch('+idx+',\'mercari\')">メルカリ</button>'+
+      '<button class="searchbtn alt" onclick="doSearch('+idx+',\'paypay\')">Yahoo!フリマ</button>'+
+      '<button class="searchbtn alt" onclick="doSearch('+idx+',\'suruga\')">駿河屋</button>'+
+      '<div class="f"><label>宛先</label><select onchange="onDest('+idx+',this.value)"><option value="us"'+((dests[idx]||'us')==='us'?' selected':'')+'>米国(DDP)</option><option value="other"'+(dests[idx]==='other'?' selected':'')+'>その他</option></select></div>'+
+      '<div class="f"><label>関税率%</label><input type="number" value="'+(duties[idx]!==undefined?duties[idx]:10)+'" style="width:64px" oninput="onDuty('+idx+',this.value)"></div>'+
+    '</div>'+
+    (existing?'<div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div>'+existing+'</div>':'')+
+    (function(){
+      var w=resolveWeight(it);
+      var chips=WCLASSES.map(function(c){return '<button class="wchip'+(w.wc===c?' on':'')+'" onclick="onWchip('+idx+','+c+')">'+c.toFixed(1)+'</button>';}).join('')+'<button class="wchip'+(w.wc==='over10'?' on':'')+'" onclick="onWchip('+idx+',\'over10\')">10kg超</button>';
+      var sel='<select onchange="onWcat('+idx+',this.value)">'+(w.cat?'':'<option value="" selected>（未判定）</option>')+CAT_MASTER.map(function(c){return '<option value="'+c.k+'"'+(w.cat===c.k?' selected':'')+'>'+c.l+'</option>';}).join('')+'</select>';
+      return '<div class="wrow"><span class="lbl2">送料区分：</span>'+sel+
+        '<span class="wsum'+(w.wc==='over10'||w.wc===null?' warn':'')+'">'+shipLabel(w.wc)+'</span>'+
+        (w.manual?'<span class="wbadge">手動設定</span><button class="wreset" onclick="onWreset('+idx+')" title="自動判定に戻す">↺</button>':'<span class="wauto">自動判定</span>')+
+        '</div><details class="wdet"><summary>重量区分を直接選ぶ</summary><div class="wchips">'+chips+'</div></details>';
+    })()+
+    '<div class="existing"><div class="lbl">仕入れ元URLを手動追加'+(added?'：'+added:'')+'</div>'+
+      '<div class="urladd"><input type="text" id="au'+idx+'" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl('+idx+')">URL追加</button></div>'+
+      '<div class="sitesnote">対応サイト：メルカリ・ヤフオク・Yahoo!フリマ・ラクマ・楽天市場・Yahoo!ショッピング・ハードオフNetmall・駿河屋・ヨドバシ.com</div>'+
+    '</div>'+
+    '<div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div>'+
+      '<div id="slots'+idx+'"></div>'+
+      '<div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp'+idx+'" placeholder="価格（円）"><button class="addbtn" onclick="addManual('+idx+')">追加</button></div>'+
+    '</div>'+
+    '<div class="calc" id="calc'+idx+'">'+
+      '<div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc'+idx+'">—</div></div>'+
+      '<div class="m"><div class="l">適正売価</div><div class="v" id="tp'+idx+'">—</div></div>'+
+      '<div class="m"><div class="l">利益</div><div class="v" id="pf'+idx+'">—</div></div>'+
+      '<div class="m"><div class="l">利益率</div><div class="v" id="mg'+idx+'">—</div></div>'+
+      '<div class="m"><div class="l">還付(目安)</div><div class="v" id="rf'+idx+'">—</div></div>'+
+    '</div></div>';
+}
+
+var sortMode='sheet', query='';
+function sortIdx(arr){
+  var a=arr.slice();
+  if(sortMode==='name') a.sort(function(x,y){return ITEMS[x].name.localeCompare(ITEMS[y].name,'ja');});
+  else if(sortMode==='costHigh') a.sort(function(x,y){return (minCost(y)||-1)-(minCost(x)||-1);});
+  else if(sortMode==='costLow') a.sort(function(x,y){return (minCost(x)||Infinity)-(minCost(y)||Infinity);});
+  return a; // 'sheet'はスプシの並びのまま
+}
+function matchQuery(it){
+  if(!query) return true;
+  var q=query.toLowerCase();
+  return it.name.toLowerCase().indexOf(q)>=0 || String(it.id).indexOf(q)>=0;
+}
+function jumpTo(secId){
+  var el=document.getElementById(secId);if(!el)return;
+  if(secId==='secIn'){var d=el.querySelector('details');if(d)d.open=true;}
+  el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function onQuery(v){query=(v||'').trim();renderAll();}
+function onSort(v){sortMode=v;renderAll();}
+function renderAll(){
+  var groups={out:[],err:[],in:[]};
+  var hidden=0;
+  ITEMS.forEach(function(it,i){ if(matchQuery(it)) groups[stockType(it)].push(i); else hidden++; });
+  groups.out=sortIdx(groups.out); groups.err=sortIdx(groups.err); groups.in=sortIdx(groups.in);
+  var suffix=query?('（絞り込み中・非表示'+hidden+'件）'):'';
+  document.getElementById('outChip').textContent='在庫切れ '+groups.out.length;
+  document.getElementById('errChip').textContent='要確認 '+groups.err.length;
+  document.getElementById('inChip').textContent='在庫あり '+groups.in.length;
+
+  var so=document.getElementById('secOut');
+  so.innerHTML='<h2>在庫切れ（補充が必要） '+groups.out.length+'件'+suffix+'</h2>'+(groups.out.length?groups.out.map(function(i){return cardHtml(ITEMS[i],i);}).join(''):'<div class="empty">'+(query?'絞り込みに該当なし':'在庫切れはありません')+'</div>');
+  var se=document.getElementById('secErr');
+  se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+groups.err.length+'件'+suffix+'</h2>'+(groups.err.length?groups.err.map(function(i){return cardHtml(ITEMS[i],i);}).join(''):'<div class="empty">該当なし</div>');
+  var si=document.getElementById('secIn');
+  si.innerHTML='<details'+(query?' open':'')+'><summary>在庫あり（対応不要） '+groups.in.length+'件'+suffix+' ▼</summary><div style="margin-top:10px">'+(groups.in.length?groups.in.map(function(i){return cardHtml(ITEMS[i],i);}).join(''):'<div class="empty">該当なし</div>')+'</div></details>';
+
+  ITEMS.forEach(function(it,i){renderSlots(i);recalc(i);});
+}
+
+function renderSlots(idx){var el=document.getElementById('slots'+idx);if(!el)return;var arr=supplies[idx]||[];var mn=minCost(idx);el.innerHTML=arr.map(function(s,i){var isMin=(s.price===mn);return '<div class="slot '+(isMin?'min':'')+'">'+(isMin?'<span class="tag">最安</span>':'')+'<input class="pr" type="number" value="'+s.price+'" onchange="editPrice('+idx+','+i+',this.value)">'+'<span style="font-size:11px">円</span>'+'<span class="u">'+(s.url?esc(s.url):'手入力')+'</span>'+'<button class="del" onclick="delSupply('+idx+','+i+')">×</button></div>';}).join('');}
+
+function onKw(idx,v){keywords[idx]=v;saveMeta();}
+function doSearch(idx,site){activeIdx=idx;localStorage.setItem(LS_ACTIVE,String(ITEMS[idx].id));var kw=keywords[idx]||'';var enc=encodeURIComponent(kw);var url;if(site==='paypay')url='https://paypayfleamarket.yahoo.co.jp/search/'+enc;else if(site==='suruga')url='https://www.suruga-ya.jp/search?search_word='+enc;else url='https://jp.mercari.com/search?keyword='+enc;window.open(url,'_blank','noopener');renderAll();var sn=site==='paypay'?'Yahoo!フリマ':(site==='suruga'?'駿河屋':'メルカリ');showToast('「'+ITEMS[idx].name.slice(0,14)+'…」をメンテ中に。'+sn+'でブックマークレットを押すと追加されます');}
+function onDest(idx,v){dests[idx]=v;saveMeta();recalc(idx);}
+function onDuty(idx,v){duties[idx]=parseFloat(v)||0;saveMeta();recalc(idx);}
+function addManual(idx){var el=document.getElementById('mp'+idx);var p=parseInt(el.value,10);if(!p||p<=0)return;if(!supplies[idx])supplies[idx]=[];if(supplies[idx].length>=5){alert('最大5件です');return;}supplies[idx].push({price:p,url:''});el.value='';saveSupplies();renderSlots(idx);recalc(idx);}
+function editPrice(idx,i,v){var p=parseInt(v,10);if(!p||p<=0)return;supplies[idx][i].price=p;saveSupplies();renderSlots(idx);recalc(idx);}
+function delSupply(idx,i){supplies[idx].splice(i,1);saveSupplies();renderSlots(idx);recalc(idx);}
+function exportCosts(){
+  var out={exported_at:new Date().toISOString(),source:'inventory_tool_v2',items:{}};
+  var n=0, skipped=[];
+  ITEMS.forEach(function(it,i){
+    var arr=supplies[i]||[];
+    if(!arr.length){skipped.push(it.name.slice(0,20));return;}
+    var mn=minCost(i);
+    var w=resolveWeight(it);
+    out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
+      weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined)};
+    n++;
+  });
+  if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
+  var blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='costs_from_inventory.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+  var msg='仕入れ値・重量を書き出しました（'+n+'件）';
+  if(skipped.length)msg+='。候補なしのため未収載：'+skipped.length+'件';
+  showToast(msg);
+}
+function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';saveAddUrls();renderAll();}
+function delAddUrl(idx,i){addUrls[idx].splice(i,1);saveAddUrls();renderAll();}
+
+function recalc(idx){var cost=minCost(idx);var calc=document.getElementById('calc'+idx);if(!calc)return;if(cost===null){calc.classList.remove('show');return;}calc.classList.add('show');var dest=dests[idx]||'us';var dr=(dest==='us')?(duties[idx]!==undefined?duties[idx]:10):0;var ship=(dest==='us')?n('shipUS'):n('shipOther');document.getElementById('mc'+idx).textContent=cost.toLocaleString()+'円';var tp=calcTarget(cost,ship,dr);if(tp===null||tp<=0){document.getElementById('tp'+idx).textContent='計算不可';return;}var r=calcProfit(tp,cost,ship,dr);document.getElementById('tp'+idx).textContent=usd(tp);var pf=document.getElementById('pf'+idx);pf.textContent=yen(r.profit);pf.className='v '+(r.profit<0?'loss':'ok');document.getElementById('mg'+idx).textContent=r.margin.toFixed(1)+'%';document.getElementById('rf'+idx).textContent=yen(r.refund);}
+function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
+
+
+['rate','fvf','intl','fx','promo','fixed','targetMargin','shipUS','shipOther','refund'].forEach(function(id){document.getElementById(id).addEventListener('input',recalcAll);});
+
+(function(){try{var saved=JSON.parse(localStorage.getItem(LS_INV)||'null');
+  if(saved&&saved.items&&saved.items.length){ITEMS=saved.items;
+    window.ITEM_IMAGES=window.ITEM_IMAGES||{};ITEMS.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});}
+}catch(e){}})();
+restoreAll();
+var incoming=handleIncoming();
+var actId=localStorage.getItem(LS_ACTIVE);if(actId){ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}
+renderAll();
+// メンテ中の商品へスクロール（在庫ありセクションは折りたたみのため開く）
+if(activeIdx!==null){
+  var t=stockType(ITEMS[activeIdx]);
+  if(t==='in'){var det=document.querySelector('#secIn details');if(det)det.open=true;}
+  setTimeout(function(){var el=document.getElementById('card'+activeIdx);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});}},250);
+}
+
+function invImportCosts(data){
+  var m=data.items||{}; var hit=0, miss=0;
+  ITEMS.forEach(function(it,i){
+    var e=m[String(it.id)];
+    if(e&&e.candidates&&e.candidates.length){
+      supplies[i]=e.candidates.map(function(c){return {price:c.price,url:c.url||''};}).slice(0,5);
+      hit++;
+    }
+  });
+  Object.keys(m).forEach(function(id){ var found=ITEMS.some(function(it){return String(it.id)===String(id);}); if(!found)miss++; });
+  saveSupplies(); renderAll();
+  return '仕入れ候補を取り込みました（'+hit+'商品）'+(miss?'。在庫一覧に無い'+miss+'商品分は未反映':'');
+}
+function invLoadInventory(data){
+  var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay};});
+  if(!ni.length){alert('在庫データが空です');return;}
+  ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();renderAll();
+  try{localStorage.setItem(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:ni}));}catch(e){}
+  window.ITEM_IMAGES=window.ITEM_IMAGES||{};ni.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});
+  if(typeof window.paRerender==='function')window.paRerender();
+  showToast('在庫データを読み込みました（'+ni.length+'件）');
+}
+
+</script>
+<script>
+
+// A案=利益率5%以上ライバル最安の僅か下 / B案=赤字でないライバル最安の僅か下 / C案=利益率3/5/8/10%
+const SAMPLE={ environment:"production", items:[
+  { item_id:"354782571613", title:"ONE PIECE Yamato OP01-121 Parallel secret Japanese",
+    current_price_usd:59.90, cost_yen:6980, ship_yen:2115, recommended:"a", market_deviation_flag:false,
+    reference_listing_url:"https://www.ebay.com/itm/1",
+    option_a:{price_usd:57.40,profit_yen:1294,margin_pct:14.0},
+    option_b:{price_usd:55.90,profit_yen:1050,margin_pct:11.4},
+    option_c:{ "3":{price_usd:47.98,profit_yen:232}, "5":{price_usd:49.10,profit_yen:400},
+               "8":{price_usd:50.90,profit_yen:660}, "10":{price_usd:52.10,profit_yen:825},
+               "15":{price_usd:55.30,profit_yen:1240}, "20":{price_usd:58.90,profit_yen:1660}, "default":"5" },
+    rivals:[ {title:"Yamato Parallel SEC ROMANCE DAWN JP",total_usd:57.50,url:"#",qualifies_a:true,qualifies_b:true,rival_item_id:"v1|1111|0",image_url:null},
+             {title:"Yamato (normal) JP",total_usd:2.84,url:"#",qualifies_a:false,qualifies_b:false,rival_item_id:"v1|2222|0",image_url:null} ] },
+  { item_id:"354674193864", title:"Atelier Of Witch Hat limited Art Book",
+    current_price_usd:62.00, cost_yen:5200, ship_yen:2115, recommended:"a", market_deviation_flag:false,
+    reference_listing_url:"https://www.ebay.com/itm/2",
+    option_a:{price_usd:56.30,profit_yen:808,margin_pct:8.9},
+    option_b:{price_usd:54.40,profit_yen:560,margin_pct:6.4},
+    option_c:{ "3":{price_usd:51.30,profit_yen:245}, "5":{price_usd:52.40,profit_yen:410},
+               "8":{price_usd:54.10,profit_yen:660}, "10":{price_usd:55.30,profit_yen:825}, "default":"5" },
+    rivals:[ {title:"Witch Hat Atelier Art Book Illustration",total_usd:56.40,url:"#",qualifies_a:true,qualifies_b:true},
+             {title:"Witch Hat Atelier 10 (Paperback)",total_usd:13.73,url:"#",qualifies_a:false,qualifies_b:false} ] },
+  { item_id:"354886916236", title:"USJ Teresa Boo & Super mushroom headband Japan",
+    current_price_usd:86.20, recommended:"a", market_deviation_flag:true,
+    last_choice:{choice:"b"},
+    market_deviation_note:"現在価格$86.20が、同種の安いセラー相場より高い可能性",
+    reference_listing_url:"https://www.ebay.com/itm/3",
+    option_a:{price_usd:63.95,profit_yen:2126,margin_pct:20.6},
+    option_b:{price_usd:48.00,profit_yen:120,margin_pct:1.5},
+    option_c:{ "3":{price_usd:51.30,profit_yen:245}, "5":{price_usd:52.40,profit_yen:410},
+               "8":{price_usd:54.10,profit_yen:660}, "10":{price_usd:55.30,profit_yen:825}, "default":"5" },
+    rivals:[ {title:"USJ Boo & mushroom headband set JP",total_usd:64.05,url:"#",qualifies_a:true,qualifies_b:true},
+             {title:"USJ Teresa Boo headband JP",total_usd:28.00,url:"#",qualifies_a:false,qualifies_b:true} ] }
+]};
+
+let DATA=SAMPLE;
+const state={}; // id -> {checked, choice:'a'|'b'|'c'|'m', cpct:'5', manual:null}
+function money(v){return "$"+Number(v).toFixed(2);}
+
+const UNDERCUT=0.10; // ライバル指定時：基準ライバルの総額から下げる幅（A/B案と同じ「僅か下」）
+function pickedRival(it){
+  const s=state[it.item_id]; if(!s||s.choice!=='r'||!s.rival) return null;
+  return (it.rivals||[]).find(r=>r.rival_item_id===s.rival)||null;
+}
+function chosenPrice(it){
+  const s=state[it.item_id];
+  if(s.choice==='a') return it.option_a?.price_usd ?? null;
+  if(s.choice==='b') return it.option_b?.price_usd ?? null;
+  if(s.choice==='c') return it.option_c?.[s.cpct]?.price_usd ?? null;
+  if(s.choice==='m') return (s.manual!=null&&!isNaN(s.manual))?s.manual:null;
+  if(s.choice==='r'){ const r=pickedRival(it); return r?Math.max(0, Math.round((r.total_usd-UNDERCUT)*100)/100):null; }
+  return null;
+}
+function chosenProfit(it){
+  const s=state[it.item_id];
+  if(s.choice==='a') return it.option_a?.profit_yen;
+  if(s.choice==='b') return it.option_b?.profit_yen;
+  if(s.choice==='c') return it.option_c?.[s.cpct]?.profit_yen;
+  return null; // 手入力・ライバル指定はPython側で計算
+}
+function priceStatus(it){
+  const p=chosenPrice(it); if(p==null) return {level:'warn',msg:'価格が未入力です'};
+  const cur=it.current_price_usd, r=p/cur;
+  if(r>=2.0) return {level:'danger',msg:`現在価格の${r.toFixed(1)}倍。打ち間違いの可能性`};
+  if(r<=0.5) return {level:'danger',msg:`現在価格の${Math.round(r*100)}%（半額以下）。打ち間違いの可能性`};
+  if(state[it.item_id].choice==='m') return {level:'info',msg:'手入力価格は反映前にPython側で正確に利益計算・赤字チェックします'};
+  if(state[it.item_id].choice==='r') return {level:'info',msg:'ライバル指定価格は反映前にPython側で正確に利益計算・赤字チェックします'};
+  return {level:'ok',msg:''};
+}
+
+function render(){
+  const list=document.getElementById("list"); list.innerHTML="";
+  DATA.items.forEach(it=>{
+    if(it.excluded){
+      const d=document.createElement("div"); d.className="card excluded";
+      d.innerHTML=`<div><div class="title"><span class="exbadge">除外</span>${it.title}</div>
+        <div class="cur">現在 ${money(it.current_price_usd)} ／ 理由：${it.reason||"おすすめ売価が出せませんでした"}</div></div>`;
+      list.appendChild(d); return;
+    }
+    if(!(it.item_id in state)){
+      const def=(it.option_c?.default)||'5';
+      // 初期選択：前回の選択(last_choice)があればそれを優先、なければ推奨(recommended)
+      const lc = it.last_choice; // Python側: {choice:'a'|'b'|'c'|'m'|'r', c_margin?:'5', manual_price_usd?:65.0, rival_item_id?:'v1|…'}
+      if(lc && lc.choice){
+        const lcC = lc.c_margin!=null ? String(lc.c_margin) : (lc.cpct!=null ? String(lc.cpct) : null);
+        const lcM = lc.manual_price_usd!=null ? lc.manual_price_usd : (lc.manual!=null ? lc.manual : null);
+        let ch=lc.choice, rv=null, rgone=false;
+        if(ch==='r'){
+          const found=(it.rivals||[]).find(r=>r.rival_item_id===lc.rival_item_id);
+          if(found){ rv=lc.rival_item_id; }
+          else { ch=(it.recommended||'a'); rgone=true; } // 基準ライバル消滅→通常ロジックに戻す
+        }
+        state[it.item_id]={checked:true, choice:ch,
+                           cpct:(lcC||def), manual:(lcM!=null?Number(lcM):null), rival:rv, rivalGone:rgone};
+      } else {
+        state[it.item_id]={checked:true, choice:(it.recommended||'a'), cpct:def, manual:null, rival:null, rivalGone:false};
+      }
+    }
+    const s=state[it.item_id]; const warn=it.market_deviation_flag;
+    const card=document.createElement("div");
+    card.className="card"+(warn?" warn":"")+(s.checked?"":" unchecked");
+
+    const p=chosenPrice(it), pf=chosenProfit(it), st=priceStatus(it);
+    let deltaHtml="";
+    if(p!=null){const pct=((p-it.current_price_usd)/it.current_price_usd*100);
+      deltaHtml=`<span class="delta ${pct<0?'down':'up'}">${pct>0?'+':''}${pct.toFixed(1)}%</span>`;}
+
+    const oa=it.option_a, ob=it.option_b, oc=it.option_c;
+    const aNA=!oa, bNA=!ob;
+    const cpcts=["3","5","8","10","15","20"];
+    const cCur=oc?oc[s.cpct]:null;
+
+    card.innerHTML=`
+      <div class="chk"><input type="checkbox" ${s.checked?"checked":""} data-id="${it.item_id}"></div>
+      <div>
+        ${(function(){
+          var u=paGetImage(it.item_id);
+          var s=state[it.item_id]; var ref=null;
+          if(s&&s.choice==='r'){ref=pickedRival(it);}
+          if(!ref&&it.reference_listing_url){ref=(it.rivals||[]).find(r=>r.url===it.reference_listing_url)||null;}
+          if(!u&&!ref)return "";
+          var h='<div class="pthumbs">';
+          if(u)h+=`<figure><img class="mythumb" src="${u}" loading="lazy" alt=""><figcaption>自分</figcaption></figure>`;
+          if(ref&&ref.image_url)h+=`<figure><a href="${ref.url}" target="_blank" rel="noopener"><img class="mythumb refimg" src="${ref.image_url}" loading="lazy" alt=""></a><figcaption>基準 ${money(ref.total_usd)}</figcaption></figure>`;
+          return h+'</div>';
+        })()}
+        <div class="title">${it.title}</div>
+        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
+          const lc=it.last_choice; if(!lc||!lc.choice) return "";
+          const lcC=(lc.c_margin!=null?lc.c_margin:lc.cpct)||"5";
+          const lcM=(lc.manual_price_usd!=null?lc.manual_price_usd:lc.manual);
+          const nm={a:"A案（競争）",b:"B案（攻め）",c:"C案 "+lcC+"%",m:"手入力"+(lcM!=null?(" $"+Number(lcM).toFixed(2)):""),r:"ライバル指定"}[lc.choice]||"";
+          return ` <span class="lastpick">前回：${nm}</span>`;
+        })()}</div>
+        <div class="sel-line">選んだ価格 <b>${p!=null?money(p):"—"}</b>${deltaHtml}
+          ${pf!=null?` <span class="muted">利益 約${Math.round(pf).toLocaleString()}円</span>`:((s.choice==='m'||s.choice==='r')?` <span class="muted">利益はPython側で計算</span>`:"")}</div>
+        <div class="options">
+          <div class="opt ${aNA?'na':''} ${s.choice==='a'?'selected':''}" data-id="${it.item_id}" data-choice="a">
+            ${it.recommended==='a'?'<span class="rec">推奨</span>':''}
+            <div class="lab">A案 競争(利益5%↑)</div>
+            <div class="pr">${oa?money(oa.price_usd):"N/A"}</div>
+            <div class="pf">${oa?`利益 ${Math.round(oa.profit_yen).toLocaleString()}円 / ${oa.margin_pct.toFixed(1)}%`:"適格ライバルなし"}</div>
+          </div>
+          <div class="opt ${bNA?'na':''} ${s.choice==='b'?'selected':''}" data-id="${it.item_id}" data-choice="b">
+            ${it.recommended==='b'?'<span class="rec">推奨</span>':''}
+            <div class="lab">B案 攻め(赤字回避)</div>
+            <div class="pr">${ob?money(ob.price_usd):"N/A"}</div>
+            <div class="pf">${ob?`利益 ${Math.round(ob.profit_yen).toLocaleString()}円 / ${ob.margin_pct.toFixed(1)}%`:"適格ライバルなし"}</div>
+          </div>
+          <div class="opt cwrap ${s.choice==='c'?'selected':''}" data-id="${it.item_id}" data-choice="c">
+            ${it.recommended==='c'?'<span class="rec">推奨</span>':''}
+            <div class="lab">C案 利益率で決める</div>
+            <div class="pr">${cCur?money(cCur.price_usd):"—"}</div>
+            <div class="pf">${cCur?`利益 ${Math.round(cCur.profit_yen).toLocaleString()}円`:""}</div>
+            <div class="cbtns">${cpcts.map(pc=>`<span class="cbtn ${s.cpct===pc?'on':''}" data-cpct="${it.item_id}:${pc}">${pc}%</span>`).join("")}</div>
+          </div>
+          <div class="opt manual ${s.choice==='m'?'selected':''}" data-id="${it.item_id}" data-choice="m">
+            <div class="lab">手入力</div>
+            <input type="number" step="0.01" min="0" placeholder="例 65.00" value="${s.manual!=null?s.manual:''}" data-manual="${it.item_id}">
+            <div class="pf">自分で決める</div>
+          </div>
+        </div>
+        ${warn?`<div class="warnbox">⚠️ ${it.market_deviation_note||"相場乖離の疑い。根拠ライバルを確認してください"}</div>`:""}
+        ${st.level==='danger'?`<div class="dangerbox">🚫 ${st.msg}（このままでは承認できません）</div>`:""}
+        ${st.level==='info'?`<div class="warnbox">ℹ️ ${st.msg}</div>`:""}
+        <div class="row-actions">${it.reference_listing_url?`<a href="${it.reference_listing_url}" target="_blank" rel="noopener">根拠にしたライバルを見る ↗</a>`:""}<a href="https://www.ebay.com/sh/research?marketplace=EBAY-US&keywords=${encodeURIComponent(it.title||"")}&dayRange=90&tabName=SOLD" target="_blank" rel="noopener" style="margin-left:12px">テラピークで確認 ↗</a></div>
+        <details class="reb" ${s.choice==='r'||s.rivalGone?'open':''}><summary>ライバルを選び直す${s.choice==='r'?'（指定中）':''}</summary>
+          <div class="ph">「この商品と同じ」ライバルを選ぶと、その総額の $${UNDERCUT.toFixed(2)} 下を価格候補にします。利益は反映前にPython側で正確に計算します。選んだ基準は記録され次回に活かされます。</div>
+          <label class="rauto ${s.choice!=='r'?'picked':''}">
+            <input type="radio" name="rv-${it.item_id}" data-rauto="${it.item_id}" ${s.choice!=='r'?'checked':''}>
+            自動（ツールのロジックに任せる：A/B/C案・手入力）
+          </label>
+          ${(it.rivals||[]).map(r=>{
+            const canPick=!!r.rival_item_id;
+            const on=(s.choice==='r'&&s.rival===r.rival_item_id);
+            return `<label class="rival ${on?'picked':''}">
+              <input type="radio" name="rv-${it.item_id}" data-rpick="${it.item_id}" data-rid="${r.rival_item_id||''}" ${on?'checked':''} ${canPick?'':'disabled'}>
+              ${r.image_url?`<img src="${r.image_url}" loading="lazy" alt="">`:`<div class="noimg">画像なし</div>`}
+              <span class="rt">${r.title}<small>${r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外')}${canPick?'':'／ID無しのため指定不可'}</small></span>
+              <span><a href="${r.url}" target="_blank" rel="noopener" data-stop="1">${money(r.total_usd)}</a></span>
+            </label>`;}).join("")}
+          ${s.rivalGone?`<div class="rgone">⚠️ 前回の基準ライバルは今回見つかりませんでした（売り切れ・出品終了の可能性）。通常ロジックに戻しています。</div>`:""}
+        </details>
+      </div>`;
+    list.appendChild(card);
+  });
+
+  document.querySelectorAll('input[type=checkbox][data-id]').forEach(cb=>{
+    cb.onchange=e=>{state[e.target.dataset.id].checked=e.target.checked; render();};
+  });
+  document.querySelectorAll('.opt[data-choice]').forEach(o=>{
+    o.onclick=e=>{
+      if(e.target.matches('input[data-manual]')) return;
+      if(e.target.matches('.cbtn')) return;
+      if(o.classList.contains('na')) return;
+      state[o.dataset.id].choice=o.dataset.choice; render();
+    };
+  });
+  document.querySelectorAll('.cbtn[data-cpct]').forEach(b=>{
+    b.onclick=e=>{ e.stopPropagation();
+      const [id,pc]=b.dataset.cpct.split(':');
+      state[id].choice='c'; state[id].cpct=pc; render();
+    };
+  });
+  document.querySelectorAll('input[data-manual]').forEach(inp=>{
+    inp.oninput=e=>{ const id=e.target.dataset.manual; state[id].choice='m';
+      const v=parseFloat(e.target.value); state[id].manual=isNaN(v)?null:v; render();
+      const again=document.querySelector(`input[data-manual="${id}"]`);
+      if(again){again.focus(); const val=again.value; again.value=''; again.value=val;}
+    };
+  });
+  document.querySelectorAll('input[data-rpick]').forEach(rd=>{
+    rd.onchange=e=>{ const id=e.target.dataset.rpick;
+      state[id].choice='r'; state[id].rival=e.target.dataset.rid; state[id].rivalGone=false; render(); };
+  });
+  document.querySelectorAll('input[data-rauto]').forEach(rd=>{
+    rd.onchange=e=>{ const id=e.target.dataset.rauto; const it=DATA.items.find(x=>x.item_id===id);
+      if(state[id].choice==='r'){ state[id].choice=(it&&it.recommended)||'a'; }
+      state[id].rival=null; render(); };
+  });
+  document.querySelectorAll('.rival a[data-stop]').forEach(a=>{ a.onclick=e=>e.stopPropagation(); });
+  updateCount();
+}
+function updateCount(){
+  let sel=0,warns=0,blocked=0;
+  DATA.items.forEach(it=>{ if(it.excluded) return; const s=state[it.item_id]; if(!s.checked) return;
+    sel++; if(it.market_deviation_flag) warns++; if(priceStatus(it).level==='danger') blocked++; });
+  document.getElementById("selCount").textContent=sel;
+  let note=""; if(warns) note+=`（⚠️注意 ${warns}件`; if(blocked) note+=`${warns?'／':'（'}🚫要修正 ${blocked}件`; if(warns||blocked) note+="）";
+  document.getElementById("warnCount").textContent=note;
+  document.getElementById("approveBtn").disabled=(sel===0||blocked>0);
+}
+document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded)state[it.item_id].checked=true;});render();};
+document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded)state[it.item_id].checked=false;});render();};
+document.getElementById("approveBtn").onclick=()=>{
+  const approved=DATA.items.filter(it=>!it.excluded&&state[it.item_id].checked);
+  const warns=approved.filter(it=>it.market_deviation_flag);
+  const manuals=approved.filter(it=>state[it.item_id].choice==='m');
+  let msg=`${approved.length}件を承認します。`;
+  if(warns.length) msg+=`\n\n⚠️ 注意商品 ${warns.length}件（根拠ライバルは確認しましたか？）`;
+  if(manuals.length) msg+=`\n\n手入力 ${manuals.length}件は、反映前にPython側で正確に利益・赤字チェックします。`;
+  msg+=`\n\n本当によろしいですか？`;
+  if(!confirm(msg)) return;
+  const out={approved_at:new Date().toISOString(),
+    approved_items:approved.map(it=>{const s=state[it.item_id];
+      const rv=(s.choice==='r')?pickedRival(it):null;
+      return {item_id:it.item_id, new_price_usd:chosenPrice(it),
+              chosen:s.choice, c_margin: s.choice==='c'? s.cpct : undefined,
+              rival_item_id: rv? rv.rival_item_id : undefined,
+              rival_total_usd: rv? rv.total_usd : undefined};})};
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="approved_result.json"; a.click();
+  alert("承認結果を approved_result.json として書き出しました。\nPython側で最終チェック（極端値・赤字）を通してから反映します。");
+};
+window.paRerender=function(){ if(DATA&&DATA.items) render(); };
+function paGetImage(id){
+  if(window.ITEM_IMAGES&&window.ITEM_IMAGES[id])return window.ITEM_IMAGES[id];
+  try{var s=JSON.parse(localStorage.getItem("ss_inventory_v1")||"null");
+    if(s&&s.items){window.ITEM_IMAGES=window.ITEM_IMAGES||{};
+      s.items.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});
+      return window.ITEM_IMAGES[id]||null;}
+  }catch(e){}
+  return null;
+}
+function paApply(obj,fname,loadedAt){
+  DATA=obj; for(const k in state) delete state[k];
+  var age=(Date.now()-new Date(loadedAt).getTime())/3600000;
+  var note="計画ファイル："+(fname||"")+"（"+new Date(loadedAt).toLocaleString("ja-JP")+" 読み込み）";
+  if(age>24) note+=" ⚠️ 24時間以上前の計画です。作り直しを推奨";
+  document.getElementById("loadStatus").textContent=note;
+  render();
+  var n=(DATA.items||[]).filter(function(it){return !it.excluded;}).length;
+  var b=document.getElementById("paBadge"); if(b){b.textContent=n; b.style.display=n?"inline-block":"none";}
+}
+window.paLoadPlan=function(obj,fname){
+  var loadedAt=new Date().toISOString();
+  try{localStorage.setItem("pa_plan_v1",JSON.stringify({loaded_at:loadedAt,fname:fname||"",plan:obj}));}catch(e){}
+  paApply(obj,fname,loadedAt);
+};
+(function(){try{var s=JSON.parse(localStorage.getItem("pa_plan_v1")||"null");
+  if(s&&s.plan&&s.plan.items){paApply(s.plan,s.fname,s.loaded_at);}
+}catch(e){}})();
+render();
+
+</script>
+<script>
+
+function showMainTab(t){
+  document.getElementById('tabInv').style.display=(t==='inv')?'block':'none';
+  document.getElementById('tabPa').style.display=(t==='pa')?'block':'none';
+  document.getElementById('btnInv').classList.toggle('on',t==='inv');
+  document.getElementById('btnPa').classList.toggle('on',t==='pa');
+}
+document.getElementById('unifiedFile').addEventListener('change',function(e){
+  var files=Array.prototype.slice.call(e.target.files);
+  var msgs=[], pending=files.length;
+  function done(){ if(--pending<=0 && msgs.length && typeof showToast==='function'){ showToast(msgs.join(' ／ ')); } }
+  // 在庫データを先に、costs/計画を後に処理（取り込み先のITEMSを先に整えるため）
+  files.sort(function(a,b){
+    var pa=/在庫|inventory/.test(a.name)?0:1, pb=/在庫|inventory/.test(b.name)?0:1; return pa-pb;
+  });
+  var chain=Promise.resolve();
+  files.forEach(function(f){
+    chain=chain.then(function(){ return new Promise(function(res){
+      var r=new FileReader();
+      r.onload=function(){
+        try{
+          var obj=JSON.parse(r.result);
+          var itemsIsArray=Array.isArray(obj.items);
+          var first=(itemsIsArray&&obj.items[0])||{};
+          if(itemsIsArray&&(first.stock_status!==undefined||obj.generated_at)){ invLoadInventory(obj); msgs.push('在庫データ '+((obj.items||[]).length)+'件'); }
+          else if(itemsIsArray&&(first.current_price_usd!==undefined||first.option_a!==undefined||obj.environment)){ window.paLoadPlan(obj,f.name); msgs.push('価格計画を読み込み'); }
+          else if(obj.items&&!itemsIsArray){ msgs.push(invImportCosts(obj)); }
+          else{ alert(f.name+'：どちらの形式か判別できませんでした'); }
+        }catch(err){ alert(f.name+'：JSONとして読み込めませんでした'); }
+        done(); res();
+      };
+      r.readAsText(f);
+    });});
+  });
+  e.target.value='';
+});
+showMainTab('inv');
+
+</script>
+</body>
+</html>
