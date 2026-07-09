@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>eBay輸出メンテツール（統合版 v1.2）</title>
+<title>eBay輸出メンテツール（統合版 v1.3）</title>
 <style>
 body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP',sans-serif}
 .shellhead{background:#fff;border-bottom:1px solid #ddd;padding:10px 16px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:200;flex-wrap:wrap}
@@ -20,6 +20,7 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabPa .pthumbs figure{margin:0;text-align:center}
 #tabPa .pthumbs figcaption{font-size:10px;color:#7a8194;margin-top:2px}
 #tabPa .pthumbs .refimg{border-color:#2f6fed}
+#tabPa .dropwarn{font-size:12px;background:#fff6e6;border:1px solid #ecd9a8;color:#9a6b00;border-radius:7px;padding:6px 10px;margin:4px 0}
 #tabInv .head{display:flex;align-items:flex-start}
 #tabInv .head > div:nth-child(2), #tabInv .head > div:first-child:not(img){flex:1}
 #tabInv .nfbadge{display:inline-block;font-size:10px;font-weight:700;background:#faece7;color:#a8341f;padding:2px 8px;border-radius:4px;margin-left:6px}
@@ -48,6 +49,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .wchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
 .wchip{font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
 .wchip.on{background:#1d6f56;border-color:#1d6f56;color:#fff}
+.chip.maint{background:#fff3d6;color:#8a5b00}
+.mbadge{display:inline-block;font-size:10px;font-weight:700;background:#fff3d6;color:#8a5b00;padding:2px 8px;border-radius:4px;margin-left:6px}
 #tabInv .chip.out{background:var(--danger-bg);color:var(--danger)}
 #tabInv .chip.err{background:var(--warn-bg);color:var(--warn-ink)}
 #tabInv .chip.in{background:var(--ok-bg);color:var(--ok)}
@@ -187,7 +190,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.2</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.3</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -220,12 +223,14 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
     <span class="chip out" id="outChip" onclick="jumpTo('secOut')" title="クリックでジャンプ">在庫切れ 2</span>
     <span class="chip err" id="errChip" onclick="jumpTo('secErr')" title="クリックでジャンプ">要確認 2</span>
     <span class="chip in" id="inChip" onclick="jumpTo('secIn')" title="クリックでジャンプ">在庫あり 4</span>
+    <span class="chip maint" id="maintChip" onclick="onMaintJump()" title="クリックで売価メンテ順に並べ替え" style="display:none">⚠️売価メンテ 0</span>
     <input type="text" id="q" placeholder="商品名・IDで絞り込み" oninput="onQuery(this.value)" style="flex:1;min-width:150px;max-width:260px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
     <select id="sortSel" onchange="onSort(this.value)" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px">
       <option value="sheet">スプシ順</option>
       <option value="name">名前順</option>
       <option value="costHigh">仕入れ値が高い順</option>
       <option value="costLow">仕入れ値が安い順</option>
+      <option value="mainte">⚠️売価メンテ必要順（再出品が近い順）</option>
     </select>
     
     <button class="btn" id="exportCostBtn" onclick="exportCosts()" title="登録した仕入れ候補の最安値を、価格メンテツール（Python）用に書き出します">仕入れ値・重量を書き出す</button>
@@ -409,6 +414,19 @@ function detectCategory(title){
   if(/novel|\bbook\b/i.test(t))return 'book_small';
   return null;
 }
+function mainteInfo(it){
+  // 計画ファイル（永続化済み）から値下がり警告と再出品日を引く
+  try{
+    var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
+    var pit=s&&s.plan&&s.plan.items?s.plan.items.find(function(p){return String(p.item_id)===String(it.id);}):null;
+    var inv=it; // inventory JSON由来のrenewal
+    var days=(pit&&pit.days_to_renewal!=null)?pit.days_to_renewal:(inv.days_to_renewal!=null?inv.days_to_renewal:null);
+    var pct=pit&&pit.below_breakeven_pct!=null?pit.below_breakeven_pct:null;
+    var suspect=!!(pit&&pit.price_drop_suspect);
+    var bench=pit&&pit.benchmark_dropped?pit.benchmark_dropped:null;
+    return {suspect:suspect,pct:pct,days:days,bench:bench};
+  }catch(e){return {suspect:false,pct:null,days:(it.days_to_renewal!=null?it.days_to_renewal:null),bench:null};}
+}
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
 function saveWeights(w){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
 function resolveWeight(it){
@@ -486,7 +504,11 @@ function cardHtml(it,idx){
   var existing=(it.urls||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">仕入'+(i+1)+'</a>';}).join('');
   var added=(addUrls[idx]||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">追加'+(i+1)+'</a> <button class="del" onclick="delAddUrl('+idx+','+i+')">×</button>';}).join(' ');
   return '<div class="card '+t+(isActive?' active':'')+'" id="card'+idx+'">'+
-    '<div class="head">'+(it.image_url?'<img class="mythumb" src="'+esc(it.image_url)+'" loading="lazy" alt="">':'')+'<div><div class="name">'+esc(it.title||it.name)+(isActive?'<span class="mentelabel">メンテ中</span>':'')+(it.not_found_on_ebay?'<span class="nfbadge">eBayで見つかりません</span>':'')+'</div>'+
+    '<div class="head">'+(it.image_url?'<img class="mythumb" src="'+esc(it.image_url)+'" loading="lazy" alt="">':'')+'<div><div class="name">'+esc(it.title||it.name)+(isActive?'<span class="mentelabel">メンテ中</span>':'')+(it.not_found_on_ebay?'<span class="nfbadge">eBayで見つかりません</span>':'')+(function(){
+      var m=mainteInfo(it); if(!m.suspect)return '';
+      var d=(m.days!=null)?('（再出品まで'+m.days+'日）'):'';
+      return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
+    })()+'</div>'+
     '<div class="meta">eBay #'+it.id+'</div></div><span class="st '+t+'">'+stLabel+'</span></div>'+
     '<div class="searchrow">'+
       '<div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="'+esc(keywords[idx])+'" oninput="onKw('+idx+',this.value)"></div>'+
@@ -529,7 +551,19 @@ function sortIdx(arr){
   if(sortMode==='name') a.sort(function(x,y){return ITEMS[x].name.localeCompare(ITEMS[y].name,'ja');});
   else if(sortMode==='costHigh') a.sort(function(x,y){return (minCost(y)||-1)-(minCost(x)||-1);});
   else if(sortMode==='costLow') a.sort(function(x,y){return (minCost(x)||Infinity)-(minCost(y)||Infinity);});
+  else if(sortMode==='mainte') a.sort(function(x,y){
+    var mx=mainteInfo(ITEMS[x]),my=mainteInfo(ITEMS[y]);
+    if(mx.suspect!==my.suspect)return mx.suspect?-1:1;              // 警告ありが先
+    var dx=(mx.days!=null?mx.days:9999),dy=(my.days!=null?my.days:9999);
+    if(dx!==dy)return dx-dy;                                        // 再出品が近い順
+    return (my.pct||0)-(mx.pct||0);                                 // 同日なら下回り率が高い順
+  });
   return a; // 'sheet'はスプシの並びのまま
+}
+function onMaintJump(){
+  sortMode='mainte'; var sel=document.getElementById('sortSel'); if(sel)sel.value='mainte';
+  renderAll();
+  var el=document.getElementById('secOut'); if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function matchQuery(it){
   if(!query) return true;
@@ -552,6 +586,9 @@ function renderAll(){
   document.getElementById('outChip').textContent='在庫切れ '+groups.out.length;
   document.getElementById('errChip').textContent='要確認 '+groups.err.length;
   document.getElementById('inChip').textContent='在庫あり '+groups.in.length;
+  (function(){var n=0;ITEMS.forEach(function(it){if(mainteInfo(it).suspect)n++;});
+    var c=document.getElementById('maintChip');
+    if(c){c.textContent='⚠️売価メンテ '+n;c.style.display=n?'inline-block':'none';}})();
 
   var so=document.getElementById('secOut');
   so.innerHTML='<h2>在庫切れ（補充が必要） '+groups.out.length+'件'+suffix+'</h2>'+(groups.out.length?groups.out.map(function(i){return cardHtml(ITEMS[i],i);}).join(''):'<div class="empty">'+(query?'絞り込みに該当なし':'在庫切れはありません')+'</div>');
@@ -768,6 +805,8 @@ function render(){
           return h+'</div>';
         })()}
         <div class="title">${it.title}</div>
+        ${it.price_drop_suspect?`<div class="dropwarn" style="${(it.below_breakeven_pct||0)>=75?'background:#fbeaea;border-color:#e5b8b8;color:#8c2f2f':''}">⚠️ ライバルの${it.below_breakeven_pct}%があなたの損益分岐点を下回っています。仕入れ相場が下がった可能性 → 在庫メンテタブでメルカリ相場を確認し、安い候補があれば登録し直してください${it.days_to_renewal!=null?`（再出品まで${it.days_to_renewal}日）`:""}</div>`:""}
+        ${it.benchmark_dropped?`<div class="dropwarn">📉 前回の基準ライバルが ${money(it.benchmark_dropped.prev_usd)} → ${money(it.benchmark_dropped.now_usd)} に値下げしています</div>`:""}
         <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
           const lc=it.last_choice; if(!lc||!lc.choice) return "";
           const lcC=(lc.c_margin!=null?lc.c_margin:lc.cpct)||"5";
