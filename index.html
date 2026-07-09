@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>eBay輸出メンテツール（統合版 v1.3）</title>
+<title>eBay輸出メンテツール（統合版 v1.4）</title>
 <style>
 body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP',sans-serif}
 .shellhead{background:#fff;border-bottom:1px solid #ddd;padding:10px 16px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:200;flex-wrap:wrap}
@@ -21,6 +21,10 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabPa .pthumbs figcaption{font-size:10px;color:#7a8194;margin-top:2px}
 #tabPa .pthumbs .refimg{border-color:#2f6fed}
 #tabPa .dropwarn{font-size:12px;background:#fff6e6;border:1px solid #ecd9a8;color:#9a6b00;border-radius:7px;padding:6px 10px;margin:4px 0}
+#tabPa .renew{font-size:12px;color:#556}
+#tabPa .renew.soon{color:#b45309;font-weight:700}
+#tabPa .goinv{font-size:11.5px;margin-left:10px;color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+#tabInv .card.flash{outline:3px solid #f0b429;outline-offset:2px;transition:outline .3s}
 #tabInv .head{display:flex;align-items:flex-start}
 #tabInv .head > div:nth-child(2), #tabInv .head > div:first-child:not(img){flex:1}
 #tabInv .nfbadge{display:inline-block;font-size:10px;font-weight:700;background:#faece7;color:#a8341f;padding:2px 8px;border-radius:4px;margin-left:6px}
@@ -190,7 +194,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.3</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.4</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -331,6 +335,12 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
   <div class="loadbar">
     <span>計画ファイル：</span>
     <span class="muted" id="loadStatus">まだ読み込んでいません（下はサンプル表示）</span>
+    <select id="paSort" onchange="window.paSortMode=this.value;render();" style="margin-left:auto;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+      <option value="plan">計画順</option>
+      <option value="renewAsc">再出品が近い順</option>
+      <option value="renewDesc">再出品が遠い順</option>
+      <option value="unmainte">メンテされていない順</option>
+    </select>
   </div>
   <div class="toolbar">
     <button id="allOn">すべてチェック</button>
@@ -563,7 +573,14 @@ function sortIdx(arr){
 function onMaintJump(){
   sortMode='mainte'; var sel=document.getElementById('sortSel'); if(sel)sel.value='mainte';
   renderAll();
-  var el=document.getElementById('secOut'); if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+  var idx=-1; ITEMS.forEach(function(it,i){if(idx<0&&mainteInfo(it).suspect)idx=i;});
+  setTimeout(function(){
+    var card=(idx>=0)?document.getElementById('card'+idx):null;
+    if(card){var det=card.closest('details');if(det)det.open=true;
+      card.scrollIntoView({behavior:'smooth',block:'center'});
+      card.classList.add('flash');setTimeout(function(){card.classList.remove('flash');},2400);}
+    else{var el=document.getElementById('secOut');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
+  },80);
 }
 function matchQuery(it){
   if(!query) return true;
@@ -748,9 +765,21 @@ function priceStatus(it){
   return {level:'ok',msg:''};
 }
 
+window.paSortMode=window.paSortMode||'plan';
+function paSorted(items){
+  const a=items.slice(); const m=window.paSortMode;
+  if(m==='renewAsc') a.sort((x,y)=>((x.days_to_renewal??9999)-(y.days_to_renewal??9999)));
+  else if(m==='renewDesc') a.sort((x,y)=>((y.days_to_renewal??-1)-(x.days_to_renewal??-1)));
+  else if(m==='unmainte') a.sort((x,y)=>{
+    const ax=x.last_choice&&x.last_choice.approved_at?Date.parse(x.last_choice.approved_at):0;
+    const ay=y.last_choice&&y.last_choice.approved_at?Date.parse(y.last_choice.approved_at):0;
+    return ax-ay; // 古い（またはメンテ歴なし=0）が先
+  });
+  return a;
+}
 function render(){
   const list=document.getElementById("list"); list.innerHTML="";
-  DATA.items.forEach(it=>{
+  paSorted(DATA.items).forEach(it=>{
     if(it.excluded){
       const d=document.createElement("div"); d.className="card excluded";
       d.innerHTML=`<div><div class="title"><span class="exbadge">除外</span>${it.title}</div>
@@ -807,7 +836,7 @@ function render(){
         <div class="title">${it.title}</div>
         ${it.price_drop_suspect?`<div class="dropwarn" style="${(it.below_breakeven_pct||0)>=75?'background:#fbeaea;border-color:#e5b8b8;color:#8c2f2f':''}">⚠️ ライバルの${it.below_breakeven_pct}%があなたの損益分岐点を下回っています。仕入れ相場が下がった可能性 → 在庫メンテタブでメルカリ相場を確認し、安い候補があれば登録し直してください${it.days_to_renewal!=null?`（再出品まで${it.days_to_renewal}日）`:""}</div>`:""}
         ${it.benchmark_dropped?`<div class="dropwarn">📉 前回の基準ライバルが ${money(it.benchmark_dropped.prev_usd)} → ${money(it.benchmark_dropped.now_usd)} に値下げしています</div>`:""}
-        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
+        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.days_to_renewal!=null?` ｜ <span class="renew${it.days_to_renewal<=7?' soon':''}">再出品まで${it.days_to_renewal}日</span>`:""}<a class="goinv" href="javascript:void(0)" onclick="goInvItem('${it.item_id}')">この商品の在庫メンテへ ↗</a>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
           const lc=it.last_choice; if(!lc||!lc.choice) return "";
           const lcC=(lc.c_margin!=null?lc.c_margin:lc.cpct)||"5";
           const lcM=(lc.manual_price_usd!=null?lc.manual_price_usd:lc.manual);
@@ -967,6 +996,17 @@ render();
 </script>
 <script>
 
+function goInvItem(id){
+  showMainTab('inv');
+  var idx=-1; ITEMS.forEach(function(it,i){if(String(it.id)===String(id))idx=i;});
+  if(idx<0){alert('在庫一覧にこの商品が見つかりません（在庫データを読み込み直してください）');return;}
+  setTimeout(function(){
+    var card=document.getElementById('card'+idx); if(!card)return;
+    var det=card.closest('details'); if(det)det.open=true;
+    card.scrollIntoView({behavior:'smooth',block:'center'});
+    card.classList.add('flash'); setTimeout(function(){card.classList.remove('flash');},2400);
+  },80);
+}
 function showMainTab(t){
   document.getElementById('tabInv').style.display=(t==='inv')?'block':'none';
   document.getElementById('tabPa').style.display=(t==='pa')?'block':'none';
