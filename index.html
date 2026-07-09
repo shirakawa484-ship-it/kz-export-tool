@@ -194,7 +194,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.4.1</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.4.2</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -982,6 +982,7 @@ function paApply(obj,fname,loadedAt){
   render();
   var n=(DATA.items||[]).filter(function(it){return !it.excluded;}).length;
   var b=document.getElementById("paBadge"); if(b){b.textContent=n; b.style.display=n?"inline-block":"none";}
+  if(typeof renderAll==='function') renderAll(); // 在庫タブの⚠️売価メンテも最新計画で更新
 }
 window.paLoadPlan=function(obj,fname){
   var loadedAt=new Date().toISOString();
