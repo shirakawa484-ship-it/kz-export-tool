@@ -194,7 +194,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.4</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.4.1</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -336,8 +336,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
     <span>計画ファイル：</span>
     <span class="muted" id="loadStatus">まだ読み込んでいません（下はサンプル表示）</span>
     <select id="paSort" onchange="window.paSortMode=this.value;render();" style="margin-left:auto;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+      <option value="renewAsc" selected>再出品が近い順</option>
       <option value="plan">計画順</option>
-      <option value="renewAsc">再出品が近い順</option>
       <option value="renewDesc">再出品が遠い順</option>
       <option value="unmainte">メンテされていない順</option>
     </select>
@@ -765,7 +765,7 @@ function priceStatus(it){
   return {level:'ok',msg:''};
 }
 
-window.paSortMode=window.paSortMode||'plan';
+window.paSortMode=window.paSortMode||'renewAsc';
 function paSorted(items){
   const a=items.slice(); const m=window.paSortMode;
   if(m==='renewAsc') a.sort((x,y)=>((x.days_to_renewal??9999)-(y.days_to_renewal??9999)));
