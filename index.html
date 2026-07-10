@@ -25,6 +25,12 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabPa .renew.soon{color:#b45309;font-weight:700}
 #tabPa .goinv{font-size:11.5px;margin-left:10px;color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px}
 #tabInv .card.flash{outline:3px solid #f0b429;outline-offset:2px;transition:outline .3s}
+#tabPa .pager{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0}
+#tabPa .pgbtn{font-size:12px;padding:4px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer}
+#tabPa .pgbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#tabPa .pgbtn:disabled{opacity:.4;cursor:default}
+#tabPa .card.done{opacity:.55;background:#f4f5f7}
+#tabPa .doneband{grid-column:1/-1;font-size:12px;font-weight:700;color:#1d6f56;background:#e8f2ee;border-radius:6px;padding:4px 10px;margin-bottom:6px}
 #tabInv .head{display:flex;align-items:flex-start}
 #tabInv .head > div:nth-child(2), #tabInv .head > div:first-child:not(img){flex:1}
 #tabInv .nfbadge{display:inline-block;font-size:10px;font-weight:700;background:#faece7;color:#a8341f;padding:2px 8px;border-radius:4px;margin-left:6px}
@@ -194,13 +200,16 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.4.2</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.5</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
   </div>
   <div class="loadwrap">
-    <span>データ読み込み（複数選択可）：</span>
+    <button class="tabbtn" id="autoConnBtn" onclick="connectAuto()" style="font-weight:400">📁 autoフォルダに接続</button>
+    <span id="autoStatus" style="font-size:11px;color:#888"></span>
+    <span style="color:#ccc">｜</span>
+    <span style="font-size:11px">手動：</span>
     <input type="file" id="unifiedFile" accept=".json" multiple>
   </div>
 </div>
@@ -347,11 +356,13 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
     <button id="allOff">すべて外す</button>
     <span class="muted">初期＝全部チェック済み・各商品はツール推奨の案を選択。気になる商品だけ調整してください。</span>
   </div>
+  <div id="paPagerTop" class="pager"></div>
   <div id="list"></div>
+  <div id="paPagerBottom" class="pager"></div>
 </div>
 
 <div class="footer"><div class="footer-inner">
-  <div class="count">承認する商品：<b id="selCount">0</b> 件<span class="muted" id="warnCount"></span></div>
+  <div class="count">チェック済み <b id="selCount">0</b> 件<span class="muted" id="warnCount"></span><span class="muted" id="progCount"></span></div>
   <button class="approve" id="approveBtn">選んだ商品をまとめて承認</button>
 </div></div>
 
@@ -777,9 +788,30 @@ function paSorted(items){
   });
   return a;
 }
+window.paPage=window.paPage||1; var PA_PAGE_SIZE=100;
+function appliedMap(){
+  var a=window.APPLIED; if(!a||!a.applied) return {};
+  var planGen=DATA&&DATA.generated_at?DATA.generated_at:null;
+  if(planGen && a.plan_generated_at && a.plan_generated_at!==planGen) return {};
+  var m={}; a.applied.forEach(function(x){m[String(x.item_id)]=x;}); return m;
+}
+function renderPager(total,pages){
+  var mk=function(){var h='<span class="muted">'+total+'件中 '+((window.paPage-1)*PA_PAGE_SIZE+1)+'〜'+Math.min(window.paPage*PA_PAGE_SIZE,total)+'件を表示</span> ';
+    h+='<button class="pgbtn" '+(window.paPage<=1?'disabled':'')+' onclick="window.paPage--;render();">← 前の100件</button>';
+    for(var p=1;p<=pages;p++){h+='<button class="pgbtn'+(p===window.paPage?' on':'')+'" onclick="window.paPage='+p+';render();">'+p+'</button>';}
+    h+='<button class="pgbtn" '+(window.paPage>=pages?'disabled':'')+' onclick="window.paPage++;render();">次の100件 →</button>';
+    return h;};
+  var t=document.getElementById('paPagerTop'),b=document.getElementById('paPagerBottom');
+  if(t)t.innerHTML=(pages>1)?mk():''; if(b)b.innerHTML=(pages>1)?mk():'';
+}
 function render(){
   const list=document.getElementById("list"); list.innerHTML="";
-  paSorted(DATA.items).forEach(it=>{
+  const sorted=paSorted(DATA.items);
+  const pages=Math.max(1,Math.ceil(sorted.length/PA_PAGE_SIZE));
+  if(window.paPage>pages)window.paPage=pages;
+  renderPager(sorted.length,pages);
+  const AP=appliedMap();
+  sorted.slice((window.paPage-1)*PA_PAGE_SIZE,window.paPage*PA_PAGE_SIZE).forEach(it=>{
     if(it.excluded){
       const d=document.createElement("div"); d.className="card excluded";
       d.innerHTML=`<div><div class="title"><span class="exbadge">除外</span>${it.title}</div>
@@ -819,8 +851,11 @@ function render(){
     const cpcts=["3","5","8","10","15","20"];
     const cCur=oc?oc[s.cpct]:null;
 
+    const apRec=AP[String(it.item_id)];
+    if(apRec){card.classList.add('done'); s.checked=false;}
     card.innerHTML=`
-      <div class="chk"><input type="checkbox" ${s.checked?"checked":""} data-id="${it.item_id}"></div>
+      ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:""}
+      <div class="chk"><input type="checkbox" ${s.checked?"checked":""} ${apRec?"disabled":""} data-id="${it.item_id}"></div>
       <div>
         ${(function(){
           var u=paGetImage(it.item_id);
@@ -940,6 +975,10 @@ function updateCount(){
   let note=""; if(warns) note+=`（⚠️注意 ${warns}件`; if(blocked) note+=`${warns?'／':'（'}🚫要修正 ${blocked}件`; if(warns||blocked) note+="）";
   document.getElementById("warnCount").textContent=note;
   document.getElementById("approveBtn").disabled=(sel===0||blocked>0);
+  (function(){var AP=appliedMap();var done=0,tot=0;
+    DATA.items.forEach(function(it){if(it.excluded)return;tot++;if(AP[String(it.item_id)])done++;});
+    var pc=document.getElementById('progCount');
+    if(pc)pc.textContent='　｜　反映済み '+done+'／未処理 '+(tot-done-sel)+'（全'+tot+'件）';})();
 }
 document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded)state[it.item_id].checked=true;});render();};
 document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded)state[it.item_id].checked=false;});render();};
@@ -947,7 +986,9 @@ document.getElementById("approveBtn").onclick=()=>{
   const approved=DATA.items.filter(it=>!it.excluded&&state[it.item_id].checked);
   const warns=approved.filter(it=>it.market_deviation_flag);
   const manuals=approved.filter(it=>state[it.item_id].choice==='m');
-  let msg=`${approved.length}件を承認します。`;
+  const notChecked=DATA.items.filter(it=>!it.excluded&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])).length;
+  let msg=`チェック済みの ${approved.length}件を承認します。`;
+  if(notChecked>0) msg+=`\nチェックしていない ${notChecked}件は今回の対象外（未処理のまま残ります）。`;
   if(warns.length) msg+=`\n\n⚠️ 注意商品 ${warns.length}件（根拠ライバルは確認しましたか？）`;
   if(manuals.length) msg+=`\n\n手入力 ${manuals.length}件は、反映前にPython側で正確に利益・赤字チェックします。`;
   msg+=`\n\n本当によろしいですか？`;
@@ -959,9 +1000,15 @@ document.getElementById("approveBtn").onclick=()=>{
               chosen:s.choice, c_margin: s.choice==='c'? s.cpct : undefined,
               rival_item_id: rv? rv.rival_item_id : undefined,
               rival_total_usd: rv? rv.total_usd : undefined};})};
-  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="approved_result.json"; a.click();
-  alert("承認結果を approved_result.json として書き出しました。\nPython側で最終チェック（極端値・赤字）を通してから反映します。");
+  if(DATA.generated_at) out.plan_generated_at=DATA.generated_at;
+  autoSaveApproved(out).then(function(ok){
+    if(ok){ alert("承認結果を autoフォルダに保存しました（"+approved.length+"件）。\nCODEにapplyを指示してください。"); }
+    else{
+      const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+      const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="approved_result.json"; a.click();
+      alert("（フォルダ未接続のため）承認結果をダウンロードしました。sandbox_connect/auto/ に置いてください。");
+    }
+  });
 };
 window.paRerender=function(){ if(DATA&&DATA.items) render(); };
 function paGetImage(id){
@@ -1008,6 +1055,68 @@ function goInvItem(id){
     card.classList.add('flash'); setTimeout(function(){card.classList.remove('flash');},2400);
   },80);
 }
+// ===== v1.5: autoフォルダ接続（File System Access API） =====
+var AUTO_DIR=null;
+function idbOpen(){return new Promise(function(res,rej){var r=indexedDB.open('kz_auto_v1',1);
+  r.onupgradeneeded=function(){r.result.createObjectStore('h');};
+  r.onsuccess=function(){res(r.result);}; r.onerror=function(){rej(r.error);};});}
+function idbSet(k,v){return idbOpen().then(function(db){return new Promise(function(res,rej){
+  var tx=db.transaction('h','readwrite'); tx.objectStore('h').put(v,k);
+  tx.oncomplete=function(){res();}; tx.onerror=function(){rej(tx.error);};});});}
+function idbGet(k){return idbOpen().then(function(db){return new Promise(function(res,rej){
+  var tx=db.transaction('h','readonly'); var g=tx.objectStore('h').get(k);
+  g.onsuccess=function(){res(g.result||null);}; g.onerror=function(){rej(g.error);};});});}
+function setAutoStatus(msg,ok){var el=document.getElementById('autoStatus');
+  if(el){el.textContent=msg; el.style.color=ok?'#1d6f56':'#b45309';}}
+async function connectAuto(){
+  if(!window.showDirectoryPicker){alert('このブラウザはフォルダ接続に未対応です（Chrome推奨）。手動読み込みを使ってください。');return;}
+  try{
+    var dir=await window.showDirectoryPicker({mode:'readwrite'});
+    AUTO_DIR=dir; await idbSet('autoDir',dir);
+    setAutoStatus('接続中：'+dir.name,true);
+    await autoLoadAll(true);
+  }catch(e){ if(e && e.name!=='AbortError') alert('接続に失敗：'+e.message); }
+}
+async function restoreAuto(){
+  try{
+    var dir=await idbGet('autoDir'); if(!dir) return;
+    var p=await dir.queryPermission({mode:'readwrite'});
+    if(p==='granted'){AUTO_DIR=dir; setAutoStatus('接続中：'+dir.name,true); await autoLoadAll(false);}
+    else{ setAutoStatus('再接続が必要（📁ボタンを押してください）',false); }
+  }catch(e){}
+}
+async function autoReadJSON(name){
+  try{ var fh=await AUTO_DIR.getFileHandle(name); var f=await fh.getFile();
+    return JSON.parse(await f.text());
+  }catch(e){ return null; }
+}
+async function autoLoadAll(verbose){
+  if(!AUTO_DIR) return;
+  var msgs=[];
+  var inv=await autoReadJSON('inventory_latest.json');
+  if(inv&&inv.items){ invLoadInventory(inv); msgs.push('在庫 '+inv.items.length+'件'); }
+  var costs=await autoReadJSON('costs_latest.json');
+  if(costs&&costs.items&&!Array.isArray(costs.items)){ msgs.push(invImportCosts(costs)); }
+  var plan=await autoReadJSON('plan_latest.json');
+  if(plan&&plan.items){ window.paLoadPlan(plan,'plan_latest.json（自動）'); msgs.push('計画 '+(plan.items||[]).length+'件'); }
+  window.APPLIED=await autoReadJSON('applied_latest.json');
+  var st=await autoReadJSON('status.json');
+  if(st){ var t=st.generated_at? new Date(st.generated_at).toLocaleString('ja-JP'):'不明';
+    if(st.error){ setAutoStatus('⚠️ 今朝の計画生成に失敗（'+t+'）',false); }
+    else setAutoStatus('接続中｜最終生成 '+t,true); }
+  if(typeof render==='function'&&DATA&&DATA.items) render();
+  if(typeof renderAll==='function') renderAll();
+  if(verbose&&msgs.length&&typeof showToast==='function') showToast('自動読み込み：'+msgs.join(' ／ '));
+}
+async function autoSaveApproved(obj){
+  if(!AUTO_DIR) return false;
+  try{
+    var fh=await AUTO_DIR.getFileHandle('approved_result.json',{create:true});
+    var w=await fh.createWritable(); await w.write(JSON.stringify(obj,null,2)); await w.close();
+    return true;
+  }catch(e){ return false; }
+}
+restoreAuto();
 function showMainTab(t){
   document.getElementById('tabInv').style.display=(t==='inv')?'block':'none';
   document.getElementById('tabPa').style.display=(t==='pa')?'block':'none';
