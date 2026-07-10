@@ -200,7 +200,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.5</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.5.1</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -650,12 +650,24 @@ function exportCosts(){
     n++;
   });
   if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
-  var blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='costs_from_inventory.json';
-  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
   var msg='仕入れ値・重量を書き出しました（'+n+'件）';
   if(skipped.length)msg+='。候補なしのため未収載：'+skipped.length+'件';
-  showToast(msg);
+  (async function(){
+    var saved=false;
+    if(AUTO_DIR){
+      try{
+        var fh=await AUTO_DIR.getFileHandle('costs_from_inventory.json',{create:true});
+        var w=await fh.createWritable(); await w.write(JSON.stringify(out,null,2)); await w.close();
+        saved=true; showToast(msg+'（autoフォルダに自動保存）');
+      }catch(e){}
+    }
+    if(!saved){
+      var blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+      var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='costs_from_inventory.json';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+      showToast(msg+'（未接続のためダウンロード。sandbox_connect/へ移動を）');
+    }
+  })();
 }
 function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';saveAddUrls();renderAll();}
 function delAddUrl(idx,i){addUrls[idx].splice(i,1);saveAddUrls();renderAll();}
