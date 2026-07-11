@@ -221,7 +221,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.2</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.3</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -942,11 +942,13 @@ window.paSortMode=(function(){try{return localStorage.getItem('pa_sort_v1')||'re
 (function(){var s=document.getElementById('paSort');if(s)s.value=window.paSortMode;})();
 function paSorted(items){
   const a=items.slice(); const m=window.paSortMode;
-  a.sort((x,y)=>{const nx=isNoChange(x)?1:0, ny=isNoChange(y)?1:0; return nx-ny;});
+  const APs=appliedMap();
+  const sinkRank=(o)=>{ if(APs[String(o.item_id)])return 2; if(isNoChange(o))return 1; return 0; };
+  a.sort((x,y)=>sinkRank(x)-sinkRank(y));
   const stable=a.slice();
   const idxOf=(o)=>stable.indexOf(o);
-  if(m==='renewAsc') a.sort((x,y)=>{const d=(isNoChange(x)?1:0)-(isNoChange(y)?1:0);if(d)return d;return ((x.days_to_renewal??9999)-(y.days_to_renewal??9999));});
-  else if(m==='renewDesc') a.sort((x,y)=>{const d=(isNoChange(x)?1:0)-(isNoChange(y)?1:0);if(d)return d;return ((y.days_to_renewal??-1)-(x.days_to_renewal??-1));});
+  if(m==='renewAsc') a.sort((x,y)=>{const d=sinkRank(x)-sinkRank(y);if(d)return d;return ((x.days_to_renewal??9999)-(y.days_to_renewal??9999));});
+  else if(m==='renewDesc') a.sort((x,y)=>{const d=sinkRank(x)-sinkRank(y);if(d)return d;return ((y.days_to_renewal??-1)-(x.days_to_renewal??-1));});
   else if(m==='unmainte') a.sort((x,y)=>{
     const ax=x.last_choice&&x.last_choice.approved_at?Date.parse(x.last_choice.approved_at):0;
     const ay=y.last_choice&&y.last_choice.approved_at?Date.parse(y.last_choice.approved_at):0;
