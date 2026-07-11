@@ -63,6 +63,16 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .mbadge{display:inline-block;font-size:10px;font-weight:700;background:#fff3d6;color:#8a5b00;padding:2px 8px;border-radius:4px;margin-left:6px}
 .deferbtn{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#666;flex-shrink:0}
 .deferbtn.on{background:#e8e8e8;color:#555;border-color:#ccc;font-weight:700}
+.pendwrap{border:1.5px dashed #c9a86a;background:#fffaf0;border-radius:9px;padding:9px 11px;margin:9px 0}
+.pendlist{display:flex;flex-direction:column;gap:5px;margin:7px 0}
+.pend{display:flex;align-items:center;gap:9px;font-size:12px;cursor:pointer;background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 9px}
+.pend img{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.pend .noimg{width:56px;height:56px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#999;background:#f4f2ec;border-radius:6px}
+.pend .pp{font-weight:700;min-width:76px}
+.pend .pt{flex:1;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pendactions{display:flex;gap:8px}
+.del2{font-size:11px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;padding:5px 11px;color:#a8341f}
+.bm.alt2{background:#e0f0ff;border-color:#8bb8e0}
 #tabInv .chip.out{background:var(--danger-bg);color:var(--danger)}
 #tabInv .chip.err{background:var(--warn-bg);color:var(--warn-ink)}
 #tabInv .chip.in{background:var(--ok-bg);color:var(--ok)}
@@ -202,7 +212,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.6</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.7</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -231,7 +241,9 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
       <li>ツールで商品の検索ボタン（メルカリ/Yahoo!フリマ/駿河屋）を押す（＝メンテ中にする）。</li>
       <li>各サイトで良い出品ページを開き、ブックマークレットをクリック。</li>
       <li>価格を読み取り、この商品の仕入れ候補に自動追加（最大5件・最安値を採用）。価格は一覧で手修正できます。</li>
+      <li><b>まとめ取り</b>：メルカリの検索結果ページで押すと上位10件をまとめて取り込み→ツール側で画像を見て選別→選んだ分だけ候補に追加。</li>
     </ol>
+    <a class="bm alt2" href="javascript:(function(){var seen={},out=[];document.querySelectorAll('a[href*=&quot;/item/m&quot;]').forEach(function(a){if(out.length>=10)return;var m=(a.getAttribute('href')||'').match(/\/item\/(m\d+)/);if(!m||seen[m[1]])return;var root=a;for(var i=0;i<5&amp;&amp;root.parentElement;i++){root=root.parentElement;if(root.querySelector('img'))break;}var img=root.querySelector('img');var txt=(root.textContent||'');var pm=txt.replace(/[,\uFF0C]/g,'').match(/(\d{3,7})\s*\u5186|\u00A5\s*(\d{3,7})/);var price=pm?parseInt(pm[1]||pm[2],10):null;if(!price||price<50)return;seen[m[1]]=1;out.push({u:'https://jp.mercari.com/item/'+m[1],p:price,t:(img&amp;&amp;img.alt||'').slice(0,60),i:(img&amp;&amp;(img.currentSrc||img.src))||''});});if(!out.length){alert('\u5546\u54c1\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u30e1\u30eb\u30ab\u30ea\u306e\u691c\u7d22\u7d50\u679c\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002');return;}window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#batch='+encodeURIComponent(JSON.stringify(out)),'_blank');})();">まとめ取り（メルカリ検索結果で・最大10件）</a>
     <a class="bm" href="javascript:(function(){try{var u=location.href;var prices=[];document.querySelectorAll(&#39;script[type=&quot;application/ld+json&quot;]&#39;).forEach(function(sc){try{var d=JSON.parse(sc.textContent);var dd=Array.isArray(d)?d:[d];function dig(x){if(!x||typeof x!==&#39;object&#39;)return;if(x.offers){var of=Array.isArray(x.offers)?x.offers:[x.offers];of.forEach(function(f){if(f&amp;&amp;f.price)prices.push(parseInt(String(f.price).replace(/[^\d]/g,&#39;&#39;),10));if(f&amp;&amp;f.lowPrice)prices.push(parseInt(String(f.lowPrice).replace(/[^\d]/g,&#39;&#39;),10));});}if(x.price)prices.push(parseInt(String(x.price).replace(/[^\d]/g,&#39;&#39;),10));}dd.forEach(function(o){dig(o);if(o&amp;&amp;o[&#39;@graph&#39;])o[&#39;@graph&#39;].forEach(dig);});}catch(e){}});if(!prices.length){document.querySelectorAll(&#39;meta[itemprop=&quot;price&quot;],meta[property=&quot;product:price:amount&quot;],meta[property=&quot;og:price:amount&quot;],meta[property*=&quot;price&quot;]&#39;).forEach(function(m){var v=m.getAttribute(&#39;content&#39;);if(v)prices.push(parseInt(String(v).replace(/[^\d]/g,&#39;&#39;),10));});}if(!prices.length){document.querySelectorAll(&#39;[itemprop=&quot;price&quot;],[class*=&quot;price&quot;],[class*=&quot;Price&quot;],[data-testid*=&quot;price&quot;]&#39;).forEach(function(el){var v=el.getAttribute(&#39;content&#39;)||el.textContent;var t=String(v).replace(/[,\u00a5\uffe5\s\u5186]/g,&#39;&#39;);var m=t.match(/\d{2,8}/);if(m)prices.push(parseInt(m[0],10));});}prices=prices.filter(function(p){return p&amp;&amp;p&gt;=50&amp;&amp;p&lt;=3000000;});var price=prices.length?prices[0]:null;if(price===null){var inp=prompt(&#39;価格を自動取得できませんでした。手で入力してください（円）:&#39;,&#39;&#39;);if(!inp)return;price=parseInt(String(inp).replace(/[^\d]/g,&#39;&#39;),10);if(!price)return;}var target=&#39;https://shirakawa484-ship-it.github.io/kz-export-tool/&#39;+&#39;?price=&#39;+price+&#39;&amp;url=&#39;+encodeURIComponent(u);window.open(target,&#39;_blank&#39;);}catch(err){alert(&#39;エラー: &#39;+err.message);}})();">仕入れ値取得（これをブックマークバーへ）</a>
     <div style="font-size:11px;color:var(--muted);padding-bottom:12px">※対応：メルカリ・Yahoo!フリマ・駿河屋。自分で開いた1ページだけを読み取ります。自動巡回はしません。</div>
   </details>
@@ -453,6 +465,25 @@ function mainteInfo(it){
     return {suspect:suspect,pct:pct,days:days,bench:bench};
   }catch(e){return {suspect:false,pct:null,days:(it.days_to_renewal!=null?it.days_to_renewal:null),bench:null};}
 }
+var LS_PENDING='ss_pending_v1';
+function loadPending(){try{return JSON.parse(localStorage.getItem(LS_PENDING)||'{}');}catch(e){return {};}}
+function savePending(p){try{localStorage.setItem(LS_PENDING,JSON.stringify(p));}catch(e){}}
+function commitPending(idx){
+  var it=ITEMS[idx]; var pend=loadPending()[String(it.id)]; if(!pend)return;
+  var picks=[]; document.querySelectorAll('#pend'+idx+' input[type=checkbox]:checked').forEach(function(cb){
+    var d=pend.items[parseInt(cb.getAttribute('data-i'),10)]; if(d)picks.push(d);});
+  if(!picks.length){alert('追加する候補にチェックを入れてください');return;}
+  if(!supplies[idx])supplies[idx]=[];
+  var space=5-supplies[idx].length;
+  if(picks.length>space){alert('候補枠が足りません（空き'+space+'件）。'+space+'件まで選び直すか、既存候補を×で削ってください。');return;}
+  picks.forEach(function(d){supplies[idx].push({price:d.p,url:d.u});});
+  var all=loadPending(); delete all[String(it.id)]; savePending(all);
+  saveSupplies(); renderAll();
+  showToast(picks.length+'件を仕入れ候補に追加しました');
+}
+function clearPending(idx){
+  var it=ITEMS[idx]; var all=loadPending(); delete all[String(it.id)]; savePending(all); renderAll();
+}
 var LS_DEFER='ss_defer_v1';
 function loadDefer(){try{return JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){return {};}}
 function isDeferred(it){return !!loadDefer()[String(it.id)];}
@@ -568,6 +599,15 @@ function cardHtml(it,idx){
       '<div class="urladd"><input type="text" id="au'+idx+'" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl('+idx+')">URL追加</button></div>'+
       '<div class="sitesnote">対応サイト：メルカリ・ヤフオク・Yahoo!フリマ・ラクマ・楽天市場・Yahoo!ショッピング・ハードオフNetmall・駿河屋・ヨドバシ.com</div>'+
     '</div>'+
+    (function(){
+      var pend=loadPending()[String(it.id)];
+      if(!pend||!pend.items||!pend.items.length)return '';
+      var rows=pend.items.map(function(d,i){
+        return '<label class="pend"><input type="checkbox" data-i="'+i+'">'+(d.i?'<img src="'+esc(d.i)+'" loading="lazy">':'<span class="noimg">画像なし</span>')+'<span class="pp">'+Number(d.p).toLocaleString()+'円</span><span class="pt">'+esc(d.t||'')+'</span><a href="'+esc(d.u)+'" target="_blank" rel="noopener">開く↗</a></label>';
+      }).join('');
+      return '<div class="pendwrap" id="pend'+idx+'"><div class="lbl">🛒 選別待ち '+pend.items.length+'件（画像を見てチェック→追加）</div><div class="pendlist">'+rows+'</div>'+
+        '<div class="pendactions"><button class="addbtn" onclick="commitPending('+idx+')">選んだ候補に追加</button><button class="del2" onclick="clearPending('+idx+')">全部捨てる</button></div></div>';
+    })()+
     '<div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div>'+
       '<div id="slots'+idx+'"></div>'+
       '<div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp'+idx+'" placeholder="価格（円）"><button class="addbtn" onclick="addManual('+idx+')">追加</button></div>'+
@@ -703,6 +743,16 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
 (function(){try{var saved=JSON.parse(localStorage.getItem(LS_INV)||'null');
   if(saved&&saved.items&&saved.items.length){ITEMS=saved.items;
     window.ITEM_IMAGES=window.ITEM_IMAGES||{};ITEMS.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});}
+}catch(e){}})();
+(function(){try{
+  if(location.hash&&location.hash.indexOf('#batch=')===0){
+    var arr=JSON.parse(decodeURIComponent(location.hash.slice(7)));
+    var act=localStorage.getItem(LS_ACTIVE);
+    if(act&&arr&&arr.length){
+      var all=loadPending(); all[String(act)]={at:new Date().toISOString(),items:arr.slice(0,10)}; savePending(all);
+    }
+    history.replaceState(null,'',location.pathname+location.search);
+  }
 }catch(e){}})();
 restoreAll();
 var incoming=handleIncoming();
