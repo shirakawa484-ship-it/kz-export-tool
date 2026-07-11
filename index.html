@@ -31,6 +31,8 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabPa .pgbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 #tabPa .pgbtn:disabled{opacity:.4;cursor:default}
 #tabPa .card.done{opacity:.55;background:#f4f5f7}
+#tabPa .card.nochange{opacity:.55;background:#f7f7f5}
+#tabPa .doneband.nc{background:#eee;color:#777}
 #tabPa .doneband{grid-column:1/-1;font-size:12px;font-weight:700;color:#1d6f56;background:#e8f2ee;border-radius:6px;padding:4px 10px;margin-bottom:6px}
 #tabInv .head{display:flex;align-items:flex-start}
 #tabInv .head > div:nth-child(2), #tabInv .head > div:first-child:not(img){flex:1}
@@ -219,7 +221,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.1</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -380,7 +382,7 @@ window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#batch='+enco
   <div class="loadbar">
     <span>計画ファイル：</span>
     <span class="muted" id="loadStatus">まだ読み込んでいません（下はサンプル表示）</span>
-    <select id="paSort" onchange="window.paSortMode=this.value;render();" style="margin-left:auto;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+    <select id="paSort" onchange="window.paSortMode=this.value;try{localStorage.setItem('pa_sort_v1',this.value);}catch(e){};render();" style="margin-left:auto;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px">
       <option value="renewAsc" selected>再出品が近い順</option>
       <option value="plan">計画順</option>
       <option value="renewDesc">再出品が遠い順</option>
@@ -504,6 +506,14 @@ function clearPending(idx){
   var it=ITEMS[idx]; var all=loadPending(); delete all[String(it.id)]; savePending(all); renderAll();
 }
 var LS_DEFER='ss_defer_v1';
+function hideExistingUrl(idx,url){
+  if(!confirm('この仕入れ先URLを除外しますか？\n（画面から消え、次回「登録内容を保存」するとスプシからも削除されます）'))return;
+  var it=ITEMS[idx]; var all={};
+  try{all=JSON.parse(localStorage.getItem('ss_hideurl_v1')||'{}');}catch(e){}
+  (all[String(it.id)]=all[String(it.id)]||[]).push(url);
+  try{localStorage.setItem('ss_hideurl_v1',JSON.stringify(all));}catch(e){}
+  markDirty(); renderAll();
+}
 function loadDefer(){try{return JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){return {};}}
 function isDeferred(it){
   if(loadDefer()[String(it.id)])return true;
@@ -615,7 +625,8 @@ function cardHtml(it,idx){
   if(keywords[idx]===undefined)keywords[idx]=extractKw(it.title||it.name);
   var isActive=(activeIdx===idx);
   var stLabel=(t==='out'?'在庫なし':(t==='in'?'在庫あり':'要確認（URL未設定等）'));
-  var existing=(it.urls||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">仕入'+(i+1)+'</a>';}).join('');
+  var hidden=(function(){try{return JSON.parse(localStorage.getItem('ss_hideurl_v1')||'{}');}catch(e){return {};}})()[String(it.id)]||[];
+  var existing=(it.urls||[]).filter(function(u){return hidden.indexOf(u)<0;}).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">仕入'+(i+1)+'</a><button class="del" title="この仕入れ先を除外（次回の保存でスプシからも削除）" onclick="hideExistingUrl('+idx+',\''+esc(u)+'\')">×</button>';}).join(' ');
   var added=(addUrls[idx]||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">追加'+(i+1)+'</a> <button class="del" onclick="delAddUrl('+idx+','+i+')">×</button>';}).join(' ');
   return '<div class="card '+t+(isActive?' active':'')+'" id="card'+idx+'">'+
     '<div class="head">'+(it.image_url?'<img class="mythumb" src="'+esc(it.image_url)+'" loading="lazy" alt="">':'')+'<div><div class="name">'+esc(it.title||it.name)+(isActive?'<span class="mentelabel">メンテ中</span>':'')+(it.not_found_on_ebay?'<span class="nfbadge">eBayで見つかりません</span>':'')+(function(){
@@ -670,7 +681,7 @@ function cardHtml(it,idx){
     '</div></div>';
 }
 
-var sortMode='sheet', query='';
+var sortMode=(function(){try{return localStorage.getItem('ss_sort_v1')||'sheet';}catch(e){return 'sheet';}})(), query='';
 function sortIdx(arr){
   var a=arr.slice();
   if(sortMode==='name') a.sort(function(x,y){return ITEMS[x].name.localeCompare(ITEMS[y].name,'ja');});
@@ -715,7 +726,7 @@ function jumpTo(secId){
   el.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function onQuery(v){query=(v||'').trim();renderAll();}
-function onSort(v){sortMode=v;renderAll();}
+function onSort(v){sortMode=v;try{localStorage.setItem('ss_sort_v1',v);}catch(e){}renderAll();}
 function renderAll(){
   var groups={out:[],err:[],in:[]};
   var hidden=0;
@@ -806,12 +817,18 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
       var all=loadPending(); all[String(act)]={at:new Date().toISOString(),items:arr.slice(0,10)}; savePending(all);
     }
     history.replaceState(null,'',location.pathname+location.search);
+    window.__scrollToActive=true;
   }
 }catch(e){}})();
 restoreAll();
 var incoming=handleIncoming();
 var actId=localStorage.getItem(LS_ACTIVE);if(actId){ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}
 renderAll();
+if(window.__scrollToActive&&activeIdx!=null){setTimeout(function(){
+  var c=document.getElementById('card'+activeIdx);
+  if(c){var det=c.closest('details');if(det)det.open=true;
+    c.scrollIntoView({behavior:'smooth',block:'center'});}
+},150);}
 // メンテ中の商品へスクロール（在庫ありセクションは折りたたみのため開く）
 if(activeIdx!==null){
   var t=stockType(ITEMS[activeIdx]);
@@ -888,6 +905,11 @@ function pickedRival(it){
   const s=state[it.item_id]; if(!s||s.choice!=='r'||!s.rival) return null;
   return (it.rivals||[]).find(r=>r.rival_item_id===s.rival)||null;
 }
+function isNoChange(it){
+  var s=state[it.item_id];
+  var p=s?chosenPrice(it):(it.option_a?it.option_a.price_usd:null); // 初期化前はA案で判定
+  return (p!=null&&it.current_price_usd!=null&&Math.abs(p-it.current_price_usd)<=0.05);
+}
 function chosenPrice(it){
   const s=state[it.item_id];
   if(s.choice==='a') return it.option_a?.price_usd ?? null;
@@ -914,11 +936,15 @@ function priceStatus(it){
   return {level:'ok',msg:''};
 }
 
-window.paSortMode=window.paSortMode||'renewAsc';
+window.paSortMode=(function(){try{return localStorage.getItem('pa_sort_v1')||'renewAsc';}catch(e){return 'renewAsc';}})();
+(function(){var s=document.getElementById('paSort');if(s)s.value=window.paSortMode;})();
 function paSorted(items){
   const a=items.slice(); const m=window.paSortMode;
-  if(m==='renewAsc') a.sort((x,y)=>((x.days_to_renewal??9999)-(y.days_to_renewal??9999)));
-  else if(m==='renewDesc') a.sort((x,y)=>((y.days_to_renewal??-1)-(x.days_to_renewal??-1)));
+  a.sort((x,y)=>{const nx=isNoChange(x)?1:0, ny=isNoChange(y)?1:0; return nx-ny;});
+  const stable=a.slice();
+  const idxOf=(o)=>stable.indexOf(o);
+  if(m==='renewAsc') a.sort((x,y)=>{const d=(isNoChange(x)?1:0)-(isNoChange(y)?1:0);if(d)return d;return ((x.days_to_renewal??9999)-(y.days_to_renewal??9999));});
+  else if(m==='renewDesc') a.sort((x,y)=>{const d=(isNoChange(x)?1:0)-(isNoChange(y)?1:0);if(d)return d;return ((y.days_to_renewal??-1)-(x.days_to_renewal??-1));});
   else if(m==='unmainte') a.sort((x,y)=>{
     const ax=x.last_choice&&x.last_choice.approved_at?Date.parse(x.last_choice.approved_at):0;
     const ay=y.last_choice&&y.last_choice.approved_at?Date.parse(y.last_choice.approved_at):0;
@@ -972,7 +998,8 @@ function render(){
         state[it.item_id]={checked:true, choice:ch,
                            cpct:(lcC||def), manual:(lcM!=null?Number(lcM):null), rival:rv, rivalGone:rgone};
       } else {
-        state[it.item_id]={checked:true, choice:(it.recommended||'a'), cpct:def, manual:null, rival:null, rivalGone:false};
+        var nc0=(it.option_a&&it.current_price_usd!=null&&Math.abs(it.option_a.price_usd-it.current_price_usd)<=0.05);
+        state[it.item_id]={checked:!nc0, choice:(it.recommended||'a'), cpct:def, manual:null, rival:null, rivalGone:false};
       }
     }
     const s=state[it.item_id]; const warn=it.market_deviation_flag;
@@ -991,8 +1018,9 @@ function render(){
 
     const apRec=AP[String(it.item_id)];
     if(apRec){card.classList.add('done'); s.checked=false;}
+    else if(isNoChange(it)){card.classList.add('nochange');}
     card.innerHTML=`
-      ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:""}
+      ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:(isNoChange(it)?`<div class="doneband nc">＝ 現在価格と同じ（反映不要）</div>`:"")}
       <div class="chk"><input type="checkbox" ${s.checked?"checked":""} ${apRec?"disabled":""} data-id="${it.item_id}"></div>
       <div>
         ${(function(){
@@ -1204,6 +1232,7 @@ function onBarScroll(){
     barPh.style.display='none';
   }
 }
+(function(){var sel=document.getElementById('sortSel');if(sel&&sortMode)sel.value=sortMode;})();
 window.addEventListener('scroll',onBarScroll,{passive:true});
 window.addEventListener('resize',onBarScroll);
 showMainTab('inv');
@@ -1371,6 +1400,7 @@ function onBarScroll(){
     barPh.style.display='none';
   }
 }
+(function(){var sel=document.getElementById('sortSel');if(sel&&sortMode)sel.value=sortMode;})();
 window.addEventListener('scroll',onBarScroll,{passive:true});
 window.addEventListener('resize',onBarScroll);
 showMainTab('inv');
