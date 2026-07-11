@@ -200,7 +200,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.5.2</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.5.3</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1085,6 +1085,12 @@ function setAutoStatus(msg,ok){var el=document.getElementById('autoStatus');
 async function connectAuto(){
   if(!window.showDirectoryPicker){alert('このブラウザはフォルダ接続に未対応です（Chrome推奨）。手動読み込みを使ってください。');return;}
   try{
+    // 保存済みの接続があれば、フォルダ選択なしで権限だけ再有効化（ワンクリック再接続）
+    var saved=await idbGet('autoDir');
+    if(saved){
+      var p=await saved.requestPermission({mode:'readwrite'});
+      if(p==='granted'){ AUTO_DIR=saved; setAutoStatus('接続中：'+saved.name,true); await autoLoadAll(true); return; }
+    }
     var dir=await window.showDirectoryPicker({mode:'readwrite'});
     AUTO_DIR=dir; await idbSet('autoDir',dir);
     setAutoStatus('接続中：'+dir.name,true);
