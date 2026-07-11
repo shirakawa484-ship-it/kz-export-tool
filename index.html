@@ -61,6 +61,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .wchip.on{background:#1d6f56;border-color:#1d6f56;color:#fff}
 .chip.maint{background:#fff3d6;color:#8a5b00}
 .mbadge{display:inline-block;font-size:10px;font-weight:700;background:#fff3d6;color:#8a5b00;padding:2px 8px;border-radius:4px;margin-left:6px}
+.deferbtn{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#666;flex-shrink:0}
+.deferbtn.on{background:#e8e8e8;color:#555;border-color:#ccc;font-weight:700}
 #tabInv .chip.out{background:var(--danger-bg);color:var(--danger)}
 #tabInv .chip.err{background:var(--warn-bg);color:var(--warn-ink)}
 #tabInv .chip.in{background:var(--ok-bg);color:var(--ok)}
@@ -200,7 +202,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.5.5</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.6</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -246,6 +248,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
       <option value="costHigh">仕入れ値が高い順</option>
       <option value="costLow">仕入れ値が安い順</option>
       <option value="mainte">⚠️売価メンテ必要順（再出品が近い順）</option>
+      <option value="newest">出品が新しい順</option>
     </select>
     
     <button class="btn" id="exportCostBtn" onclick="exportCosts()" title="登録した仕入れ候補の最安値を、価格メンテツール（Python）用に書き出します">仕入れ値・重量を書き出す</button>
@@ -450,6 +453,15 @@ function mainteInfo(it){
     return {suspect:suspect,pct:pct,days:days,bench:bench};
   }catch(e){return {suspect:false,pct:null,days:(it.days_to_renewal!=null?it.days_to_renewal:null),bench:null};}
 }
+var LS_DEFER='ss_defer_v1';
+function loadDefer(){try{return JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){return {};}}
+function isDeferred(it){return !!loadDefer()[String(it.id)];}
+function toggleDefer(idx){
+  var it=ITEMS[idx]; var d=loadDefer();
+  if(d[String(it.id)]) delete d[String(it.id)]; else d[String(it.id)]={at:new Date().toISOString()};
+  try{localStorage.setItem(LS_DEFER,JSON.stringify(d));}catch(e){}
+  renderAll();
+}
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
 function saveWeights(w){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
 function resolveWeight(it){
@@ -532,7 +544,8 @@ function cardHtml(it,idx){
       var d=(m.days!=null)?('（再出品まで'+m.days+'日）'):'';
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
     })()+'</div>'+
-    '<div class="meta">eBay #'+it.id+'</div></div><span class="st '+t+'">'+stLabel+'</span></div>'+
+    '<div class="meta">eBay #'+it.id+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
+    (isDeferred(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="後回しを解除">後回し中 ↺</button>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">後回し</button>')+'</div>'+
     '<div class="searchrow">'+
       '<div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="'+esc(keywords[idx])+'" oninput="onKw('+idx+',this.value)"></div>'+
       '<button class="searchbtn" onclick="doSearch('+idx+',\'mercari\')">メルカリ</button>'+
@@ -574,6 +587,13 @@ function sortIdx(arr){
   if(sortMode==='name') a.sort(function(x,y){return ITEMS[x].name.localeCompare(ITEMS[y].name,'ja');});
   else if(sortMode==='costHigh') a.sort(function(x,y){return (minCost(y)||-1)-(minCost(x)||-1);});
   else if(sortMode==='costLow') a.sort(function(x,y){return (minCost(x)||Infinity)-(minCost(y)||Infinity);});
+  else if(sortMode==='newest') a.sort(function(x,y){
+    var dx=isDeferred(ITEMS[x])?1:0, dy=isDeferred(ITEMS[y])?1:0;
+    if(dx!==dy)return dx-dy;
+    var tx=ITEMS[x].listing_start?Date.parse(ITEMS[x].listing_start):0;
+    var ty=ITEMS[y].listing_start?Date.parse(ITEMS[y].listing_start):0;
+    return ty-tx;
+  });
   else if(sortMode==='mainte') a.sort(function(x,y){
     var mx=mainteInfo(ITEMS[x]),my=mainteInfo(ITEMS[y]);
     if(mx.suspect!==my.suspect)return mx.suspect?-1:1;              // 警告ありが先
@@ -709,7 +729,7 @@ function invImportCosts(data){
   return '仕入れ候補を取り込みました（'+hit+'商品）'+(miss?'。在庫一覧に無い'+miss+'商品分は未反映':'');
 }
 function invLoadInventory(data){
-  var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay};});
+  var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null};});
   if(!ni.length){alert('在庫データが空です');return;}
   ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();renderAll();
   try{localStorage.setItem(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:ni}));}catch(e){}
