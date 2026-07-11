@@ -43,7 +43,8 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabInv header .sub{color:var(--muted);font-size:12px;margin-top:2px}
 #tabInv .wrap{max-width:920px;margin:0 auto;padding:16px}
 #tabInv .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-#tabInv .chip{font-size:12px;padding:5px 11px;border-radius:20px;font-weight:600;cursor:pointer;user-select:none}
+#tabInv #tabInv .bar{position:sticky;top:50px;z-index:150;background:var(--bg);padding:8px 0;margin:0}
+.chip{font-size:12px;padding:5px 11px;border-radius:20px;font-weight:600;cursor:pointer;user-select:none}
 #tabInv .chip:hover{filter:brightness(0.95)}
 #tabInv .sitesnote{font-size:10.5px;color:var(--muted);margin-top:4px}
 .wrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px;padding-top:8px;border-top:1px dashed var(--line)}
@@ -212,7 +213,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.7</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.7.1</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -241,9 +242,14 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
       <li>ツールで商品の検索ボタン（メルカリ/Yahoo!フリマ/駿河屋）を押す（＝メンテ中にする）。</li>
       <li>各サイトで良い出品ページを開き、ブックマークレットをクリック。</li>
       <li>価格を読み取り、この商品の仕入れ候補に自動追加（最大5件・最安値を採用）。価格は一覧で手修正できます。</li>
-      <li><b>まとめ取り</b>：メルカリの検索結果ページで押すと上位10件をまとめて取り込み→ツール側で画像を見て選別→選んだ分だけ候補に追加。</li>
+      <li><b>まとめ取り</b>：メルカリの<b>検索結果ページ</b>または<b>商品ページ</b>で押すと、最大10件（商品ページなら その商品＋ページ内の関連出品）をまとめて取り込み→ツール側で画像を見て選別→選んだ分だけ候補に追加。</li>
     </ol>
-    <a class="bm alt2" href="javascript:(function(){var seen={},out=[];document.querySelectorAll('a[href*=&quot;/item/m&quot;]').forEach(function(a){if(out.length>=10)return;var m=(a.getAttribute('href')||'').match(/\/item\/(m\d+)/);if(!m||seen[m[1]])return;var root=a;for(var i=0;i<5&amp;&amp;root.parentElement;i++){root=root.parentElement;if(root.querySelector('img'))break;}var img=root.querySelector('img');var txt=(root.textContent||'');var pm=txt.replace(/[,\uFF0C]/g,'').match(/(\d{3,7})\s*\u5186|\u00A5\s*(\d{3,7})/);var price=pm?parseInt(pm[1]||pm[2],10):null;if(!price||price<50)return;seen[m[1]]=1;out.push({u:'https://jp.mercari.com/item/'+m[1],p:price,t:(img&amp;&amp;img.alt||'').slice(0,60),i:(img&amp;&amp;(img.currentSrc||img.src))||''});});if(!out.length){alert('\u5546\u54c1\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u30e1\u30eb\u30ab\u30ea\u306e\u691c\u7d22\u7d50\u679c\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002');return;}window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#batch='+encodeURIComponent(JSON.stringify(out)),'_blank');})();">まとめ取り（メルカリ検索結果で・最大10件）</a>
+    <a class="bm alt2" href="javascript:(function(){var out=[],seen={};function push(u,p,t,i){var m=u.match(/\/item\/(m\d+)/);if(!m||seen[m[1]]||!p||p<50)return;seen[m[1]]=1;out.push({u:'https://jp.mercari.com/item/'+m[1],p:p,t:(t||'').slice(0,60),i:i||''});}
+var self=location.pathname.match(/^\/item\/(m\d+)/);
+if(self){var sp=null;document.querySelectorAll('meta[itemprop=&quot;price&quot;],meta[property*=&quot;price:amount&quot;]').forEach(function(mm){var v=parseInt(String(mm.getAttribute('content')||'').replace(/[^\d]/g,''),10);if(v&amp;&amp;!sp)sp=v;});if(!sp){var tt=(document.body.textContent||'').replace(/[,\uFF0C]/g,'');var pm=tt.match(/\u00A5\s*(\d{3,7})/);if(pm)sp=parseInt(pm[1],10);}var og=document.querySelector('meta[property=&quot;og:image&quot;]');push(location.href,sp,document.title,og?og.getAttribute('content'):'');}
+document.querySelectorAll('a[href*=&quot;/item/m&quot;]').forEach(function(a){if(out.length>=10)return;var root=a;for(var i=0;i<5&amp;&amp;root.parentElement;i++){root=root.parentElement;if(root.querySelector('img'))break;}var img=root.querySelector('img');var txt=(root.textContent||'').replace(/[,\uFF0C]/g,'');var pm=txt.match(/(\d{3,7})\s*\u5186|\u00A5\s*(\d{3,7})/);var price=pm?parseInt(pm[1]||pm[2],10):null;push(a.href,price,(img&amp;&amp;img.alt||''),(img&amp;&amp;(img.currentSrc||img.src))||'');});
+if(!out.length){alert('\u5546\u54c1\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093\u3067\u3057\u305f');return;}
+window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#batch='+encodeURIComponent(JSON.stringify(out.slice(0,10))),'_blank');})();">まとめ取り（メルカリ検索結果で・最大10件）</a>
     <a class="bm" href="javascript:(function(){try{var u=location.href;var prices=[];document.querySelectorAll(&#39;script[type=&quot;application/ld+json&quot;]&#39;).forEach(function(sc){try{var d=JSON.parse(sc.textContent);var dd=Array.isArray(d)?d:[d];function dig(x){if(!x||typeof x!==&#39;object&#39;)return;if(x.offers){var of=Array.isArray(x.offers)?x.offers:[x.offers];of.forEach(function(f){if(f&amp;&amp;f.price)prices.push(parseInt(String(f.price).replace(/[^\d]/g,&#39;&#39;),10));if(f&amp;&amp;f.lowPrice)prices.push(parseInt(String(f.lowPrice).replace(/[^\d]/g,&#39;&#39;),10));});}if(x.price)prices.push(parseInt(String(x.price).replace(/[^\d]/g,&#39;&#39;),10));}dd.forEach(function(o){dig(o);if(o&amp;&amp;o[&#39;@graph&#39;])o[&#39;@graph&#39;].forEach(dig);});}catch(e){}});if(!prices.length){document.querySelectorAll(&#39;meta[itemprop=&quot;price&quot;],meta[property=&quot;product:price:amount&quot;],meta[property=&quot;og:price:amount&quot;],meta[property*=&quot;price&quot;]&#39;).forEach(function(m){var v=m.getAttribute(&#39;content&#39;);if(v)prices.push(parseInt(String(v).replace(/[^\d]/g,&#39;&#39;),10));});}if(!prices.length){document.querySelectorAll(&#39;[itemprop=&quot;price&quot;],[class*=&quot;price&quot;],[class*=&quot;Price&quot;],[data-testid*=&quot;price&quot;]&#39;).forEach(function(el){var v=el.getAttribute(&#39;content&#39;)||el.textContent;var t=String(v).replace(/[,\u00a5\uffe5\s\u5186]/g,&#39;&#39;);var m=t.match(/\d{2,8}/);if(m)prices.push(parseInt(m[0],10));});}prices=prices.filter(function(p){return p&amp;&amp;p&gt;=50&amp;&amp;p&lt;=3000000;});var price=prices.length?prices[0]:null;if(price===null){var inp=prompt(&#39;価格を自動取得できませんでした。手で入力してください（円）:&#39;,&#39;&#39;);if(!inp)return;price=parseInt(String(inp).replace(/[^\d]/g,&#39;&#39;),10);if(!price)return;}var target=&#39;https://shirakawa484-ship-it.github.io/kz-export-tool/&#39;+&#39;?price=&#39;+price+&#39;&amp;url=&#39;+encodeURIComponent(u);window.open(target,&#39;_blank&#39;);}catch(err){alert(&#39;エラー: &#39;+err.message);}})();">仕入れ値取得（これをブックマークバーへ）</a>
     <div style="font-size:11px;color:var(--muted);padding-bottom:12px">※対応：メルカリ・Yahoo!フリマ・駿河屋。自分で開いた1ページだけを読み取ります。自動巡回はしません。</div>
   </details>
@@ -264,6 +270,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
     </select>
     
     <button class="btn" id="exportCostBtn" onclick="exportCosts()" title="登録した仕入れ候補の最安値を、価格メンテツール（Python）用に書き出します">仕入れ値・重量を書き出す</button>
+    <span id="exportInfo" style="font-size:11px;color:#666"></span>
   </div>
 
   <details class="settings">
@@ -720,7 +727,10 @@ function exportCosts(){
       try{
         var fh=await AUTO_DIR.getFileHandle('costs_from_inventory.json',{create:true});
         var w=await fh.createWritable(); await w.write(JSON.stringify(out,null,2)); await w.close();
-        saved=true; showToast(msg+'（autoフォルダに自動保存）');
+        saved=true;
+        try{localStorage.setItem('ss_export_v1',JSON.stringify({at:new Date().toISOString(),n:n}));}catch(e){}
+        updateExportInfo();
+        showToast(msg+'（autoフォルダに自動保存）');
       }catch(e){}
     }
     if(!saved){
@@ -1200,9 +1210,18 @@ async function autoLoadAll(verbose){
   if(verbose&&msgs.length&&typeof showToast==='function') showToast('自動読み込み：'+msgs.join(' ／ '));
 }
 function fmtTime(iso){try{return new Date(iso).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}
+function updateExportInfo(syncedAt){
+  var el=document.getElementById('exportInfo'); if(!el)return;
+  var ex=null; try{ex=JSON.parse(localStorage.getItem('ss_export_v1')||'null');}catch(e){}
+  if(!ex){el.textContent='';return;}
+  var synced=syncedAt&&(Date.parse(syncedAt)>=Date.parse(ex.at));
+  el.textContent='書き出し '+fmtTime(ex.at)+'（'+ex.n+'件）'+(synced?' → スプシ同期済み✅':' → 同期待ち（10分以内）');
+  el.style.color=synced?'#1d6f56':'#8a5b00';
+}
 async function refreshOpsStatus(){
   if(!AUTO_DIR) return;
   var sy=await autoReadJSON('sync_status.json');
+  updateExportInfo(sy&&sy.synced_at);
   var se=document.getElementById('syncInfo');
   if(se&&sy){ se.textContent='｜スプシ同期 '+fmtTime(sy.synced_at)+(sy.error?' ⚠️失敗':'（追加'+(sy.added||0)+'・削除'+(sy.deleted||0)+'）');
     se.style.color=sy.error?'#b45309':'#888'; se.title=sy.error||''; }
