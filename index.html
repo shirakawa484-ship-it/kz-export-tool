@@ -221,7 +221,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.1</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.2</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -703,15 +703,21 @@ function sortIdx(arr){
   });
   return a; // 'sheet'はスプシの並びのまま
 }
+function scrollToCard(idx){
+  var card=document.getElementById('card'+idx); if(!card)return;
+  var det=card.closest('details'); if(det&&!det.open)det.open=true;
+  var go=function(){var c=document.getElementById('card'+idx); if(!c)return;
+    c.scrollIntoView({behavior:'smooth',block:'center'});
+    c.classList.add('flash'); setTimeout(function(){c.classList.remove('flash');},2400);};
+  requestAnimationFrame(function(){requestAnimationFrame(go);});
+  setTimeout(go,700); // 折りたたみ展開・画像読み込みによる位置ズレの2段目補正
+}
 function onMaintJump(){
   sortMode='mainte'; var sel=document.getElementById('sortSel'); if(sel)sel.value='mainte';
   renderAll();
   var idx=-1; ITEMS.forEach(function(it,i){if(idx<0&&mainteInfo(it).suspect)idx=i;});
   setTimeout(function(){
-    var card=(idx>=0)?document.getElementById('card'+idx):null;
-    if(card){var det=card.closest('details');if(det)det.open=true;
-      card.scrollIntoView({behavior:'smooth',block:'center'});
-      card.classList.add('flash');setTimeout(function(){card.classList.remove('flash');},2400);}
+    if(idx>=0){scrollToCard(idx);}
     else{var el=document.getElementById('secOut');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
   },80);
 }
@@ -824,11 +830,7 @@ restoreAll();
 var incoming=handleIncoming();
 var actId=localStorage.getItem(LS_ACTIVE);if(actId){ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}
 renderAll();
-if(window.__scrollToActive&&activeIdx!=null){setTimeout(function(){
-  var c=document.getElementById('card'+activeIdx);
-  if(c){var det=c.closest('details');if(det)det.open=true;
-    c.scrollIntoView({behavior:'smooth',block:'center'});}
-},150);}
+if(window.__scrollToActive&&activeIdx!=null){setTimeout(function(){scrollToCard(activeIdx);},150);}
 // メンテ中の商品へスクロール（在庫ありセクションは折りたたみのため開く）
 if(activeIdx!==null){
   var t=stockType(ITEMS[activeIdx]);
@@ -1238,12 +1240,7 @@ window.addEventListener('resize',onBarScroll);
 showMainTab('inv');
   var idx=-1; ITEMS.forEach(function(it,i){if(String(it.id)===String(id))idx=i;});
   if(idx<0){alert('在庫一覧にこの商品が見つかりません（在庫データを読み込み直してください）');return;}
-  setTimeout(function(){
-    var card=document.getElementById('card'+idx); if(!card)return;
-    var det=card.closest('details'); if(det)det.open=true;
-    card.scrollIntoView({behavior:'smooth',block:'center'});
-    card.classList.add('flash'); setTimeout(function(){card.classList.remove('flash');},2400);
-  },80);
+  setTimeout(function(){scrollToCard(idx);},80);
 }
 // ===== v1.5: autoフォルダ接続（File System Access API） =====
 var AUTO_DIR=null;
