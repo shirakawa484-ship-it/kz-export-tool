@@ -213,7 +213,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.7.2</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.7.3</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -616,7 +616,7 @@ function cardHtml(it,idx){
       var pend=loadPending()[String(it.id)];
       if(!pend||!pend.items||!pend.items.length)return '';
       var rows=pend.items.map(function(d,i){
-        return '<label class="pend"><input type="checkbox" data-i="'+i+'">'+(d.i?'<img src="'+esc(d.i)+'" loading="lazy">':'<span class="noimg">画像なし</span>')+'<span class="pp">'+Number(d.p).toLocaleString()+'円</span><span class="pt">'+esc(d.t||'')+'</span><a href="'+esc(d.u)+'" target="_blank" rel="noopener">開く↗</a></label>';
+        return '<label class="pend"><input type="checkbox" data-i="'+i+'"'+(i<5?' checked':'')+'>'+(d.i?'<img src="'+esc(d.i)+'" loading="lazy">':'<span class="noimg">画像なし</span>')+'<span class="pp">'+Number(d.p).toLocaleString()+'円</span><span class="pt">'+esc(d.t||'')+'</span><a href="'+esc(d.u)+'" target="_blank" rel="noopener">開く↗</a></label>';
       }).join('');
       return '<div class="pendwrap" id="pend'+idx+'"><div class="lbl">🛒 選別待ち '+pend.items.length+'件（画像を見てチェック→追加）</div><div class="pendlist">'+rows+'</div>'+
         '<div class="pendactions"><button class="addbtn" onclick="commitPending('+idx+')">選んだ候補に追加</button><button class="del2" onclick="clearPending('+idx+')">全部捨てる</button></div></div>';
@@ -765,6 +765,7 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     var arr=JSON.parse(decodeURIComponent(location.hash.slice(7)));
     var act=localStorage.getItem(LS_ACTIVE);
     if(act&&arr&&arr.length){
+      arr.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
       var all=loadPending(); all[String(act)]={at:new Date().toISOString(),items:arr.slice(0,10)}; savePending(all);
     }
     history.replaceState(null,'',location.pathname+location.search);
