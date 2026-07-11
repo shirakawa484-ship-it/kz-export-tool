@@ -43,7 +43,7 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabInv header .sub{color:var(--muted);font-size:12px;margin-top:2px}
 #tabInv .wrap{max-width:920px;margin:0 auto;padding:16px}
 #tabInv .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-#tabInv #tabInv .bar{position:sticky;top:var(--headh,50px);z-index:150;background:var(--bg);padding:8px 0;margin:0;box-shadow:0 6px 8px -6px rgba(0,0,0,.12)}
+#tabInv #tabInv .bar.stuck{background:var(--bg);z-index:150;box-shadow:0 6px 8px -6px rgba(0,0,0,.2);padding:8px 12px;border-radius:0 0 10px 10px}
 .chip{font-size:12px;padding:5px 11px;border-radius:20px;font-weight:600;cursor:pointer;user-select:none}
 #tabInv .chip:hover{filter:brightness(0.95)}
 #tabInv .sitesnote{font-size:10.5px;color:var(--muted);margin-top:4px}
@@ -60,6 +60,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .wchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
 .wchip{font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
 .wchip.on{background:#1d6f56;border-color:#1d6f56;color:#fff}
+.wship{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px}
+.wship input{width:110px;padding:5px 8px;border:1px solid var(--line);border-radius:7px}
 .chip.maint{background:#fff3d6;color:#8a5b00}
 .mbadge{display:inline-block;font-size:10px;font-weight:700;background:#fff3d6;color:#8a5b00;padding:2px 8px;border-radius:4px;margin-left:6px}
 .deferbtn{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#666;flex-shrink:0}
@@ -213,7 +215,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.7.3</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.8</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -510,10 +512,15 @@ function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{
 function saveWeights(w){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
 function resolveWeight(it){
   var w=loadWeights()[String(it.id)];
+  if(w&&w.ship!==undefined&&w.ship!==null)return {cat:w.cat||'custom',wc:w.wc!==undefined?w.wc:null,manual:true,ship:w.ship};
   if(w&&w.wc!==undefined)return {cat:w.cat||'custom',wc:w.wc,manual:true};
   var k=detectCategory(it.title||it.name);
   if(k){var c=catByKey(k);return {cat:k,wc:c.wc,manual:false};}
   return {cat:null,wc:null,manual:false}; // 未判定
+}
+function shipLabelW(w){
+  if(w.ship)return '手入力送料 '+Number(w.ship).toLocaleString()+'円';
+  return shipLabel(w.wc);
 }
 function shipLabel(wc){
   if(wc==='over10')return '⚠️ 10kg超・送料要手動（OC対象外）';
@@ -528,6 +535,14 @@ function onWchip(idx,wc){
   var it=ITEMS[idx]; var all=loadWeights();
   all[String(it.id)]={cat:'custom', wc:(wc==='over10')?'over10':parseFloat(wc)};
   saveWeights(all); renderAll();
+}
+function onWship(idx,val){
+  var it=ITEMS[idx]; var all=loadWeights();
+  var cur=all[String(it.id)]||{cat:'custom'};
+  var v=parseInt(String(val).replace(/[^\d]/g,''),10);
+  if(v>0){cur.ship=v; all[String(it.id)]=cur; saveWeights(all);}
+  else{delete cur.ship; all[String(it.id)]=cur; saveWeights(all);}
+  renderAll();
 }
 function onWreset(idx){
   var it=ITEMS[idx]; var all=loadWeights(); delete all[String(it.id)]; saveWeights(all); renderAll();
@@ -604,9 +619,10 @@ function cardHtml(it,idx){
       var chips=WCLASSES.map(function(c){return '<button class="wchip'+(w.wc===c?' on':'')+'" onclick="onWchip('+idx+','+c+')">'+c.toFixed(1)+'</button>';}).join('')+'<button class="wchip'+(w.wc==='over10'?' on':'')+'" onclick="onWchip('+idx+',\'over10\')">10kg超</button>';
       var sel='<select onchange="onWcat('+idx+',this.value)">'+(w.cat?'':'<option value="" selected>（未判定）</option>')+CAT_MASTER.map(function(c){if(c.k==='custom')return '<option value="custom"'+(w.cat==='custom'?' selected':'')+'>'+c.l+'</option>';var wl=(c.wc==='over10')?'10kg超':c.wc.toFixed(1)+'kg';return '<option value="'+c.k+'"'+(w.cat===c.k?' selected':'')+'>'+c.l+'｜'+wl+'</option>';}).join('')+'</select>';
       return '<div class="wrow"><span class="lbl2">送料区分：</span>'+sel+
-        '<span class="wsum'+(w.wc==='over10'||w.wc===null?' warn':'')+'">'+shipLabel(w.wc)+'</span>'+
+        '<span class="wsum'+(!w.ship&&(w.wc==='over10'||w.wc===null)?' warn':'')+'">'+shipLabelW(w)+'</span>'+
         (w.manual?'<span class="wbadge">固定済み（自動で変わりません）</span><button class="wreset" onclick="onWreset('+idx+')" title="自動判定に戻す">↺</button>':'<span class="wauto">自動判定</span>')+
-        '</div><details class="wdet"><summary>重量区分を直接選ぶ</summary><div class="wchips">'+chips+'</div></details>';
+        '</div><details class="wdet"><summary>重量区分を直接選ぶ／送料を手入力</summary><div class="wchips">'+chips+'</div>'+
+        '<div class="wship"><span>送料を直接入力（10kg超・特殊梱包用）：</span><input type="number" placeholder="円" value="'+(w.ship||'')+'" onchange="onWship('+idx+',this.value)"><span style="font-size:11px;color:var(--muted)">クリアは空にして確定</span></div></details>';
     })()+
     '<div class="existing"><div class="lbl">仕入れ元URLを手動追加'+(added?'：'+added:'')+'</div>'+
       '<div class="urladd"><input type="text" id="au'+idx+'" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl('+idx+')">URL追加</button></div>'+
@@ -721,7 +737,8 @@ function exportCosts(){
     var mn=minCost(i);
     var w=resolveWeight(it);
     out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
-      weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined)};
+      weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
+      ship_yen_manual:(w.ship||undefined)};
     n++;
   });
   if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
@@ -1146,8 +1163,29 @@ render();
 <script>
 
 function goInvItem(id){
-  function setHeadH(){var h=document.querySelector('.shellhead');if(h)document.documentElement.style.setProperty('--headh',h.offsetHeight+'px');}
-setHeadH(); window.addEventListener('resize',setHeadH);
+  var barEl=null,barPh=null;
+function onBarScroll(){
+  if(!barEl){barEl=document.querySelector('#tabInv .bar');if(!barEl)return;
+    barPh=document.createElement('div');barPh.style.display='none';
+    barEl.parentNode.insertBefore(barPh,barEl);}
+  var headH=(document.querySelector('.shellhead')||{offsetHeight:50}).offsetHeight;
+  var invVisible=document.getElementById('tabInv').style.display!=='none';
+  var anchor=(barPh.style.display==='none')?barEl:barPh;
+  var top=anchor.getBoundingClientRect().top;
+  if(invVisible&&top<=headH){
+    var r=(barPh.style.display==='none')?barEl.getBoundingClientRect():barPh.getBoundingClientRect();
+    if(barPh.style.display==='none'){barPh.style.height=barEl.offsetHeight+'px';barPh.style.display='block';}
+    barEl.classList.add('stuck');
+    barEl.style.position='fixed';barEl.style.top=headH+'px';
+    barEl.style.left=r.left+'px';barEl.style.width=r.width+'px';
+  }else if(barEl.classList.contains('stuck')){
+    barEl.classList.remove('stuck');
+    barEl.style.position='';barEl.style.top='';barEl.style.left='';barEl.style.width='';
+    barPh.style.display='none';
+  }
+}
+window.addEventListener('scroll',onBarScroll,{passive:true});
+window.addEventListener('resize',onBarScroll);
 showMainTab('inv');
   var idx=-1; ITEMS.forEach(function(it,i){if(String(it.id)===String(id))idx=i;});
   if(idx<0){alert('在庫一覧にこの商品が見つかりません（在庫データを読み込み直してください）');return;}
@@ -1292,8 +1330,29 @@ document.getElementById('unifiedFile').addEventListener('change',function(e){
   });
   e.target.value='';
 });
-function setHeadH(){var h=document.querySelector('.shellhead');if(h)document.documentElement.style.setProperty('--headh',h.offsetHeight+'px');}
-setHeadH(); window.addEventListener('resize',setHeadH);
+var barEl=null,barPh=null;
+function onBarScroll(){
+  if(!barEl){barEl=document.querySelector('#tabInv .bar');if(!barEl)return;
+    barPh=document.createElement('div');barPh.style.display='none';
+    barEl.parentNode.insertBefore(barPh,barEl);}
+  var headH=(document.querySelector('.shellhead')||{offsetHeight:50}).offsetHeight;
+  var invVisible=document.getElementById('tabInv').style.display!=='none';
+  var anchor=(barPh.style.display==='none')?barEl:barPh;
+  var top=anchor.getBoundingClientRect().top;
+  if(invVisible&&top<=headH){
+    var r=(barPh.style.display==='none')?barEl.getBoundingClientRect():barPh.getBoundingClientRect();
+    if(barPh.style.display==='none'){barPh.style.height=barEl.offsetHeight+'px';barPh.style.display='block';}
+    barEl.classList.add('stuck');
+    barEl.style.position='fixed';barEl.style.top=headH+'px';
+    barEl.style.left=r.left+'px';barEl.style.width=r.width+'px';
+  }else if(barEl.classList.contains('stuck')){
+    barEl.classList.remove('stuck');
+    barEl.style.position='';barEl.style.top='';barEl.style.left='';barEl.style.width='';
+    barPh.style.display='none';
+  }
+}
+window.addEventListener('scroll',onBarScroll,{passive:true});
+window.addEventListener('resize',onBarScroll);
 showMainTab('inv');
 
 </script>
