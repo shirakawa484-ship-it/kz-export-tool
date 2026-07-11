@@ -21,6 +21,7 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabPa .pthumbs figcaption{font-size:10px;color:#7a8194;margin-top:2px}
 #tabPa .pthumbs .refimg{border-color:#2f6fed}
 #tabPa .dropwarn{font-size:12px;background:#fff6e6;border:1px solid #ecd9a8;color:#9a6b00;border-radius:7px;padding:6px 10px;margin:4px 0}
+#tabPa .manualbadge{font-size:10px;font-weight:700;background:#fff3d6;color:#8a5b00;padding:1px 6px;border-radius:4px;margin-left:5px}
 #tabPa .renew{font-size:12px;color:#556}
 #tabPa .renew.soon{color:#b45309;font-weight:700}
 #tabPa .goinv{font-size:11.5px;margin-left:10px;color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px}
@@ -66,6 +67,9 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .mbadge{display:inline-block;font-size:10px;font-weight:700;background:#fff3d6;color:#8a5b00;padding:2px 8px;border-radius:4px;margin-left:6px}
 .deferbtn{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#666;flex-shrink:0}
 .deferbtn.on{background:#e8e8e8;color:#555;border-color:#ccc;font-weight:700}
+.primarybtn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;font-weight:700}
+.primarybtn.dirty{box-shadow:0 0 0 3px #ffd54d}
+.primarybtn.dirty::before{content:'● 未保存の変更あり　';font-size:11px;color:#fff3c4}
 .pendwrap{border:1.5px dashed #c9a86a;background:#fffaf0;border-radius:9px;padding:9px 11px;margin:9px 0}
 .pendlist{display:flex;flex-direction:column;gap:5px;margin:7px 0}
 .pend{display:flex;align-items:center;gap:9px;font-size:12px;cursor:pointer;background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 9px}
@@ -215,7 +219,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.8</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -277,7 +281,7 @@ window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#batch='+enco
       <option value="newest">出品が新しい順</option>
     </select>
     
-    <button class="btn" id="exportCostBtn" onclick="exportCosts()" title="登録した仕入れ候補の最安値を、価格メンテツール（Python）用に書き出します">仕入れ値・重量を書き出す</button>
+    <button class="btn primarybtn" id="exportCostBtn" onclick="exportCosts()" title="仕入れ候補・手入力原価・重量の変更を保存します。10分以内にスプシに同期され、翌朝の価格計画に反映されます">登録内容を保存（スプシ・計画に反映）</button>
     <span id="exportInfo" style="font-size:11px;color:#666"></span>
   </div>
 
@@ -501,7 +505,14 @@ function clearPending(idx){
 }
 var LS_DEFER='ss_defer_v1';
 function loadDefer(){try{return JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){return {};}}
-function isDeferred(it){return !!loadDefer()[String(it.id)];}
+function isDeferred(it){
+  if(loadDefer()[String(it.id)])return true;
+  var idx=ITEMS.indexOf(it);
+  if(idx>=0){var a=supplies[idx]||[];
+    if((it.urls||[]).length===0 && a.length>0 && a.every(function(s){return !s.url;}))return true;}
+  return false;
+}
+function isManualDefer(it){return !!loadDefer()[String(it.id)];}
 function toggleDefer(idx){
   var it=ITEMS[idx]; var d=loadDefer();
   if(d[String(it.id)]) delete d[String(it.id)]; else d[String(it.id)]={at:new Date().toISOString()};
@@ -509,7 +520,7 @@ function toggleDefer(idx){
   renderAll();
 }
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
-function saveWeights(w){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
+function saveWeights(w){markDirty();try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
 function resolveWeight(it){
   var w=loadWeights()[String(it.id)];
   if(w&&w.ship!==undefined&&w.ship!==null)return {cat:w.cat||'custom',wc:w.wc!==undefined?w.wc:null,manual:true,ship:w.ship};
@@ -557,7 +568,11 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp
 function stockType(it){var s=it.stock||'';if(s.indexOf('なし')>=0)return 'out';if(s.indexOf('エラー')>=0||s.indexOf('ｴﾗｰ')>=0)return 'err';if(s.indexOf('あり')>=0)return 'in';return 'err';}
 
 function loadJSON(k){try{return JSON.parse(localStorage.getItem(k)||'{}');}catch(e){return {};}}
-function saveSupplies(){var b={};Object.keys(supplies).forEach(function(i){var it=ITEMS[i];if(it)b[it.id]=supplies[i];});try{localStorage.setItem(LS_SUPPLY,JSON.stringify(b));}catch(e){}}
+var DIRTY=false;
+function markDirty(){DIRTY=true;var b=document.getElementById('exportCostBtn');if(b)b.classList.add('dirty');}
+function clearDirty(){DIRTY=false;var b=document.getElementById('exportCostBtn');if(b)b.classList.remove('dirty');}
+window.addEventListener('beforeunload',function(e){if(DIRTY){e.preventDefault();e.returnValue='';}});
+function saveSupplies(){markDirty();var b={};Object.keys(supplies).forEach(function(i){var it=ITEMS[i];if(it)b[it.id]=supplies[i];});try{localStorage.setItem(LS_SUPPLY,JSON.stringify(b));}catch(e){}}
 function saveMeta(){var b={};ITEMS.forEach(function(it,i){b[it.id]={kw:keywords[i],dest:dests[i],duty:duties[i]};});try{localStorage.setItem(LS_META,JSON.stringify(b));}catch(e){}}
 function saveAddUrls(){var b={};Object.keys(addUrls).forEach(function(i){var it=ITEMS[i];if(it)b[it.id]=addUrls[i];});try{localStorage.setItem(LS_ADDURL,JSON.stringify(b));}catch(e){}}
 function restoreAll(){
@@ -587,7 +602,12 @@ function handleIncoming(){
 
 function calcProfit(priceUsd,costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed'),refundRate=n('refund');var taxPct=10;/* 米国TAX目安。eBay手数料はTAX込み総額に課される(2026-07-08修正) */var fb=priceUsd*(1+taxPct/100);var fRak=fb*fvf/100,fIntl=fb*intl/100,fFx=fb*fx/100,fPromo=fb*promo/100;var fFixed=priceUsd>0?(priceUsd<=10?0.30:fixed):0;var fTot=fRak+fIntl+fFx+fPromo+fFixed;var netY=(priceUsd-fTot)*rate;var dutyY=dutyRate>0?(priceUsd*dutyRate/100*rate):0;var profit=netY-costYen-shipYen-dutyY;var salesY=priceUsd*rate;var margin=salesY>0?(profit/salesY*100):0;var refund=(costYen+fRak*rate)*refundRate/100;return {profit:profit,margin:margin,refund:refund};}
 function calcTarget(costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed');var t=n('targetMargin')/100;var taxPct=10;var r1=(fvf+intl+fx+promo)/100*(1+taxPct/100),d=dutyRate/100;var den=rate*(1-r1-d-t);if(den<=0)return null;return (fixed*rate+costYen+shipYen)/den;}
-function minCost(idx){var a=supplies[idx]||[];if(!a.length)return null;return Math.min.apply(null,a.map(function(x){return x.price;}));}
+function minCost(idx){var a=supplies[idx]||[];if(!a.length)return null;
+  var man=a.filter(function(x){return !x.url&&x.price>0;});
+  if(man.length)return Math.min.apply(null,man.map(function(x){return x.price;}));
+  return Math.min.apply(null,a.map(function(x){return x.price;}));}
+function manualCost(idx){var a=supplies[idx]||[];var man=a.filter(function(x){return !x.url&&x.price>0;});
+  return man.length?Math.min.apply(null,man.map(function(x){return x.price;})):null;}
 function extractKw(name){var m=name.match(/[A-Z]{2}\d{2}-\d{3}/);if(m)return m[0];return name.split(' ').slice(0,2).join(' ');}
 
 function cardHtml(it,idx){
@@ -603,8 +623,8 @@ function cardHtml(it,idx){
       var d=(m.days!=null)?('（再出品まで'+m.days+'日）'):'';
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
     })()+'</div>'+
-    '<div class="meta">eBay #'+it.id+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
-    (isDeferred(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="後回しを解除">後回し中 ↺</button>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">後回し</button>')+'</div>'+
+    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
+    (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+'</div>'+
     '<div class="searchrow">'+
       '<div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="'+esc(keywords[idx])+'" oninput="onKw('+idx+',this.value)"></div>'+
       '<button class="searchbtn" onclick="doSearch('+idx+',\'mercari\')">メルカリ</button>'+
@@ -719,7 +739,7 @@ function renderAll(){
   ITEMS.forEach(function(it,i){renderSlots(i);recalc(i);});
 }
 
-function renderSlots(idx){var el=document.getElementById('slots'+idx);if(!el)return;var arr=supplies[idx]||[];var mn=minCost(idx);el.innerHTML=arr.map(function(s,i){var isMin=(s.price===mn);return '<div class="slot '+(isMin?'min':'')+'">'+(isMin?'<span class="tag">最安</span>':'')+'<input class="pr" type="number" value="'+s.price+'" onchange="editPrice('+idx+','+i+',this.value)">'+'<span style="font-size:11px">円</span>'+'<span class="u">'+(s.url?esc(s.url):'手入力')+'</span>'+'<button class="del" onclick="delSupply('+idx+','+i+')">×</button></div>';}).join('');}
+function renderSlots(idx){var el=document.getElementById('slots'+idx);if(!el)return;var arr=supplies[idx]||[];var mn=minCost(idx);el.innerHTML=arr.map(function(s,i){var isMin=(s.price===mn);return '<div class="slot '+(isMin?'min':'')+'">'+(isMin?'<span class="tag">最安</span>':'')+'<input class="pr" type="number" value="'+s.price+'" onchange="editPrice('+idx+','+i+',this.value)">'+'<span style="font-size:11px">円</span>'+'<span class="u">'+(s.url?esc(s.url):'<b style="color:#8a5b00">手入力原価（URL候補より優先）</b>')+'</span>'+'<button class="del" onclick="delSupply('+idx+','+i+')">×</button></div>';}).join('');}
 
 function onKw(idx,v){keywords[idx]=v;saveMeta();}
 function doSearch(idx,site){activeIdx=idx;localStorage.setItem(LS_ACTIVE,String(ITEMS[idx].id));var kw=keywords[idx]||'';var enc=encodeURIComponent(kw);var url;if(site==='paypay')url='https://paypayfleamarket.yahoo.co.jp/search/'+enc;else if(site==='suruga')url='https://www.suruga-ya.jp/search?search_word='+enc;else url='https://jp.mercari.com/search?keyword='+enc;window.open(url,'_blank','noopener');renderAll();var sn=site==='paypay'?'Yahoo!フリマ':(site==='suruga'?'駿河屋':'メルカリ');showToast('「'+ITEMS[idx].name.slice(0,14)+'…」をメンテ中に。'+sn+'でブックマークレットを押すと追加されます');}
@@ -738,7 +758,7 @@ function exportCosts(){
     var w=resolveWeight(it);
     out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
       weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
-      ship_yen_manual:(w.ship||undefined)};
+      ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined)};
     n++;
   });
   if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
@@ -750,7 +770,7 @@ function exportCosts(){
       try{
         var fh=await AUTO_DIR.getFileHandle('costs_from_inventory.json',{create:true});
         var w=await fh.createWritable(); await w.write(JSON.stringify(out,null,2)); await w.close();
-        saved=true;
+        saved=true; clearDirty();
         try{localStorage.setItem('ss_export_v1',JSON.stringify({at:new Date().toISOString(),n:n}));}catch(e){}
         updateExportInfo();
         showToast(msg+'（autoフォルダに自動保存）');
@@ -813,7 +833,7 @@ function invImportCosts(data){
   return '仕入れ候補を取り込みました（'+hit+'商品）'+(miss?'。在庫一覧に無い'+miss+'商品分は未反映':'');
 }
 function invLoadInventory(data){
-  var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null};});
+  var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, current_price_usd:(r.current_price_usd!=null?r.current_price_usd:null), days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null};});
   if(!ni.length){alert('在庫データが空です');return;}
   ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();renderAll();
   try{localStorage.setItem(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:ni}));}catch(e){}
@@ -989,7 +1009,7 @@ function render(){
         <div class="title">${it.title}</div>
         ${it.price_drop_suspect?`<div class="dropwarn" style="${(it.below_breakeven_pct||0)>=75?'background:#fbeaea;border-color:#e5b8b8;color:#8c2f2f':''}">⚠️ ライバルの${it.below_breakeven_pct}%があなたの損益分岐点を下回っています。仕入れ相場が下がった可能性 → 在庫メンテタブでメルカリ相場を確認し、安い候補があれば登録し直してください${it.days_to_renewal!=null?`（再出品まで${it.days_to_renewal}日）`:""}</div>`:""}
         ${it.benchmark_dropped?`<div class="dropwarn">📉 前回の基準ライバルが ${money(it.benchmark_dropped.prev_usd)} → ${money(it.benchmark_dropped.now_usd)} に値下げしています</div>`:""}
-        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.days_to_renewal!=null?` ｜ <span class="renew${it.days_to_renewal<=7?' soon':''}">再出品まで${it.days_to_renewal}日</span>`:""}<a class="goinv" href="javascript:void(0)" onclick="goInvItem('${it.item_id}')">この商品の在庫メンテへ ↗</a>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
+        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.days_to_renewal!=null?` ｜ <span class="renew${it.days_to_renewal<=7?' soon':''}">再出品まで${it.days_to_renewal}日</span>`:""}<a class="goinv" href="javascript:void(0)" onclick="goInvItem('${it.item_id}')">この商品の在庫メンテへ ↗</a>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>${it.cost_source==='manual'?'<span class="manualbadge">手入力</span>':''}`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
           const lc=it.last_choice; if(!lc||!lc.choice) return "";
           const lcC=(lc.c_margin!=null?lc.c_margin:lc.cpct)||"5";
           const lcM=(lc.manual_price_usd!=null?lc.manual_price_usd:lc.manual);
