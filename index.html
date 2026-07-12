@@ -232,7 +232,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.5</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.6</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -543,18 +543,20 @@ function toggleDefer(idx){
 }
 // ▼ メンテ済み沈め（案Y：保存で確定した「触った商品」を永続で最下部へ）
 var LS_MAINTED='ss_mainted_v1';   // {itemId:{at}} 永続
-var TOUCHED={};                    // このセッションで編集した商品ID（保存でLS_MAINTEDへ確定）
+var LS_TOUCHED='ss_touched_v1';   // 未保存の「触った商品」。localStorage保持＝リロード・ブックマークレット往復でも消えない
 var _maintedCache=null;
 function loadMainted(){if(_maintedCache)return _maintedCache;try{_maintedCache=JSON.parse(localStorage.getItem(LS_MAINTED)||'{}');}catch(e){_maintedCache={};}return _maintedCache;}
 function isMainted(it){return !!loadMainted()[String(it.id)];}
-function markTouched(idx){var it=ITEMS[idx];if(it)TOUCHED[String(it.id)]=1;}
-function markTouchedId(id){if(id!=null)TOUCHED[String(id)]=1;}
+function loadTouched(){try{return JSON.parse(localStorage.getItem(LS_TOUCHED)||'{}');}catch(e){return {};}}
+function saveTouched(t){try{localStorage.setItem(LS_TOUCHED,JSON.stringify(t));}catch(e){}}
+function markTouched(idx){var it=ITEMS[idx];if(!it)return;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);}
+function markTouchedId(id){if(id==null)return;var t=loadTouched();t[String(id)]=1;saveTouched(t);}
 function commitTouched(){
-  if(!Object.keys(TOUCHED).length)return;
+  var t=loadTouched(); if(!Object.keys(t).length)return;
   var m=loadMainted(),now=new Date().toISOString();
-  Object.keys(TOUCHED).forEach(function(id){if(!m[id])m[id]={at:now};});
+  Object.keys(t).forEach(function(id){if(!m[id])m[id]={at:now};});
   try{localStorage.setItem(LS_MAINTED,JSON.stringify(m));}catch(e){}
-  _maintedCache=m; TOUCHED={};
+  _maintedCache=m; saveTouched({});
 }
 // 沈める条件：監視なしは常に沈める。メンテ済みは「⚠️売価メンテ順」以外で沈める
 // （売価メンテ順では本物の警告を隠さないため、監視なしのみ沈める）
@@ -849,6 +851,21 @@ function addManual(idx){var el=document.getElementById('mp'+idx);var p=parseInt(
 function editPrice(idx,i,v){var p=parseInt(v,10);if(!p||p<=0)return;supplies[idx][i].price=p;markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
 function delSupply(idx,i){supplies[idx].splice(i,1);markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
 function exportCosts(){
+  // ▼ 送料未確定の完全ブロック：書き出し対象（仕入れ候補あり）に
+  //   「10kg超 または カテゴリ・重量とも未判定」で送料手入力なしの商品があれば保存を中断
+  var shipNG=[];
+  ITEMS.forEach(function(it,i){
+    var arr=supplies[i]||[]; if(!arr.length)return;
+    var w=resolveWeight(it);
+    if(!w.ship && (w.wc==='over10' || w.wc===null)) shipNG.push({idx:i,name:it.name});
+  });
+  if(shipNG.length){
+    alert('⛔ 送料が未確定の商品が'+shipNG.length+'件あるため、保存できません。\n\n'+
+      shipNG.slice(0,5).map(function(x){return '・'+x.name.slice(0,28);}).join('\n')+(shipNG.length>5?'\n…ほか'+(shipNG.length-5)+'件':'')+
+      '\n\n各商品の「送料区分」でカテゴリか重量を選ぶか、10kg超は送料を手入力してください。最初の該当商品へ移動します。');
+    scrollToCard(shipNG[0].idx);
+    return;
+  }
   var out={exported_at:new Date().toISOString(),source:'inventory_tool_v2',items:{}};
   var n=0, skipped=[];
   ITEMS.forEach(function(it,i){
