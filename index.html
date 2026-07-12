@@ -183,9 +183,6 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa .card.extreme.unchecked{opacity:1;} /* 要注意カードは未チェックでも薄くしない（未処理が一目で分かるように） */
 #tabPa .card.pendingapp{opacity:.55}
 #tabPa .doneband.pending{background:#fff7e0;color:#8a6d1a}
-/* 画面外カードの描画計算をスキップ（1,070件対策）。ジャンプは2段補正が着地ズレを吸収 */
-#tabInv .card{content-visibility:auto;contain-intrinsic-size:auto 300px}
-#tabPa .card{content-visibility:auto;contain-intrinsic-size:auto 420px}
 #tabPa .chk input{width:18px;height:18px;cursor:pointer;margin-top:3px;}
 #tabPa .title{font-weight:600;font-size:.96rem;margin:0 0 3px;}
 #tabPa .cur{font-size:.85rem;color:var(--sub);margin-bottom:9px;}
@@ -240,7 +237,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.10</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.11</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1216,7 +1213,7 @@ function render(){
         ${st.level==='danger'?`<div class="dangerbox">🚫 ${st.msg}（このままでは承認できません）</div>`:""}
         ${st.level==='info'?`<div class="warnbox">ℹ️ ${st.msg}</div>`:""}
         <div class="row-actions">${it.reference_listing_url?`<a href="${it.reference_listing_url}" target="_blank" rel="noopener">根拠にしたライバルを見る ↗</a>`:""}<a href="https://www.ebay.com/sh/research?marketplace=EBAY-US&keywords=${encodeURIComponent(it.title||"")}&dayRange=90&tabName=SOLD" target="_blank" rel="noopener" style="margin-left:12px">テラピークで確認 ↗</a></div>
-        <details class="reb" ${s.choice==='r'||s.rivalGone||isExtreme?'open':''}><summary>ライバルを選び直す${s.choice==='r'?'（指定中）':''}${isExtreme&&s.choice!=='r'?'（要注意商品：ライバルの実物を確認してください）':''}</summary>
+        <details class="reb" ${s.choice==='r'||s.rivalGone?'open':''}><summary>ライバルを選び直す${s.choice==='r'?'（指定中）':''}${isExtreme?'（要注意商品：ライバルの実物確認はここから）':''}</summary>
           <div class="ph">「この商品と同じ」ライバルを選ぶと、その総額の $${UNDERCUT.toFixed(2)} 下を価格候補にします。利益は反映前にPython側で正確に計算します。選んだ基準は記録され次回に活かされます。</div>
           <label class="rauto ${s.choice!=='r'?'picked':''}">
             <input type="radio" name="rv-${it.item_id}" data-rauto="${it.item_id}" ${s.choice!=='r'?'checked':''}>
