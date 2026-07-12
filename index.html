@@ -234,7 +234,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.8</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.9</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1036,8 +1036,14 @@ function chosenProfit(it){
 function priceStatus(it){
   const p=chosenPrice(it); if(p==null) return {level:'warn',msg:'価格が未入力です'};
   const cur=it.current_price_usd, r=p/cur;
-  if(r>=2.0) return {level:'danger',msg:`現在価格の${r.toFixed(1)}倍。打ち間違いの可能性`};
-  if(r<=0.5) return {level:'danger',msg:`現在価格の${Math.round(r*100)}%（半額以下）。打ち間違いの可能性`};
+  if(it.excluded){
+    // 要注意（極端値）カード：大きな価格変更が前提なので±50%のハードブロックは適用しない。
+    // 代わりに「手動チェック＝明示承認（extreme_ack）」＋Python側の利益・赤字チェックが最終ガード
+    if(r>=2.0||r<=0.5) return {level:'info',msg:`現在価格の${r>=2.0?(r.toFixed(1)+'倍'):(Math.round(r*100)+'%')}。要注意商品として明示承認され、反映前にPython側で利益・赤字チェックされます`};
+  } else {
+    if(r>=2.0) return {level:'danger',msg:`現在価格の${r.toFixed(1)}倍。打ち間違いの可能性`};
+    if(r<=0.5) return {level:'danger',msg:`現在価格の${Math.round(r*100)}%（半額以下）。打ち間違いの可能性`};
+  }
   if(state[it.item_id].choice==='m') return {level:'info',msg:'手入力価格は反映前にPython側で正確に利益計算・赤字チェックします'};
   if(state[it.item_id].choice==='r') return {level:'info',msg:'ライバル指定価格は反映前にPython側で正確に利益計算・赤字チェックします'};
   return {level:'ok',msg:''};
