@@ -95,6 +95,15 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .endbtn{font-size:10.5px;padding:3px 9px;border:1px solid #d9a5a1;border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#a33c37;flex-shrink:0}
 .endbtn:hover{background:#fdecea}
 .endpending{font-size:10px;font-weight:700;background:#fff7e0;color:#8a6d1a;padding:2px 8px;border-radius:4px;margin-left:6px}
+/* ①A 軽量1行表示（承認タブ版） */
+#tabPa .parow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:6px;opacity:.75}
+#tabPa .parow img{width:36px;height:36px;object-fit:cover;border-radius:6px;border:1px solid #e3e6ea;flex-shrink:0}
+#tabPa .parow .pan{flex:1;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tabPa .parow .pab{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;flex-shrink:0}
+#tabPa .parow .pab.done{background:#e8f2ee;color:#1d6f56}
+#tabPa .parow .pab.pend{background:#fff7e0;color:#8a6d1a}
+#tabPa .parow .pab.nc{background:#eee;color:#777}
+#tabPa .parow .openbtn{font-size:11px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;flex-shrink:0}
 .primarybtn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;font-weight:700}
 .primarybtn.dirty{box-shadow:0 0 0 3px #ffd54d}
 .primarybtn.dirty::before{content:'● 未保存の変更あり　';font-size:11px;color:#fff3c4}
@@ -250,7 +259,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.12</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.13</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1135,6 +1144,7 @@ function priceStatus(it){
 
 window.paSortMode=(function(){try{return localStorage.getItem('pa_sort_v1')||'renewAsc';}catch(e){return 'renewAsc';}})();
 (function(){var s=document.getElementById('paSort');if(s)s.value=window.paSortMode;})();
+function expandPaCard(id){window.PA_EXPANDED=window.PA_EXPANDED||{};window.PA_EXPANDED[id]=1;render();}
 function paPendingMap(){ // 承認済み（反映待ち）：{item_id:{at,price}}。反映されたら消す。24時間で自然失効（却下され続けた場合の残留防止）
   var m={};try{m=JSON.parse(localStorage.getItem('pa_pending_v1')||'{}');}catch(e){}
   var AP=appliedMap(),cut=Date.now()-24*3600*1000,changed=false;
@@ -1183,7 +1193,22 @@ function render(){
   if(window.paPage>pages)window.paPage=pages;
   renderPager(sorted.length,pages);
   const AP=appliedMap();
+  const PEND=paPendingMap();
   sorted.slice((window.paPage-1)*PA_PAGE_SIZE,window.paPage*PA_PAGE_SIZE).forEach(it=>{
+    // ①A 軽量1行表示（承認タブ版）：対応済みゾーン（反映済み・承認済み反映待ち・変化なし）は1行に。「開く」で展開
+    const apL=AP[String(it.item_id)]||null, pendL=PEND[String(it.item_id)]||null;
+    if(!window.PA_EXPANDED)window.PA_EXPANDED={};
+    if((apL||pendL||isNoChange(it))&&!window.PA_EXPANDED[String(it.item_id)]){
+      const img=paGetImage(it.item_id);
+      const stBadge=apL?`<span class="pab done">✅ 反映済み ${money(apL.price)}</span>`
+        :(pendL?`<span class="pab pend">🕒 反映待ち ${money(pendL.price)}</span>`
+        :`<span class="pab nc">＝ 変化なし</span>`);
+      const d=document.createElement("div"); d.className="parow";
+      d.innerHTML=(img?`<a href="${ebayItmUrl(it.item_id)}" target="_blank" rel="noopener"><img src="${img}" loading="lazy" alt=""></a>`:'')+
+        `<span class="pan" title="${it.title}">${it.title}</span>`+stBadge+
+        `<button class="openbtn" onclick="expandPaCard('${String(it.item_id)}')">開く</button>`;
+      list.appendChild(d); return;
+    }
     // 除外（STEP5極端値ガード）→ 編集可能な「要注意」カードに変更。
     // デフォルト未チェック・「すべてチェック」対象外。人間が明示チェックした場合のみ extreme_ack:true で反映へ
     const isExtreme=!!it.excluded;
