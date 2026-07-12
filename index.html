@@ -41,6 +41,8 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 #tabPa .card.done{opacity:.55;background:#f4f5f7}
 #tabPa .card.nochange{opacity:.55;background:#f7f7f5}
 #tabPa .doneband.nc{background:#eee;color:#777}
+#tabPa .doneband.extreme{background:#fdecea;color:#a33c37}
+#tabPa .card.extreme{border-color:#e0a8a4}
 #tabPa .doneband{grid-column:1/-1;font-size:12px;font-weight:700;color:#1d6f56;background:#e8f2ee;border-radius:6px;padding:4px 10px;margin-bottom:6px}
 #tabInv .head{display:flex;align-items:flex-start}
 #tabInv .head > div:nth-child(2), #tabInv .head > div:first-child:not(img){flex:1}
@@ -232,7 +234,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.7</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.8</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1083,14 +1085,14 @@ function render(){
   renderPager(sorted.length,pages);
   const AP=appliedMap();
   sorted.slice((window.paPage-1)*PA_PAGE_SIZE,window.paPage*PA_PAGE_SIZE).forEach(it=>{
-    if(it.excluded){
-      const d=document.createElement("div"); d.className="card excluded";
-      d.innerHTML=`<div><div class="title"><span class="exbadge">除外</span>${it.title}</div>
-        <div class="cur">現在 ${money(it.current_price_usd)} ／ 理由：${it.reason||"おすすめ売価が出せませんでした"}</div></div>`;
-      list.appendChild(d); return;
-    }
+    // 除外（STEP5極端値ガード）→ 編集可能な「要注意」カードに変更。
+    // デフォルト未チェック・「すべてチェック」対象外。人間が明示チェックした場合のみ extreme_ack:true で反映へ
+    const isExtreme=!!it.excluded;
     if(!(it.item_id in state)){
       const def=(it.option_c?.default)||'5';
+      if(isExtreme){
+        state[it.item_id]={checked:false, choice:(it.option_a?'a':(it.option_c?'c':'m')), cpct:def, manual:null, rival:null, rivalGone:false};
+      } else {
       // 初期選択：前回の選択(last_choice)があればそれを優先、なければ推奨(recommended)
       const lc = it.last_choice; // Python側: {choice:'a'|'b'|'c'|'m'|'r', c_margin?:'5', manual_price_usd?:65.0, rival_item_id?:'v1|…'}
       if(lc && lc.choice){
@@ -1108,10 +1110,11 @@ function render(){
         var nc0=(it.option_a&&it.current_price_usd!=null&&Math.abs(it.option_a.price_usd-it.current_price_usd)<=0.05);
         state[it.item_id]={checked:!nc0, choice:(it.recommended||'a'), cpct:def, manual:null, rival:null, rivalGone:false};
       }
+      }
     }
     const s=state[it.item_id]; const warn=it.market_deviation_flag;
     const card=document.createElement("div");
-    card.className="card"+(warn?" warn":"")+(s.checked?"":" unchecked");
+    card.className="card"+(warn?" warn":"")+(isExtreme?" extreme":"")+(s.checked?"":" unchecked");
 
     const p=chosenPrice(it), pf=chosenProfit(it), st=priceStatus(it);
     let deltaHtml="";
@@ -1128,6 +1131,7 @@ function render(){
     else if(isNoChange(it)){card.classList.add('nochange');}
     card.innerHTML=`
       ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:(isNoChange(it)?`<div class="doneband nc">＝ 現在価格と同じ（反映不要）</div>`:"")}
+      ${isExtreme&&!apRec?`<div class="doneband extreme">⚠️ 要注意（極端値）：${it.reason||"提案価格が現在価格の±50%を超えています"}<br>一括承認の対象外です。内容を確認し、反映するなら手動でチェックを入れてください。</div>`:""}
       <div class="chk"><input type="checkbox" ${s.checked?"checked":""} ${apRec?"disabled":""} data-id="${it.item_id}"></div>
       <div>
         ${(function(){
@@ -1242,26 +1246,28 @@ function render(){
 }
 function updateCount(){
   let sel=0,warns=0,blocked=0;
-  DATA.items.forEach(it=>{ if(it.excluded) return; const s=state[it.item_id]; if(!s.checked) return;
+  DATA.items.forEach(it=>{ const s=state[it.item_id]; if(!s||!s.checked) return;
     sel++; if(it.market_deviation_flag) warns++; if(priceStatus(it).level==='danger') blocked++; });
   document.getElementById("selCount").textContent=sel;
   let note=""; if(warns) note+=`（⚠️注意 ${warns}件`; if(blocked) note+=`${warns?'／':'（'}🚫要修正 ${blocked}件`; if(warns||blocked) note+="）";
   document.getElementById("warnCount").textContent=note;
   document.getElementById("approveBtn").disabled=(sel===0||blocked>0);
   (function(){var AP=appliedMap();var done=0,tot=0;
-    DATA.items.forEach(function(it){if(it.excluded)return;tot++;if(AP[String(it.item_id)])done++;});
+    DATA.items.forEach(function(it){tot++;if(AP[String(it.item_id)])done++;});
     var pc=document.getElementById('progCount');
     if(pc)pc.textContent='　｜　反映済み '+done+'／未処理 '+(tot-done-sel)+'（全'+tot+'件）';})();
 }
-document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded)state[it.item_id].checked=true;});render();};
-document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded)state[it.item_id].checked=false;});render();};
+document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded&&state[it.item_id])state[it.item_id].checked=true;});render();}; // 要注意（極端値）は一括チェックの対象外＝個別チェックのみ
+document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(state[it.item_id])state[it.item_id].checked=false;});render();};
 document.getElementById("approveBtn").onclick=()=>{
-  const approved=DATA.items.filter(it=>!it.excluded&&state[it.item_id].checked);
+  const approved=DATA.items.filter(it=>state[it.item_id]&&state[it.item_id].checked);
   const warns=approved.filter(it=>it.market_deviation_flag);
   const manuals=approved.filter(it=>state[it.item_id].choice==='m');
-  const notChecked=DATA.items.filter(it=>!it.excluded&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])).length;
+  const extremes=approved.filter(it=>it.excluded);
+  const notChecked=DATA.items.filter(it=>state[it.item_id]&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])).length;
   let msg=`チェック済みの ${approved.length}件を承認します。`;
   if(notChecked>0) msg+=`\nチェックしていない ${notChecked}件は今回の対象外（未処理のまま残ります）。`;
+  if(extremes.length) msg+=`\n\n⚠️ 要注意（極端値）${extremes.length}件が含まれます：\n`+extremes.map(it=>`・${it.title.slice(0,30)}… ${money(it.current_price_usd)} → ${money(chosenPrice(it))}`).join('\n')+`\n大きな価格変更です。本当に反映しますか？`;
   if(warns.length) msg+=`\n\n⚠️ 注意商品 ${warns.length}件（根拠ライバルは確認しましたか？）`;
   if(manuals.length) msg+=`\n\n手入力 ${manuals.length}件は、反映前にPython側で正確に利益・赤字チェックします。`;
   msg+=`\n\n本当によろしいですか？`;
@@ -1272,7 +1278,8 @@ document.getElementById("approveBtn").onclick=()=>{
       return {item_id:it.item_id, new_price_usd:chosenPrice(it),
               chosen:s.choice, c_margin: s.choice==='c'? s.cpct : undefined,
               rival_item_id: rv? rv.rival_item_id : undefined,
-              rival_total_usd: rv? rv.total_usd : undefined};})};
+              rival_total_usd: rv? rv.total_usd : undefined,
+              extreme_ack: it.excluded? true : undefined};})};
   if(DATA.generated_at) out.plan_generated_at=DATA.generated_at;
   autoSaveApproved(out).then(function(ok){
     if(ok){ alert("承認結果を保存しました（"+approved.length+"件）。\n10分以内に自動でeBayに反映されます（画面のヘッダーに結果が表示されます）。"); }
@@ -1300,7 +1307,7 @@ function paApply(obj,fname,loadedAt){
   if(age>24) note+=" ⚠️ 24時間以上前の計画です。作り直しを推奨";
   document.getElementById("loadStatus").textContent=note;
   render();
-  var n=(DATA.items||[]).filter(function(it){return !it.excluded;}).length;
+  var n=(DATA.items||[]).length; // 要注意（極端値）も操作対象になったのでバッジに含める
   var b=document.getElementById("paBadge"); if(b){b.textContent=n; b.style.display=n?"inline-block":"none";}
   if(typeof renderAll==='function') renderAll(); // 在庫タブの⚠️売価メンテも最新計画で更新
 }
