@@ -94,6 +94,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 /* 出品終了 */
 .endbtn{font-size:10.5px;padding:3px 9px;border:1px solid #d9a5a1;border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#a33c37;flex-shrink:0}
 .endbtn:hover{background:#fdecea}
+.endbtn.subtle{border-color:var(--line);color:#999}
+.endbtn.subtle:hover{border-color:#d9a5a1;color:#a33c37;background:#fdecea}
 .endpending{font-size:10px;font-weight:700;background:#fff7e0;color:#8a6d1a;padding:2px 8px;border-radius:4px;margin-left:6px}
 /* ①A 軽量1行表示（承認タブ版） */
 #tabPa .parow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:6px;opacity:.75}
@@ -259,7 +261,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.14</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.15</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -710,7 +712,7 @@ function cardHtml(it,idx){
     })()+(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':'')+'</div>'+
     '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
-    (stockType(it)==='out'?(isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>'):'')+'</div>'+
+    (isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':(stockType(it)==='out'?'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>':'<button class="endbtn subtle" onclick="endListing('+idx+')" title="この商品の扱いをやめる：eBayの出品を終了し、スプシの行も削除します（取り消し不可）">終了…</button>'))+'</div>'+
     '<div class="searchrow">'+
       '<div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="'+esc(keywords[idx])+'" oninput="onKw('+idx+',this.value)"></div>'+
       '<button class="searchbtn" onclick="doSearch('+idx+',\'mercari\')">メルカリ</button>'+
@@ -865,8 +867,9 @@ async function writeEndRequests(){
 }
 function endListing(idx){
   var it=ITEMS[idx];if(!it)return;
-  var msg='eBayの出品を終了します：\n\n「'+(it.title||it.name)+'」\nItemID: '+it.id+
-    '\n\n⚠️ この操作は取り消せません（再出品はSell Similarで手動）。\n'+
+  var stWarn=(stockType(it)!=='out')?'\n⚠️ この商品は在庫切れではありません（'+(it.stock||'状態不明')+'）。それでも終了しますか？\n':'';
+  var msg='eBayの出品を終了します：\n\n「'+(it.title||it.name)+'」\nItemID: '+it.id+'\n'+stWarn+
+    '\n⚠️ この操作は取り消せません（再出品はSell Similarで手動）。\n'+
     '⚠️ スプレッドシートの行も削除されます。\n\n本当に出品を終了しますか？';
   if(!confirm(msg))return;
   var m=loadEndReq();m[String(it.id)]={at:new Date().toISOString(),title:(it.title||it.name)};
