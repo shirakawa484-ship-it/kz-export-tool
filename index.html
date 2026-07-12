@@ -82,6 +82,19 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabInv .mainted-divider{font-size:11px;font-weight:700;color:#8a97ab;background:#f2f4f8;border:1px dashed #cdd6e4;border-radius:8px;padding:7px 12px;margin:14px 0 10px;text-align:center;letter-spacing:.02em}
 .deferbtn{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#666;flex-shrink:0}
 .deferbtn.on{background:#e8e8e8;color:#555;border-color:#ccc;font-weight:700}
+/* ①A 軽量1行表示（メンテ済み・監視なし・在庫あり＝非作業ゾーン） */
+#tabInv .lrow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:6px}
+#tabInv .lrow img{width:36px;height:36px;object-fit:cover;border-radius:6px;border:1px solid #e2ded3;flex-shrink:0}
+#tabInv .lrow .ln{flex:1;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tabInv .lrow .lb{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;flex-shrink:0}
+#tabInv .lrow .lb.m{background:#e8eef7;color:#3a5a8a}
+#tabInv .lrow .lb.d{background:#e8e8e8;color:#555}
+#tabInv .lrow .openbtn{font-size:11px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;flex-shrink:0}
+#tabInv .lrow.flash{box-shadow:0 0 0 3px #f0c36d}
+/* 出品終了 */
+.endbtn{font-size:10.5px;padding:3px 9px;border:1px solid #d9a5a1;border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#a33c37;flex-shrink:0}
+.endbtn:hover{background:#fdecea}
+.endpending{font-size:10px;font-weight:700;background:#fff7e0;color:#8a6d1a;padding:2px 8px;border-radius:4px;margin-left:6px}
 .primarybtn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;font-weight:700}
 .primarybtn.dirty{box-shadow:0 0 0 3px #ffd54d}
 .primarybtn.dirty::before{content:'● 未保存の変更あり　';font-size:11px;color:#fff3c4}
@@ -237,7 +250,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.11</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.12</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -687,7 +700,8 @@ function cardHtml(it,idx){
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
     })()+(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':'')+'</div>'+
     '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
-    (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+'</div>'+
+    (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
+    (stockType(it)==='out'?(isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>'):'')+'</div>'+
     '<div class="searchrow">'+
       '<div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="'+esc(keywords[idx])+'" oninput="onKw('+idx+',this.value)"></div>'+
       '<button class="searchbtn" onclick="doSearch('+idx+',\'mercari\')">メルカリ</button>'+
@@ -793,10 +807,70 @@ function jumpTo(secId){
   requestAnimationFrame(function(){near();requestAnimationFrame(finish);});
 }
 function onQuery(v){query=(v||'').trim();clearTimeout(window.__qT);window.__qT=setTimeout(renderAll,200);} // デバウンス：打ち終わって0.2秒後に1回だけ描画
+// ▼ ①A 軽量1行表示：非作業ゾーン（メンテ済み・監視なし・在庫あり）はフルカードでなく1行に。「開く」でその場で展開
+var EXPANDED={}; // {itemId:1} このセッションで展開した商品
+function shouldLight(i){
+  var it=ITEMS[i]; if(!it)return false;
+  if(EXPANDED[String(it.id)])return false;
+  if(query)return false;                 // 絞り込み中は探し物なのでフル表示
+  if(stockType(it)==='in')return true;   // 在庫あり＝対応不要
+  if(sinkRank(i)===1)return true;        // メンテ済み・監視なし
+  return false;
+}
+function lightRowHtml(it,i){
+  return '<div class="lrow" id="card'+i+'">'+
+    (it.image_url?'<a href="'+ebayItmUrl(it.id)+'" target="_blank" rel="noopener"><img src="'+esc(it.image_url)+'" loading="lazy" alt=""></a>':'')+
+    '<span class="ln" title="'+esc(it.title||it.name)+'">'+esc(it.title||it.name)+'</span>'+
+    (isMainted(it)?'<span class="lb m">メンテ済み</span>':'')+
+    (isDeferred(it)?'<span class="lb d">監視なし</span>':'')+
+    (it.current_price_usd!=null?'<span style="font-size:11px;color:#888;flex-shrink:0">$'+Number(it.current_price_usd).toFixed(2)+'</span>':'')+
+    '<button class="openbtn" onclick="expandCard('+i+')">開く</button>'+
+  '</div>';
+}
+function expandCard(i){var it=ITEMS[i];if(it)EXPANDED[String(it.id)]=1;updateCard(i);}
+// ▼ 出品終了（EndItem）申請：初弾は1件ずつ人間の確認ベース。実行はPython側（end_requests.jsonを処理）
+var LS_ENDREQ='ss_endreq_v1'; // {itemId:{at,title}}
+function loadEndReq(){try{return JSON.parse(localStorage.getItem(LS_ENDREQ)||'{}');}catch(e){return {};}}
+function isEndRequested(it){return !!loadEndReq()[String(it.id)];}
+function cleanupEndReq(){ // 終了完了＝実在チェックとスプシ行削除で ITEMS から消えた申請を掃除
+  var m=loadEndReq();var ids={};ITEMS.forEach(function(it){ids[String(it.id)]=1;});
+  var changed=false;Object.keys(m).forEach(function(id){if(!ids[id]){delete m[id];changed=true;}});
+  if(changed){try{localStorage.setItem(LS_ENDREQ,JSON.stringify(m));}catch(e){}}
+}
+async function writeEndRequests(){
+  var m=loadEndReq();
+  var out={requested_at:new Date().toISOString(),source:'inventory_tool',
+    items:Object.keys(m).map(function(id){return {item_id:id,title:m[id].title,requested_at:m[id].at};})};
+  var ok=false;
+  if(AUTO_DIR){
+    try{var fh=await AUTO_DIR.getFileHandle('end_requests.json',{create:true});
+      var w=await fh.createWritable();await w.write(JSON.stringify(out,null,2));await w.close();ok=true;
+    }catch(e){}
+  }
+  if(!ok){
+    var blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='end_requests.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+  }
+  return ok;
+}
+function endListing(idx){
+  var it=ITEMS[idx];if(!it)return;
+  var msg='eBayの出品を終了します：\n\n「'+(it.title||it.name)+'」\nItemID: '+it.id+
+    '\n\n⚠️ この操作は取り消せません（再出品はSell Similarで手動）。\n'+
+    '⚠️ スプレッドシートの行も削除されます。\n\n本当に出品を終了しますか？';
+  if(!confirm(msg))return;
+  var m=loadEndReq();m[String(it.id)]={at:new Date().toISOString(),title:(it.title||it.name)};
+  try{localStorage.setItem(LS_ENDREQ,JSON.stringify(m));}catch(e){}
+  writeEndRequests().then(function(ok){
+    showToast(ok?'出品終了を申請しました（自動処理を待ちます）':'（フォルダ未接続）end_requests.json をダウンロードしました。auto/ に置いてください');
+  });
+  updateCard(idx);
+}
 function updateCard(idx){ // 触ったカード1枚だけ描き直す（①B）。位置・件数が変わる操作（監視なし切替等）はrenderAllのまま
   var old=document.getElementById('card'+idx);
   if(!old){renderAll();return;}
-  var tmp=document.createElement('div');tmp.innerHTML=cardHtml(ITEMS[idx],idx);
+  var tmp=document.createElement('div');tmp.innerHTML=(shouldLight(idx)?lightRowHtml(ITEMS[idx],idx):cardHtml(ITEMS[idx],idx));
   var nw=tmp.firstElementChild; if(!nw){renderAll();return;}
   old.replaceWith(nw); renderSlots(idx); recalc(idx);
 }
@@ -813,7 +887,7 @@ function renderCards(idxArr){
       html+='<div class="mainted-divider"'+anchor+'>── ここから下：対応済み（メンテ済み・監視なし）'+cnt+'件 ──</div>';
       dividerDone=true; _maintedAnchorDone=true;
     }
-    html+=cardHtml(ITEMS[i],i);
+    html+=(shouldLight(i)?lightRowHtml(ITEMS[i],i):cardHtml(ITEMS[i],i));
   }
   return html;
 }
@@ -969,7 +1043,7 @@ function invImportCosts(data){
 function invLoadInventory(data){
   var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, current_price_usd:(r.current_price_usd!=null?r.current_price_usd:null), days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null};});
   if(!ni.length){alert('在庫データが空です');return;}
-  ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();renderAll();
+  ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();cleanupEndReq();renderAll();
   try{localStorage.setItem(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:ni}));}catch(e){}
   window.ITEM_IMAGES=window.ITEM_IMAGES||{};ni.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});
   if(typeof window.paRerender==='function')window.paRerender();
