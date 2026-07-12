@@ -180,6 +180,12 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
         margin-bottom:12px;display:grid;grid-template-columns:26px 1fr;gap:12px;}
 #tabPa .card.warn{border-color:var(--warn-line);}
 #tabPa .card.unchecked{opacity:.5;}
+#tabPa .card.extreme.unchecked{opacity:1;} /* 要注意カードは未チェックでも薄くしない（未処理が一目で分かるように） */
+#tabPa .card.pendingapp{opacity:.55}
+#tabPa .doneband.pending{background:#fff7e0;color:#8a6d1a}
+/* 画面外カードの描画計算をスキップ（1,070件対策）。ジャンプは2段補正が着地ズレを吸収 */
+#tabInv .card{content-visibility:auto;contain-intrinsic-size:auto 300px}
+#tabPa .card{content-visibility:auto;contain-intrinsic-size:auto 420px}
 #tabPa .chk input{width:18px;height:18px;cursor:pointer;margin-top:3px;}
 #tabPa .title{font-weight:600;font-size:.96rem;margin:0 0 3px;}
 #tabPa .cur{font-size:.85rem;color:var(--sub);margin-bottom:9px;}
@@ -234,7 +240,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.9</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.10</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -513,11 +519,11 @@ function commitPending(idx){
   if(picks.length>space){alert('候補枠が足りません（空き'+space+'件）。'+space+'件まで選び直すか、既存候補を×で削ってください。');return;}
   picks.forEach(function(d){supplies[idx].push({price:d.p,url:d.u});});
   var all=loadPending(); delete all[String(it.id)]; savePending(all);
-  markTouched(idx); saveSupplies(); renderAll();
+  markTouched(idx); saveSupplies(); updateCard(idx);
   showToast(picks.length+'件を仕入れ候補に追加しました');
 }
 function clearPending(idx){
-  var it=ITEMS[idx]; var all=loadPending(); delete all[String(it.id)]; savePending(all); renderAll();
+  var it=ITEMS[idx]; var all=loadPending(); delete all[String(it.id)]; savePending(all); updateCard(idx);
 }
 var LS_DEFER='ss_defer_v1';
 function hideExistingUrl(idx,url){
@@ -526,7 +532,7 @@ function hideExistingUrl(idx,url){
   try{all=JSON.parse(localStorage.getItem('ss_hideurl_v1')||'{}');}catch(e){}
   (all[String(it.id)]=all[String(it.id)]||[]).push(url);
   try{localStorage.setItem('ss_hideurl_v1',JSON.stringify(all));}catch(e){}
-  markTouched(idx); markDirty(); renderAll();
+  markTouched(idx); markDirty(); updateCard(idx);
 }
 function loadDefer(){try{return JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){return {};}}
 function isDeferred(it){
@@ -584,12 +590,12 @@ function shipLabel(wc){
 }
 function onWcat(idx,key){
   var it=ITEMS[idx]; var c=catByKey(key); if(!c)return;
-  var all=loadWeights(); all[String(it.id)]={cat:key,wc:c.wc}; saveWeights(all); renderAll();
+  var all=loadWeights(); all[String(it.id)]={cat:key,wc:c.wc}; saveWeights(all); updateCard(idx);
 }
 function onWchip(idx,wc){
   var it=ITEMS[idx]; var all=loadWeights();
   all[String(it.id)]={cat:'custom', wc:(wc==='over10')?'over10':parseFloat(wc)};
-  saveWeights(all); renderAll();
+  saveWeights(all); updateCard(idx);
 }
 function onWship(idx,val){
   var it=ITEMS[idx]; var all=loadWeights();
@@ -597,10 +603,10 @@ function onWship(idx,val){
   var v=parseInt(String(val).replace(/[^\d]/g,''),10);
   if(v>0){cur.ship=v; all[String(it.id)]=cur; saveWeights(all);}
   else{delete cur.ship; all[String(it.id)]=cur; saveWeights(all);}
-  renderAll();
+  updateCard(idx);
 }
 function onWreset(idx){
-  var it=ITEMS[idx]; var all=loadWeights(); delete all[String(it.id)]; saveWeights(all); renderAll();
+  var it=ITEMS[idx]; var all=loadWeights(); delete all[String(it.id)]; saveWeights(all); updateCard(idx);
 }
 
 var supplies={}, dests={}, duties={}, keywords={}, addUrls={}, activeIdx=null;
@@ -789,7 +795,14 @@ function jumpTo(secId){
   var finish=function(){var e=document.getElementById(secId);if(!e)return;e.scrollIntoView({behavior:'smooth',block:'start'});};
   requestAnimationFrame(function(){near();requestAnimationFrame(finish);});
 }
-function onQuery(v){query=(v||'').trim();renderAll();}
+function onQuery(v){query=(v||'').trim();clearTimeout(window.__qT);window.__qT=setTimeout(renderAll,200);} // デバウンス：打ち終わって0.2秒後に1回だけ描画
+function updateCard(idx){ // 触ったカード1枚だけ描き直す（①B）。位置・件数が変わる操作（監視なし切替等）はrenderAllのまま
+  var old=document.getElementById('card'+idx);
+  if(!old){renderAll();return;}
+  var tmp=document.createElement('div');tmp.innerHTML=cardHtml(ITEMS[idx],idx);
+  var nw=tmp.firstElementChild; if(!nw){renderAll();return;}
+  old.replaceWith(nw); renderSlots(idx); recalc(idx);
+}
 function onSort(v){sortMode=v;try{localStorage.setItem('ss_sort_v1',v);}catch(e){}renderAll();}
 var _maintedAnchorDone=false;
 // ソート済みidx配列をカードHTML化。沈める区分の直前に「メンテ済み仕切り」を1回だけ挿入
@@ -906,8 +919,8 @@ function exportCosts(){
     }
   })();
 }
-function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';markTouched(idx);saveAddUrls();renderAll();}
-function delAddUrl(idx,i){addUrls[idx].splice(i,1);markTouched(idx);saveAddUrls();renderAll();}
+function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';markTouched(idx);saveAddUrls();updateCard(idx);}
+function delAddUrl(idx,i){addUrls[idx].splice(i,1);markTouched(idx);saveAddUrls();updateCard(idx);}
 
 function recalc(idx){var cost=minCost(idx);var calc=document.getElementById('calc'+idx);if(!calc)return;if(cost===null){calc.classList.remove('show');return;}calc.classList.add('show');var dest=dests[idx]||'us';var dr=(dest==='us')?(duties[idx]!==undefined?duties[idx]:10):0;var ship=(dest==='us')?n('shipUS'):n('shipOther');document.getElementById('mc'+idx).textContent=cost.toLocaleString()+'円';var tp=calcTarget(cost,ship,dr);if(tp===null||tp<=0){document.getElementById('tp'+idx).textContent='計算不可';return;}var r=calcProfit(tp,cost,ship,dr);document.getElementById('tp'+idx).textContent=usd(tp);var pf=document.getElementById('pf'+idx);pf.textContent=yen(r.profit);pf.className='v '+(r.profit<0?'loss':'ok');document.getElementById('mg'+idx).textContent=r.margin.toFixed(1)+'%';document.getElementById('rf'+idx).textContent=yen(r.refund);}
 function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
@@ -1051,10 +1064,19 @@ function priceStatus(it){
 
 window.paSortMode=(function(){try{return localStorage.getItem('pa_sort_v1')||'renewAsc';}catch(e){return 'renewAsc';}})();
 (function(){var s=document.getElementById('paSort');if(s)s.value=window.paSortMode;})();
+function paPendingMap(){ // 承認済み（反映待ち）：{item_id:{at,price}}。反映されたら消す。24時間で自然失効（却下され続けた場合の残留防止）
+  var m={};try{m=JSON.parse(localStorage.getItem('pa_pending_v1')||'{}');}catch(e){}
+  var AP=appliedMap(),cut=Date.now()-24*3600*1000,changed=false;
+  Object.keys(m).forEach(function(id){
+    if(AP[id]||!m[id].at||Date.parse(m[id].at)<cut){delete m[id];changed=true;}
+  });
+  if(changed){try{localStorage.setItem('pa_pending_v1',JSON.stringify(m));}catch(e){}}
+  return m;
+}
 function paSorted(items){
   const a=items.slice(); const m=window.paSortMode;
-  const APs=appliedMap();
-  const sinkRank=(o)=>{ if(APs[String(o.item_id)])return 2; if(isNoChange(o))return 1; return 0; };
+  const APs=appliedMap(); const PEND=paPendingMap();
+  const sinkRank=(o)=>{ if(APs[String(o.item_id)])return 3; if(PEND[String(o.item_id)])return 2; if(isNoChange(o))return 1; return 0; };
   a.sort((x,y)=>sinkRank(x)-sinkRank(y));
   const stable=a.slice();
   const idxOf=(o)=>stable.indexOf(o);
@@ -1119,8 +1141,9 @@ function render(){
       }
     }
     const s=state[it.item_id]; const warn=it.market_deviation_flag;
+    const pendRec=paPendingMap()[String(it.item_id)]||null;
     const card=document.createElement("div");
-    card.className="card"+(warn?" warn":"")+(isExtreme?" extreme":"")+(s.checked?"":" unchecked");
+    card.className="card"+(warn?" warn":"")+(isExtreme?" extreme":"")+(s.checked?"":" unchecked")+(pendRec?" pendingapp":"");
 
     const p=chosenPrice(it), pf=chosenProfit(it), st=priceStatus(it);
     let deltaHtml="";
@@ -1136,7 +1159,7 @@ function render(){
     if(apRec){card.classList.add('done'); s.checked=false;}
     else if(isNoChange(it)){card.classList.add('nochange');}
     card.innerHTML=`
-      ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:(isNoChange(it)?`<div class="doneband nc">＝ 現在価格と同じ（反映不要）</div>`:"")}
+      ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:(pendRec?`<div class="doneband pending">🕒 承認済み・反映待ち ${money(pendRec.price)}（${new Date(pendRec.at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})} 承認）— 10分以内に自動反映されます</div>`:(isNoChange(it)?`<div class="doneband nc">＝ 現在価格と同じ（反映不要）</div>`:""))}
       ${isExtreme&&!apRec?`<div class="doneband extreme">⚠️ 要注意（極端値）：${it.reason||"提案価格が現在価格の±50%を超えています"}<br>一括承認の対象外です。内容を確認し、反映するなら手動でチェックを入れてください。</div>`:""}
       <div class="chk"><input type="checkbox" ${s.checked?"checked":""} ${apRec?"disabled":""} data-id="${it.item_id}"></div>
       <div>
@@ -1193,7 +1216,7 @@ function render(){
         ${st.level==='danger'?`<div class="dangerbox">🚫 ${st.msg}（このままでは承認できません）</div>`:""}
         ${st.level==='info'?`<div class="warnbox">ℹ️ ${st.msg}</div>`:""}
         <div class="row-actions">${it.reference_listing_url?`<a href="${it.reference_listing_url}" target="_blank" rel="noopener">根拠にしたライバルを見る ↗</a>`:""}<a href="https://www.ebay.com/sh/research?marketplace=EBAY-US&keywords=${encodeURIComponent(it.title||"")}&dayRange=90&tabName=SOLD" target="_blank" rel="noopener" style="margin-left:12px">テラピークで確認 ↗</a></div>
-        <details class="reb" ${s.choice==='r'||s.rivalGone?'open':''}><summary>ライバルを選び直す${s.choice==='r'?'（指定中）':''}</summary>
+        <details class="reb" ${s.choice==='r'||s.rivalGone||isExtreme?'open':''}><summary>ライバルを選び直す${s.choice==='r'?'（指定中）':''}${isExtreme&&s.choice!=='r'?'（要注意商品：ライバルの実物を確認してください）':''}</summary>
           <div class="ph">「この商品と同じ」ライバルを選ぶと、その総額の $${UNDERCUT.toFixed(2)} 下を価格候補にします。利益は反映前にPython側で正確に計算します。選んだ基準は記録され次回に活かされます。</div>
           <label class="rauto ${s.choice!=='r'?'picked':''}">
             <input type="radio" name="rv-${it.item_id}" data-rauto="${it.item_id}" ${s.choice!=='r'?'checked':''}>
@@ -1288,6 +1311,11 @@ document.getElementById("approveBtn").onclick=()=>{
               extreme_ack: it.excluded? true : undefined};})};
   if(DATA.generated_at) out.plan_generated_at=DATA.generated_at;
   autoSaveApproved(out).then(function(ok){
+    // ② 承認した商品を「🕒承認済み（反映待ち）」として時刻付きで記録→グレー化して最下部へ沈める
+    try{var pm=paPendingMap();var nowIso=new Date().toISOString();
+      out.approved_items.forEach(function(a){pm[String(a.item_id)]={at:nowIso,price:a.new_price_usd};});
+      localStorage.setItem('pa_pending_v1',JSON.stringify(pm));}catch(e){}
+    render();
     if(ok){ alert("承認結果を保存しました（"+approved.length+"件）。\n10分以内に自動でeBayに反映されます（画面のヘッダーに結果が表示されます）。"); }
     else{
       const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
