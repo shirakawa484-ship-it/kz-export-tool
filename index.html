@@ -16,6 +16,14 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 .loadwrap{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:#666}
 #tabInv .mythumb{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid #e2ded3;background:#f4f2ec;margin-right:12px;flex-shrink:0}
 #tabPa .mythumb{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e3e6ea;background:#f5f6f8;flex-shrink:0}
+.thumbwrap{position:relative;display:inline-block;vertical-align:top;margin-right:12px}
+#tabPa .thumbwrap{margin-right:0}
+.thumblink{display:inline-block;line-height:0;cursor:zoom-in}
+.thumbpop{display:none;position:absolute;left:calc(100% + 8px);top:0;z-index:60;max-width:340px;max-height:340px;object-fit:contain;border:2px solid #fff;border-radius:8px;box-shadow:0 6px 26px rgba(0,0,0,.30);background:#fff}
+.thumbwrap:hover .thumbpop{display:block}
+.lensbtn{display:block;margin-top:5px;width:96px;font-size:10.5px;padding:3px 0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;color:#3a5a8a;text-align:center}
+#tabPa .lensbtn{width:80px}
+.lensbtn:hover{background:#eef2f8}
 #tabPa .pthumbs{float:left;display:flex;gap:8px;margin:0 12px 6px 0}
 #tabPa .pthumbs figure{margin:0;text-align:center}
 #tabPa .pthumbs figcaption{font-size:10px;color:#7a8194;margin-top:2px}
@@ -224,7 +232,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.4</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.5</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -597,6 +605,21 @@ function n(id){var v=parseFloat(document.getElementById(id).value);return isNaN(
 function yen(v){return '¥'+Math.round(v).toLocaleString();}
 function usd(v){return '$'+v.toFixed(2);}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+// 自分サムネイル：出品ページへのリンク＋ホバーで高解像度プレビュー＋Googleレンズ検索ボタン（両タブ共用）
+function ebayItmUrl(id){return 'https://www.ebay.com/itm/'+encodeURIComponent(String(id));}
+function bigImg(u){if(!u)return u;return String(u).replace(/s-l\d+\.(jpg|jpeg|png|webp)/i,'s-l1600.$1');}
+function openLens(ev,u){if(ev){try{ev.preventDefault();ev.stopPropagation();}catch(e){}}if(!u)return;window.open('https://lens.google.com/uploadbyurl?url='+encodeURIComponent(bigImg(u))+'&hl=ja','_blank','noopener');}
+function selfThumbHtml(imageUrl,itemId){
+  if(!imageUrl)return '';
+  var big=bigImg(imageUrl);
+  return '<span class="thumbwrap">'+
+    '<a class="thumblink" href="'+ebayItmUrl(itemId)+'" target="_blank" rel="noopener" title="クリックでeBay出品ページを開く／ホバーで拡大">'+
+      '<img class="mythumb" src="'+esc(imageUrl)+'" loading="lazy" alt="">'+
+    '</a>'+
+    '<img class="thumbpop" src="'+esc(big)+'" loading="lazy" alt="" title="右クリック→「Googleで画像を検索」でも探せます">'+
+    '<button class="lensbtn" onclick="openLens(event,\''+esc(imageUrl)+'\')" title="この画像でGoogleレンズ検索（日本語）。キーワードが分からない時に使ってください">🔍レンズ</button>'+
+  '</span>';
+}
 function stockType(it){var s=it.stock||'';if(s.indexOf('なし')>=0)return 'out';if(s.indexOf('エラー')>=0||s.indexOf('ｴﾗｰ')>=0)return 'err';if(s.indexOf('あり')>=0)return 'in';return 'err';}
 
 function loadJSON(k){try{return JSON.parse(localStorage.getItem(k)||'{}');}catch(e){return {};}}
@@ -651,7 +674,7 @@ function cardHtml(it,idx){
   var existing=(it.urls||[]).filter(function(u){return hidden.indexOf(u)<0;}).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">仕入'+(i+1)+'</a><button class="del" title="この仕入れ先を除外（次回の保存でスプシからも削除）" onclick="hideExistingUrl('+idx+',\''+esc(u)+'\')">×</button>';}).join(' ');
   var added=(addUrls[idx]||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">追加'+(i+1)+'</a> <button class="del" onclick="delAddUrl('+idx+','+i+')">×</button>';}).join(' ');
   return '<div class="card '+t+(isActive?' active':'')+'" id="card'+idx+'">'+
-    '<div class="head">'+(it.image_url?'<img class="mythumb" src="'+esc(it.image_url)+'" loading="lazy" alt="">':'')+'<div><div class="name">'+esc(it.title||it.name)+(isActive?'<span class="mentelabel">メンテ中</span>':'')+(it.not_found_on_ebay?'<span class="nfbadge">eBayで見つかりません</span>':'')+(function(){
+    '<div class="head">'+(it.image_url?selfThumbHtml(it.image_url,it.id):'')+'<div><div class="name">'+esc(it.title||it.name)+(isActive?'<span class="mentelabel">メンテ中</span>':'')+(it.not_found_on_ebay?'<span class="nfbadge">eBayで見つかりません</span>':'')+(function(){
       var m=mainteInfo(it); if(!m.suspect)return '';
       var d=(m.days!=null)?('（再出品まで'+m.days+'日）'):'';
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
@@ -730,11 +753,15 @@ function sortIdx(arr){
 function scrollToCard(idx){
   var card=document.getElementById('card'+idx); if(!card)return;
   var det=card.closest('details'); if(det&&!det.open)det.open=true;
-  var go=function(){var c=document.getElementById('card'+idx); if(!c)return;
+  // 案①：まず一瞬で近く（画面上40%の位置）へ即ジャンプ→最後だけ短くスムーズ。距離を詰めるので体感が大幅短縮、寄る感じは維持
+  var near=function(){var c=document.getElementById('card'+idx); if(!c)return;
+    var y=c.getBoundingClientRect().top+window.pageYOffset-window.innerHeight*0.40;
+    window.scrollTo({top:Math.max(0,y),behavior:'auto'});};
+  var finish=function(){var c=document.getElementById('card'+idx); if(!c)return;
     c.scrollIntoView({behavior:'smooth',block:'center'});
     c.classList.add('flash'); setTimeout(function(){c.classList.remove('flash');},2400);};
-  requestAnimationFrame(function(){requestAnimationFrame(go);});
-  setTimeout(go,700); // 折りたたみ展開・画像読み込みによる位置ズレの2段目補正
+  requestAnimationFrame(function(){requestAnimationFrame(function(){near();requestAnimationFrame(finish);});});
+  setTimeout(function(){near();finish();},250); // 展開・画像ロード後の再補正（0.7秒→0.25秒に短縮）
 }
 function onMaintJump(){
   sortMode='mainte'; var sel=document.getElementById('sortSel'); if(sel)sel.value='mainte';
@@ -753,7 +780,10 @@ function matchQuery(it){
 function jumpTo(secId){
   var el=document.getElementById(secId);if(!el)return;
   if(secId==='secIn'){var d=el.querySelector('details');if(d)d.open=true;}
-  el.scrollIntoView({behavior:'smooth',block:'start'});
+  // 案①：即ジャンプで近くへ→最後だけスムーズ
+  var near=function(){var e=document.getElementById(secId);if(!e)return;var y=e.getBoundingClientRect().top+window.pageYOffset-window.innerHeight*0.30;window.scrollTo({top:Math.max(0,y),behavior:'auto'});};
+  var finish=function(){var e=document.getElementById(secId);if(!e)return;e.scrollIntoView({behavior:'smooth',block:'start'});};
+  requestAnimationFrame(function(){near();requestAnimationFrame(finish);});
 }
 function onQuery(v){query=(v||'').trim();renderAll();}
 function onSort(v){sortMode=v;try{localStorage.setItem('ss_sort_v1',v);}catch(e){}renderAll();}
@@ -777,9 +807,10 @@ function jumpMaintedFn(){
   var el=document.getElementById('jumpMainted')||document.querySelector('.mainted-divider');
   if(!el)return;
   var det=el.closest('details'); if(det&&!det.open)det.open=true;
-  var go=function(){var e=document.getElementById('jumpMainted')||document.querySelector('.mainted-divider');if(e)e.scrollIntoView({behavior:'smooth',block:'start'});};
-  requestAnimationFrame(function(){requestAnimationFrame(go);});
-  setTimeout(go,300);
+  var near=function(){var e=document.getElementById('jumpMainted')||document.querySelector('.mainted-divider');if(!e)return;var y=e.getBoundingClientRect().top+window.pageYOffset-window.innerHeight*0.30;window.scrollTo({top:Math.max(0,y),behavior:'auto'});};
+  var finish=function(){var e=document.getElementById('jumpMainted')||document.querySelector('.mainted-divider');if(e)e.scrollIntoView({behavior:'smooth',block:'start'});};
+  requestAnimationFrame(function(){near();requestAnimationFrame(finish);});
+  setTimeout(function(){near();finish();},250);
 }
 function renderAll(){
   var groups={out:[],err:[],in:[]};
@@ -1088,7 +1119,7 @@ function render(){
           if(!ref&&it.reference_listing_url){ref=(it.rivals||[]).find(r=>r.url===it.reference_listing_url)||null;}
           if(!u&&!ref)return "";
           var h='<div class="pthumbs">';
-          if(u)h+=`<figure><img class="mythumb" src="${u}" loading="lazy" alt=""><figcaption>自分</figcaption></figure>`;
+          if(u)h+=`<figure>${selfThumbHtml(u,it.item_id)}<figcaption>自分</figcaption></figure>`;
           if(ref&&ref.image_url)h+=`<figure><a href="${ref.url}" target="_blank" rel="noopener"><img class="mythumb refimg" src="${ref.image_url}" loading="lazy" alt=""></a><figcaption>基準 ${money(ref.total_usd)}</figcaption></figure>`;
           return h+'</div>';
         })()}
