@@ -259,7 +259,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.13</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.14</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1110,6 +1110,11 @@ function isNoChange(it){
   var p=s?chosenPrice(it):(it.option_a?it.option_a.price_usd:null); // 初期化前はA案で判定
   return (p!=null&&it.current_price_usd!=null&&Math.abs(p-it.current_price_usd)<=0.05);
 }
+// 沈め・軽量1行化の判定用：届いた時点の推奨案（A案）基準で固定。
+// 作業中の選択（利益率チップ等）に反応してカードが消える／飛ぶのを防ぐ
+function isNoChangeDefault(it){
+  return (it.option_a&&it.current_price_usd!=null&&Math.abs(it.option_a.price_usd-it.current_price_usd)<=0.05);
+}
 function chosenPrice(it){
   const s=state[it.item_id];
   if(s.choice==='a') return it.option_a?.price_usd ?? null;
@@ -1157,7 +1162,7 @@ function paPendingMap(){ // 承認済み（反映待ち）：{item_id:{at,price}
 function paSorted(items){
   const a=items.slice(); const m=window.paSortMode;
   const APs=appliedMap(); const PEND=paPendingMap();
-  const sinkRank=(o)=>{ if(APs[String(o.item_id)])return 3; if(PEND[String(o.item_id)])return 2; if(isNoChange(o))return 1; return 0; };
+  const sinkRank=(o)=>{ if(APs[String(o.item_id)])return 3; if(PEND[String(o.item_id)])return 2; if(isNoChangeDefault(o))return 1; return 0; };
   a.sort((x,y)=>sinkRank(x)-sinkRank(y));
   const stable=a.slice();
   const idxOf=(o)=>stable.indexOf(o);
@@ -1198,7 +1203,7 @@ function render(){
     // ①A 軽量1行表示（承認タブ版）：対応済みゾーン（反映済み・承認済み反映待ち・変化なし）は1行に。「開く」で展開
     const apL=AP[String(it.item_id)]||null, pendL=PEND[String(it.item_id)]||null;
     if(!window.PA_EXPANDED)window.PA_EXPANDED={};
-    if((apL||pendL||isNoChange(it))&&!window.PA_EXPANDED[String(it.item_id)]){
+    if((apL||pendL||isNoChangeDefault(it))&&!window.PA_EXPANDED[String(it.item_id)]){
       const img=paGetImage(it.item_id);
       const stBadge=apL?`<span class="pab done">✅ 反映済み ${money(apL.price)}</span>`
         :(pendL?`<span class="pab pend">🕒 反映待ち ${money(pendL.price)}</span>`
