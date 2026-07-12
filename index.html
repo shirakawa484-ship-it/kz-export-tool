@@ -232,7 +232,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.6</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.7</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -876,6 +876,7 @@ function exportCosts(){
     out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
       weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
       ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined)};
+    markTouchedId(it.id); // 保存＝書き出し対象（候補あり）は全部メンテ済み扱い（過去バージョンで編集した商品も次の保存で救済される）
     n++;
   });
   if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
