@@ -67,6 +67,9 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .wship input{width:110px;padding:5px 8px;border:1px solid var(--line);border-radius:7px}
 .chip.maint{background:#fff3d6;color:#8a5b00}
 .mbadge{display:inline-block;font-size:10px;font-weight:700;background:#fff3d6;color:#8a5b00;padding:2px 8px;border-radius:4px;margin-left:6px}
+.maintedbadge{display:inline-block;font-size:10px;font-weight:700;background:#e8eef7;color:#3a5a8a;padding:2px 8px;border-radius:4px;margin-left:6px}
+.chip.mainted{background:#e8eef7;color:#3a5a8a}
+#tabInv .mainted-divider{font-size:11px;font-weight:700;color:#8a97ab;background:#f2f4f8;border:1px dashed #cdd6e4;border-radius:8px;padding:7px 12px;margin:14px 0 10px;text-align:center;letter-spacing:.02em}
 .deferbtn{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#666;flex-shrink:0}
 .deferbtn.on{background:#e8e8e8;color:#555;border-color:#ccc;font-weight:700}
 .primarybtn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;font-weight:700}
@@ -221,7 +224,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.3</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.4</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -273,6 +276,7 @@ window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#batch='+enco
     <span class="chip err" id="errChip" onclick="jumpTo('secErr')" title="クリックでジャンプ">要確認 2</span>
     <span class="chip in" id="inChip" onclick="jumpTo('secIn')" title="クリックでジャンプ">在庫あり 4</span>
     <span class="chip maint" id="maintChip" onclick="onMaintJump()" title="クリックで売価メンテ順に並べ替え" style="display:none">⚠️売価メンテ 0</span>
+    <span class="chip mainted" id="maintedChip" onclick="jumpMaintedFn()" title="対応済み（メンテ済み・監視なし）へジャンプ" style="display:none">メンテ済み ↓</span>
     <input type="text" id="q" placeholder="商品名・IDで絞り込み" oninput="onQuery(this.value)" style="flex:1;min-width:150px;max-width:260px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
     <select id="sortSel" onchange="onSort(this.value)" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px">
       <option value="sheet">スプシ順</option>
@@ -499,7 +503,7 @@ function commitPending(idx){
   if(picks.length>space){alert('候補枠が足りません（空き'+space+'件）。'+space+'件まで選び直すか、既存候補を×で削ってください。');return;}
   picks.forEach(function(d){supplies[idx].push({price:d.p,url:d.u});});
   var all=loadPending(); delete all[String(it.id)]; savePending(all);
-  saveSupplies(); renderAll();
+  markTouched(idx); saveSupplies(); renderAll();
   showToast(picks.length+'件を仕入れ候補に追加しました');
 }
 function clearPending(idx){
@@ -512,7 +516,7 @@ function hideExistingUrl(idx,url){
   try{all=JSON.parse(localStorage.getItem('ss_hideurl_v1')||'{}');}catch(e){}
   (all[String(it.id)]=all[String(it.id)]||[]).push(url);
   try{localStorage.setItem('ss_hideurl_v1',JSON.stringify(all));}catch(e){}
-  markDirty(); renderAll();
+  markTouched(idx); markDirty(); renderAll();
 }
 function loadDefer(){try{return JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){return {};}}
 function isDeferred(it){
@@ -529,6 +533,24 @@ function toggleDefer(idx){
   try{localStorage.setItem(LS_DEFER,JSON.stringify(d));}catch(e){}
   renderAll();
 }
+// ▼ メンテ済み沈め（案Y：保存で確定した「触った商品」を永続で最下部へ）
+var LS_MAINTED='ss_mainted_v1';   // {itemId:{at}} 永続
+var TOUCHED={};                    // このセッションで編集した商品ID（保存でLS_MAINTEDへ確定）
+var _maintedCache=null;
+function loadMainted(){if(_maintedCache)return _maintedCache;try{_maintedCache=JSON.parse(localStorage.getItem(LS_MAINTED)||'{}');}catch(e){_maintedCache={};}return _maintedCache;}
+function isMainted(it){return !!loadMainted()[String(it.id)];}
+function markTouched(idx){var it=ITEMS[idx];if(it)TOUCHED[String(it.id)]=1;}
+function markTouchedId(id){if(id!=null)TOUCHED[String(id)]=1;}
+function commitTouched(){
+  if(!Object.keys(TOUCHED).length)return;
+  var m=loadMainted(),now=new Date().toISOString();
+  Object.keys(TOUCHED).forEach(function(id){if(!m[id])m[id]={at:now};});
+  try{localStorage.setItem(LS_MAINTED,JSON.stringify(m));}catch(e){}
+  _maintedCache=m; TOUCHED={};
+}
+// 沈める条件：監視なしは常に沈める。メンテ済みは「⚠️売価メンテ順」以外で沈める
+// （売価メンテ順では本物の警告を隠さないため、監視なしのみ沈める）
+function sinkRank(i){var it=ITEMS[i];if(!it)return 0;if(isDeferred(it))return 1;if(sortMode!=='mainte'&&isMainted(it))return 1;return 0;}
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
 function saveWeights(w){markDirty();try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
 function resolveWeight(it){
@@ -600,7 +622,7 @@ function handleIncoming(){
   if(price){var pr=parseInt(price,10);var actId=localStorage.getItem(LS_ACTIVE);var idx=null;
     ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))idx=i;});
     if(idx!==null&&pr>0){if(!supplies[idx])supplies[idx]=[];
-      if(supplies[idx].length<5){supplies[idx].push({price:pr,url:url||''});saveSupplies();showToast('✓ '+pr.toLocaleString()+'円 を「'+ITEMS[idx].name.slice(0,18)+'…」に追加');}
+      if(supplies[idx].length<5){supplies[idx].push({price:pr,url:url||''});markTouched(idx);saveSupplies();showToast('✓ '+pr.toLocaleString()+'円 を「'+ITEMS[idx].name.slice(0,18)+'…」に追加');}
       else{showToast('仕入れ候補は最大5件です');}}
     else{showToast('メンテ中の商品が不明です。先に検索ボタンを押してください');}
     history.replaceState(null,'',location.pathname);return true;
@@ -633,7 +655,7 @@ function cardHtml(it,idx){
       var m=mainteInfo(it); if(!m.suspect)return '';
       var d=(m.days!=null)?('（再出品まで'+m.days+'日）'):'';
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
-    })()+'</div>'+
+    })()+(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':'')+'</div>'+
     '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+'</div>'+
     '<div class="searchrow">'+
@@ -701,7 +723,9 @@ function sortIdx(arr){
     if(dx!==dy)return dx-dy;                                        // 再出品が近い順
     return (my.pct||0)-(mx.pct||0);                                 // 同日なら下回り率が高い順
   });
-  return a; // 'sheet'はスプシの並びのまま
+  // 対応済み（メンテ済み・監視なし）を最下部へ。安定ソートで各区分の並びは維持される
+  a.sort(function(x,y){return sinkRank(x)-sinkRank(y);});
+  return a; // 'sheet'はスプシの並びのまま（沈め処理のみ適用）
 }
 function scrollToCard(idx){
   var card=document.getElementById('card'+idx); if(!card)return;
@@ -733,11 +757,36 @@ function jumpTo(secId){
 }
 function onQuery(v){query=(v||'').trim();renderAll();}
 function onSort(v){sortMode=v;try{localStorage.setItem('ss_sort_v1',v);}catch(e){}renderAll();}
+var _maintedAnchorDone=false;
+// ソート済みidx配列をカードHTML化。沈める区分の直前に「メンテ済み仕切り」を1回だけ挿入
+function renderCards(idxArr){
+  var html=''; var dividerDone=false;
+  for(var k=0;k<idxArr.length;k++){
+    var i=idxArr[k];
+    if(!dividerDone && sinkRank(i)===1){
+      var cnt=0; for(var j=k;j<idxArr.length;j++){if(sinkRank(idxArr[j])===1)cnt++;}
+      var anchor=_maintedAnchorDone?'':' id="jumpMainted"';
+      html+='<div class="mainted-divider"'+anchor+'>── ここから下：対応済み（メンテ済み・監視なし）'+cnt+'件 ──</div>';
+      dividerDone=true; _maintedAnchorDone=true;
+    }
+    html+=cardHtml(ITEMS[i],i);
+  }
+  return html;
+}
+function jumpMaintedFn(){
+  var el=document.getElementById('jumpMainted')||document.querySelector('.mainted-divider');
+  if(!el)return;
+  var det=el.closest('details'); if(det&&!det.open)det.open=true;
+  var go=function(){var e=document.getElementById('jumpMainted')||document.querySelector('.mainted-divider');if(e)e.scrollIntoView({behavior:'smooth',block:'start'});};
+  requestAnimationFrame(function(){requestAnimationFrame(go);});
+  setTimeout(go,300);
+}
 function renderAll(){
   var groups={out:[],err:[],in:[]};
   var hidden=0;
   ITEMS.forEach(function(it,i){ if(matchQuery(it)) groups[stockType(it)].push(i); else hidden++; });
   groups.out=sortIdx(groups.out); groups.err=sortIdx(groups.err); groups.in=sortIdx(groups.in);
+  _maintedAnchorDone=false;
   var suffix=query?('（絞り込み中・非表示'+hidden+'件）'):'';
   document.getElementById('outChip').textContent='在庫切れ '+groups.out.length;
   document.getElementById('errChip').textContent='要確認 '+groups.err.length;
@@ -747,11 +796,14 @@ function renderAll(){
     if(c){c.textContent='⚠️売価メンテ '+n;c.style.display=n?'inline-block':'none';}})();
 
   var so=document.getElementById('secOut');
-  so.innerHTML='<h2>在庫切れ（補充が必要） '+groups.out.length+'件'+suffix+'</h2>'+(groups.out.length?groups.out.map(function(i){return cardHtml(ITEMS[i],i);}).join(''):'<div class="empty">'+(query?'絞り込みに該当なし':'在庫切れはありません')+'</div>');
+  so.innerHTML='<h2>在庫切れ（補充が必要） '+groups.out.length+'件'+suffix+'</h2>'+(groups.out.length?renderCards(groups.out):'<div class="empty">'+(query?'絞り込みに該当なし':'在庫切れはありません')+'</div>');
   var se=document.getElementById('secErr');
-  se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+groups.err.length+'件'+suffix+'</h2>'+(groups.err.length?groups.err.map(function(i){return cardHtml(ITEMS[i],i);}).join(''):'<div class="empty">該当なし</div>');
+  se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+groups.err.length+'件'+suffix+'</h2>'+(groups.err.length?renderCards(groups.err):'<div class="empty">該当なし</div>');
   var si=document.getElementById('secIn');
-  si.innerHTML='<details'+(query?' open':'')+'><summary>在庫あり（対応不要） '+groups.in.length+'件'+suffix+' ▼</summary><div style="margin-top:10px">'+(groups.in.length?groups.in.map(function(i){return cardHtml(ITEMS[i],i);}).join(''):'<div class="empty">該当なし</div>')+'</div></details>';
+  si.innerHTML='<details'+(query?' open':'')+'><summary>在庫あり（対応不要） '+groups.in.length+'件'+suffix+' ▼</summary><div style="margin-top:10px">'+(groups.in.length?renderCards(groups.in):'<div class="empty">該当なし</div>')+'</div></details>';
+
+  (function(){var any=groups.out.concat(groups.err,groups.in).some(function(i){return sinkRank(i)===1;});
+    var c=document.getElementById('maintedChip');if(c)c.style.display=any?'inline-block':'none';})();
 
   ITEMS.forEach(function(it,i){renderSlots(i);recalc(i);});
 }
@@ -762,9 +814,9 @@ function onKw(idx,v){keywords[idx]=v;saveMeta();}
 function doSearch(idx,site){activeIdx=idx;localStorage.setItem(LS_ACTIVE,String(ITEMS[idx].id));var kw=keywords[idx]||'';var enc=encodeURIComponent(kw);var url;if(site==='paypay')url='https://paypayfleamarket.yahoo.co.jp/search/'+enc;else if(site==='suruga')url='https://www.suruga-ya.jp/search?search_word='+enc;else url='https://jp.mercari.com/search?keyword='+enc;window.open(url,'_blank','noopener');renderAll();var sn=site==='paypay'?'Yahoo!フリマ':(site==='suruga'?'駿河屋':'メルカリ');showToast('「'+ITEMS[idx].name.slice(0,14)+'…」をメンテ中に。'+sn+'でブックマークレットを押すと追加されます');}
 function onDest(idx,v){dests[idx]=v;saveMeta();recalc(idx);}
 function onDuty(idx,v){duties[idx]=parseFloat(v)||0;saveMeta();recalc(idx);}
-function addManual(idx){var el=document.getElementById('mp'+idx);var p=parseInt(el.value,10);if(!p||p<=0)return;if(!supplies[idx])supplies[idx]=[];if(supplies[idx].length>=5){alert('最大5件です');return;}supplies[idx].push({price:p,url:''});el.value='';saveSupplies();renderSlots(idx);recalc(idx);}
-function editPrice(idx,i,v){var p=parseInt(v,10);if(!p||p<=0)return;supplies[idx][i].price=p;saveSupplies();renderSlots(idx);recalc(idx);}
-function delSupply(idx,i){supplies[idx].splice(i,1);saveSupplies();renderSlots(idx);recalc(idx);}
+function addManual(idx){var el=document.getElementById('mp'+idx);var p=parseInt(el.value,10);if(!p||p<=0)return;if(!supplies[idx])supplies[idx]=[];if(supplies[idx].length>=5){alert('最大5件です');return;}supplies[idx].push({price:p,url:''});el.value='';markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
+function editPrice(idx,i,v){var p=parseInt(v,10);if(!p||p<=0)return;supplies[idx][i].price=p;markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
+function delSupply(idx,i){supplies[idx].splice(i,1);markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
 function exportCosts(){
   var out={exported_at:new Date().toISOString(),source:'inventory_tool_v2',items:{}};
   var n=0, skipped=[];
@@ -788,6 +840,7 @@ function exportCosts(){
         var fh=await AUTO_DIR.getFileHandle('costs_from_inventory.json',{create:true});
         var w=await fh.createWritable(); await w.write(JSON.stringify(out,null,2)); await w.close();
         saved=true; clearDirty();
+        commitTouched(); renderAll();
         try{localStorage.setItem('ss_export_v1',JSON.stringify({at:new Date().toISOString(),n:n}));}catch(e){}
         updateExportInfo();
         showToast(msg+'（autoフォルダに自動保存）');
@@ -797,12 +850,13 @@ function exportCosts(){
       var blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
       var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='costs_from_inventory.json';
       document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+      commitTouched(); renderAll();
       showToast(msg+'（未接続のためダウンロード。sandbox_connect/へ移動を）');
     }
   })();
 }
-function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';saveAddUrls();renderAll();}
-function delAddUrl(idx,i){addUrls[idx].splice(i,1);saveAddUrls();renderAll();}
+function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';markTouched(idx);saveAddUrls();renderAll();}
+function delAddUrl(idx,i){addUrls[idx].splice(i,1);markTouched(idx);saveAddUrls();renderAll();}
 
 function recalc(idx){var cost=minCost(idx);var calc=document.getElementById('calc'+idx);if(!calc)return;if(cost===null){calc.classList.remove('show');return;}calc.classList.add('show');var dest=dests[idx]||'us';var dr=(dest==='us')?(duties[idx]!==undefined?duties[idx]:10):0;var ship=(dest==='us')?n('shipUS'):n('shipOther');document.getElementById('mc'+idx).textContent=cost.toLocaleString()+'円';var tp=calcTarget(cost,ship,dr);if(tp===null||tp<=0){document.getElementById('tp'+idx).textContent='計算不可';return;}var r=calcProfit(tp,cost,ship,dr);document.getElementById('tp'+idx).textContent=usd(tp);var pf=document.getElementById('pf'+idx);pf.textContent=yen(r.profit);pf.className='v '+(r.profit<0?'loss':'ok');document.getElementById('mg'+idx).textContent=r.margin.toFixed(1)+'%';document.getElementById('rf'+idx).textContent=yen(r.refund);}
 function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
