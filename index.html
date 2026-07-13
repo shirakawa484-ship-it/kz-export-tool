@@ -262,7 +262,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.16</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.17</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -825,8 +825,10 @@ function shouldLight(i){
   var it=ITEMS[i]; if(!it)return false;
   if(EXPANDED[String(it.id)])return false;
   if(query)return false;                 // 絞り込み中は探し物なのでフル表示
+  if(sortMode==='mainte'&&mainteInfo(it).suspect)return false; // ⚠️売価メンテ警告持ちはフルで見せる（警告を隠さない）
   if(stockType(it)==='in')return true;   // 在庫あり＝対応不要
-  if(sinkRank(i)===1)return true;        // メンテ済み・監視なし
+  if(isDeferred(it))return true;         // 監視なし
+  if(isMainted(it))return true;          // メンテ済み（売価メンテ順でも警告なしなら軽量のまま＝一斉フルカード化によるフリーズ防止）
   return false;
 }
 function lightRowHtml(it,i){
