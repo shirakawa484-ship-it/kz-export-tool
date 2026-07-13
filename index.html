@@ -207,6 +207,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa .card.extreme.unchecked{opacity:1;} /* 要注意カードは未チェックでも薄くしない（未処理が一目で分かるように） */
 #tabPa .card.pendingapp{opacity:.55}
 #tabPa .doneband.pending{background:#fff7e0;color:#8a6d1a}
+#tabPa .doneband.reject{background:#fdecea;color:#a33c37}
 #tabPa .chk input{width:18px;height:18px;cursor:pointer;margin-top:3px;}
 #tabPa .title{font-weight:600;font-size:.96rem;margin:0 0 3px;}
 #tabPa .cur{font-size:.85rem;color:var(--sub);margin-bottom:9px;}
@@ -261,7 +262,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.15</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.16</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1153,13 +1154,34 @@ function priceStatus(it){
 window.paSortMode=(function(){try{return localStorage.getItem('pa_sort_v1')||'renewAsc';}catch(e){return 'renewAsc';}})();
 (function(){var s=document.getElementById('paSort');if(s)s.value=window.paSortMode;})();
 function expandPaCard(id){window.PA_EXPANDED=window.PA_EXPANDED||{};window.PA_EXPANDED[id]=1;render();}
-function paPendingMap(){ // 承認済み（反映待ち）：{item_id:{at,price}}。反映されたら消す。24時間で自然失効（却下され続けた場合の残留防止）
-  var m={};try{m=JSON.parse(localStorage.getItem('pa_pending_v1')||'{}');}catch(e){}
-  var AP=appliedMap(),cut=Date.now()-24*3600*1000,changed=false;
-  Object.keys(m).forEach(function(id){
-    if(AP[id]||!m[id].at||Date.parse(m[id].at)<cut){delete m[id];changed=true;}
+// ▼ 承認の送信箱（outbox）：未反映の承認を溜め、保存のたびに全部まとめて書き出す（上書きで過去の承認が消える問題の根治）
+// {item_id:{at,price,payload}}。反映済み→自動削除／却下→pa_rejected_v1へ移動／72時間で失効（最終安全網）
+function paOutbox(){try{return JSON.parse(localStorage.getItem('pa_outbox_v1')||'{}');}catch(e){return {};}}
+function paSaveOutbox(m){try{localStorage.setItem('pa_outbox_v1',JSON.stringify(m));}catch(e){}}
+function paRejected(){try{return JSON.parse(localStorage.getItem('pa_rejected_v1')||'{}');}catch(e){return {};}}
+function paSaveRejected(m){try{localStorage.setItem('pa_rejected_v1',JSON.stringify(m));}catch(e){}}
+// Python(auto_apply)のapply_status.json内 rejections を突合：承認より後の却下→送信箱から外し、却下表示へ
+function paReconcileRejections(){
+  var st=window.APPLY_STATUS; if(!st||!st.rejections||!st.rejections.length)return false;
+  var ob=paOutbox(), rj=paRejected(), changed=false;
+  st.rejections.forEach(function(r){
+    var id=String(r.item_id), e=ob[id];
+    if(e && r.at && e.at && Date.parse(r.at)>=Date.parse(e.at)){
+      rj[id]={reason:r.reason||'理由不明', at:r.at, price:e.price};
+      delete ob[id]; changed=true;
+    }
   });
-  if(changed){try{localStorage.setItem('pa_pending_v1',JSON.stringify(m));}catch(e){}}
+  if(changed){paSaveOutbox(ob);paSaveRejected(rj);}
+  return changed;
+}
+function paPendingMap(){ // 承認済み（反映待ち）：送信箱から導出。反映されたら消す。72時間で自然失効
+  var ob=paOutbox();
+  var AP=appliedMap(),cut=Date.now()-72*3600*1000,changed=false,m={};
+  Object.keys(ob).forEach(function(id){
+    if(AP[id]||!ob[id].at||Date.parse(ob[id].at)<cut){delete ob[id];changed=true;return;}
+    m[id]={at:ob[id].at,price:ob[id].price};
+  });
+  if(changed){paSaveOutbox(ob);}
   return m;
 }
 function paSorted(items){
@@ -1246,6 +1268,7 @@ function render(){
     }
     const s=state[it.item_id]; const warn=it.market_deviation_flag;
     const pendRec=paPendingMap()[String(it.item_id)]||null;
+    const rejRec=paRejected()[String(it.item_id)]||null;
     const card=document.createElement("div");
     card.className="card"+(warn?" warn":"")+(isExtreme?" extreme":"")+(s.checked?"":" unchecked")+(pendRec?" pendingapp":"");
 
@@ -1263,6 +1286,7 @@ function render(){
     if(apRec){card.classList.add('done'); s.checked=false;}
     else if(isNoChange(it)){card.classList.add('nochange');}
     card.innerHTML=`
+      ${rejRec&&!apRec?`<div class="doneband reject">⚠️ 反映されませんでした（${new Date(rejRec.at).toLocaleString('ja-JP')}）：${esc(rejRec.reason)}<br>内容を確認し、価格を選び直して再承認してください。</div>`:""}
       ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:(pendRec?`<div class="doneband pending">🕒 承認済み・反映待ち ${money(pendRec.price)}（${new Date(pendRec.at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})} 承認）— 10分以内に自動反映されます</div>`:(isNoChange(it)?`<div class="doneband nc">＝ 現在価格と同じ（反映不要）</div>`:""))}
       ${isExtreme&&!apRec?`<div class="doneband extreme">⚠️ 要注意（極端値）：${it.reason||"提案価格が現在価格の±50%を超えています"}<br>一括承認の対象外です。内容を確認し、反映するなら手動でチェックを入れてください。</div>`:""}
       <div class="chk"><input type="checkbox" ${s.checked?"checked":""} ${apRec?"disabled":""} data-id="${it.item_id}"></div>
@@ -1405,22 +1429,31 @@ document.getElementById("approveBtn").onclick=()=>{
   if(manuals.length) msg+=`\n\n手入力 ${manuals.length}件は、反映前にPython側で正確に利益・赤字チェックします。`;
   msg+=`\n\n本当によろしいですか？`;
   if(!confirm(msg)) return;
-  const out={approved_at:new Date().toISOString(),
-    approved_items:approved.map(it=>{const s=state[it.item_id];
+  var nowIso=new Date().toISOString();
+  var payloads=approved.map(it=>{const s=state[it.item_id];
       const rv=(s.choice==='r')?pickedRival(it):null;
       return {item_id:it.item_id, new_price_usd:chosenPrice(it),
               chosen:s.choice, c_margin: s.choice==='c'? s.cpct : undefined,
               rival_item_id: rv? rv.rival_item_id : undefined,
               rival_total_usd: rv? rv.total_usd : undefined,
-              extreme_ack: it.excluded? true : undefined};})};
+              extreme_ack: it.excluded? true : undefined};});
+  // 送信箱に合流：今回の承認＋未反映の過去承認をまとめて書き出す（上書き消滅の根治）
+  var ob=paOutbox();
+  payloads.forEach(function(p){ob[String(p.item_id)]={at:nowIso,price:p.new_price_usd,payload:p};});
+  paSaveOutbox(ob);
+  // 再承認された商品の却下表示はクリア
+  var rj=paRejected();var rjChanged=false;
+  payloads.forEach(function(p){if(rj[String(p.item_id)]){delete rj[String(p.item_id)];rjChanged=true;}});
+  if(rjChanged)paSaveRejected(rj);
+  var allItems=Object.keys(ob).map(function(id){return ob[id].payload;});
+  const out={approved_at:nowIso, approved_items:allItems};
   if(DATA.generated_at) out.plan_generated_at=DATA.generated_at;
   autoSaveApproved(out).then(function(ok){
-    // ② 承認した商品を「🕒承認済み（反映待ち）」として時刻付きで記録→グレー化して最下部へ沈める
-    try{var pm=paPendingMap();var nowIso=new Date().toISOString();
-      out.approved_items.forEach(function(a){pm[String(a.item_id)]={at:nowIso,price:a.new_price_usd};});
-      localStorage.setItem('pa_pending_v1',JSON.stringify(pm));}catch(e){}
-    render();
-    if(ok){ alert("承認結果を保存しました（"+approved.length+"件）。\n10分以内に自動でeBayに反映されます（画面のヘッダーに結果が表示されます）。"); }
+    render(); // 送信箱（outbox）が反映待ち表示の源なので、追加の記録は不要
+    if(ok){
+      var extra=allItems.length-approved.length;
+      alert("承認結果を保存しました（今回 "+approved.length+"件"+(extra>0?"＋未反映の過去分 "+extra+"件を同送":"")+"）。\n10分以内に自動でeBayに反映されます（画面のヘッダーに結果が表示されます）。");
+    }
     else{
       const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
       const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="approved_result.json"; a.click();
@@ -1569,6 +1602,11 @@ async function refreshOpsStatus(){
   if(se&&sy){ se.textContent='｜スプシ同期 '+fmtTime(sy.synced_at)+(sy.error?' ⚠️失敗':'（追加'+(sy.added||0)+'・削除'+(sy.deleted||0)+'）');
     se.style.color=sy.error?'#b45309':'#888'; se.title=sy.error||''; }
   var ap=await autoReadJSON('apply_status.json');
+  window.APPLY_STATUS=ap||null;
+  if(ap&&typeof paReconcileRejections==='function'){
+    var rjChanged=paReconcileRejections();
+    if(rjChanged&&typeof render==='function'&&DATA&&DATA.items) render();
+  }
   var ae=document.getElementById('applyInfo');
   if(ae&&ap){ var sk=(ap.skipped&&ap.skipped.length)||0;
     ae.textContent='｜価格反映 '+fmtTime(ap.applied_at||ap.checked_at)+(ap.error?' ⚠️失敗':'（'+(ap.applied||0)+'件反映'+(sk?'・'+sk+'件スキップ⚠️':'')+'）');
