@@ -262,7 +262,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.17</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.18</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -515,8 +515,24 @@ function detectCategory(title){
   if(/novel|\bbook\b/i.test(t))return 'book_small';
   return null;
 }
+var _rc=null; // 描画キャッシュ：renderAll冒頭で1回だけ構築（計画parse・ID索引・mainteInfoメモ）。数千回の全計画parseによるフリーズ対策
+function beginRenderCache(){
+  var plan={};
+  try{var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
+    if(s&&s.plan&&s.plan.items)s.plan.items.forEach(function(p){plan[String(p.item_id)]=p;});}catch(e){}
+  var idx={}; ITEMS.forEach(function(it,i){idx[String(it.id)]=i;});
+  _rc={plan:plan, idx:idx, mi:{}};
+}
 function mainteInfo(it){
-  // 計画ファイル（永続化済み）から値下がり警告と再出品日を引く
+  if(_rc){
+    var k=String(it.id);
+    if(_rc.mi[k])return _rc.mi[k];
+    var pit=_rc.plan[k]||null;
+    var days=(pit&&pit.days_to_renewal!=null)?pit.days_to_renewal:(it.days_to_renewal!=null?it.days_to_renewal:null);
+    var r={suspect:!!(pit&&pit.price_drop_suspect),pct:(pit&&pit.below_breakeven_pct!=null)?pit.below_breakeven_pct:null,days:days,bench:(pit&&pit.benchmark_dropped)?pit.benchmark_dropped:null};
+    _rc.mi[k]=r; return r;
+  }
+  // フォールバック（描画外からの単発呼び出し用）
   try{
     var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
     var pit=s&&s.plan&&s.plan.items?s.plan.items.find(function(p){return String(p.item_id)===String(it.id);}):null;
@@ -556,10 +572,12 @@ function hideExistingUrl(idx,url){
   try{localStorage.setItem('ss_hideurl_v1',JSON.stringify(all));}catch(e){}
   markTouched(idx); markDirty(); updateCard(idx);
 }
-function loadDefer(){try{return JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){return {};}}
+var _deferCache=null;
+function loadDefer(){if(_deferCache)return _deferCache;try{_deferCache=JSON.parse(localStorage.getItem(LS_DEFER)||'{}');}catch(e){_deferCache={};}return _deferCache;}
+function _invalidateDefer(){_deferCache=null;}
 function isDeferred(it){
   if(loadDefer()[String(it.id)])return true;
-  var idx=ITEMS.indexOf(it);
+  var idx=(_rc&&_rc.idx[String(it.id)]!=null)?_rc.idx[String(it.id)]:ITEMS.indexOf(it);
   if(idx>=0){var a=supplies[idx]||[];
     if((it.urls||[]).length===0 && a.length>0 && a.every(function(s){return !s.url;}))return true;}
   return false;
@@ -569,6 +587,7 @@ function toggleDefer(idx){
   var it=ITEMS[idx]; var d=loadDefer();
   if(d[String(it.id)]) delete d[String(it.id)]; else d[String(it.id)]={at:new Date().toISOString()};
   try{localStorage.setItem(LS_DEFER,JSON.stringify(d));}catch(e){}
+  _invalidateDefer();
   renderAll();
 }
 // ▼ メンテ済み沈め（案Y：保存で確定した「触った商品」を永続で最下部へ）
@@ -844,12 +863,13 @@ function lightRowHtml(it,i){
 function expandCard(i){var it=ITEMS[i];if(it)EXPANDED[String(it.id)]=1;updateCard(i);}
 // ▼ 出品終了（EndItem）申請：初弾は1件ずつ人間の確認ベース。実行はPython側（end_requests.jsonを処理）
 var LS_ENDREQ='ss_endreq_v1'; // {itemId:{at,title}}
-function loadEndReq(){try{return JSON.parse(localStorage.getItem(LS_ENDREQ)||'{}');}catch(e){return {};}}
+var _endreqCache=null;
+function loadEndReq(){if(_endreqCache)return _endreqCache;try{_endreqCache=JSON.parse(localStorage.getItem(LS_ENDREQ)||'{}');}catch(e){_endreqCache={};}return _endreqCache;}
 function isEndRequested(it){return !!loadEndReq()[String(it.id)];}
 function cleanupEndReq(){ // 終了完了＝実在チェックとスプシ行削除で ITEMS から消えた申請を掃除
   var m=loadEndReq();var ids={};ITEMS.forEach(function(it){ids[String(it.id)]=1;});
   var changed=false;Object.keys(m).forEach(function(id){if(!ids[id]){delete m[id];changed=true;}});
-  if(changed){try{localStorage.setItem(LS_ENDREQ,JSON.stringify(m));}catch(e){}}
+  if(changed){_endreqCache=null;try{localStorage.setItem(LS_ENDREQ,JSON.stringify(m));}catch(e){}}
 }
 async function writeEndRequests(){
   var m=loadEndReq();
@@ -876,7 +896,7 @@ function endListing(idx){
     '⚠️ スプレッドシートの行も削除されます。\n\n本当に出品を終了しますか？';
   if(!confirm(msg))return;
   var m=loadEndReq();m[String(it.id)]={at:new Date().toISOString(),title:(it.title||it.name)};
-  try{localStorage.setItem(LS_ENDREQ,JSON.stringify(m));}catch(e){}
+  _endreqCache=null;try{localStorage.setItem(LS_ENDREQ,JSON.stringify(m));}catch(e){}
   writeEndRequests().then(function(ok){
     showToast(ok?'出品終了を申請しました（自動処理を待ちます）':'（フォルダ未接続）end_requests.json をダウンロードしました。auto/ に置いてください');
   });
@@ -893,7 +913,7 @@ function onSort(v){sortMode=v;try{localStorage.setItem('ss_sort_v1',v);}catch(e)
 var _maintedAnchorDone=false;
 // ソート済みidx配列をカードHTML化。沈める区分の直前に「メンテ済み仕切り」を1回だけ挿入
 function renderCards(idxArr){
-  var html=''; var dividerDone=false;
+  var html=''; var dividerDone=false; var _fullBudget=30;
   for(var k=0;k<idxArr.length;k++){
     var i=idxArr[k];
     if(!dividerDone && sinkRank(i)===1){
@@ -902,7 +922,12 @@ function renderCards(idxArr){
       html+='<div class="mainted-divider"'+anchor+'>── ここから下：対応済み（メンテ済み・監視なし）'+cnt+'件 ──</div>';
       dividerDone=true; _maintedAnchorDone=true;
     }
-    html+=(shouldLight(i)?lightRowHtml(ITEMS[i],i):cardHtml(ITEMS[i],i));
+    var lite=shouldLight(i);
+    if(!lite&&!EXPANDED[String(ITEMS[i].id)]){
+      if(_fullBudget<=0)lite=true;  // フルカードはセクション先頭30枚まで。以降は軽量1行（[開く]で展開）＝DOM量を商品数に依らず一定に
+      else _fullBudget--;
+    }
+    html+=(lite?lightRowHtml(ITEMS[i],i):cardHtml(ITEMS[i],i));
   }
   return html;
 }
@@ -916,6 +941,7 @@ function jumpMaintedFn(){
   setTimeout(function(){near();finish();},250);
 }
 function renderAll(){
+  beginRenderCache();
   var groups={out:[],err:[],in:[]};
   var hidden=0;
   ITEMS.forEach(function(it,i){ if(matchQuery(it)) groups[stockType(it)].push(i); else hidden++; });
