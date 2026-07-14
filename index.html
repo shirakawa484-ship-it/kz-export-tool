@@ -262,7 +262,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.18</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.19</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1230,10 +1230,15 @@ function paSorted(items){
 }
 window.paPage=window.paPage||1; var PA_PAGE_SIZE=100;
 function appliedMap(){
+  // 反映済み判定：計画世代の一致ではなく「applied_atが24時間以内」で判定する。
+  // （計画は日中も再生成されるため、世代照合だと反映直後に✅が消えて承認が振り出しに戻って見えるバグがあった。
+  //   Python側もapplied_latest.jsonを世代跨ぎで累積保持するよう変更済み）
   var a=window.APPLIED; if(!a||!a.applied) return {};
-  var planGen=DATA&&DATA.generated_at?DATA.generated_at:null;
-  if(planGen && a.plan_generated_at && a.plan_generated_at!==planGen) return {};
-  var m={}; a.applied.forEach(function(x){m[String(x.item_id)]=x;}); return m;
+  var cut=Date.now()-24*3600*1000;
+  var m={}; a.applied.forEach(function(x){
+    if(x.applied_at&&Date.parse(x.applied_at)>=cut) m[String(x.item_id)]=x; // 同一商品が複数回反映された場合は最新が残る
+  });
+  return m;
 }
 function renderPager(total,pages){
   var mk=function(){var h='<span class="muted">'+total+'件中 '+((window.paPage-1)*PA_PAGE_SIZE+1)+'〜'+Math.min(window.paPage*PA_PAGE_SIZE,total)+'件を表示</span> ';
