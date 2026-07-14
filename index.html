@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.22</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.23</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -574,9 +574,15 @@ function commitPending(idx){
     var d=byUrl[r.getAttribute('data-u')]; if(d)picks.push(d);});
   picks.sort(function(a,b){return a.p-b.p;});
   if(!picks.length){alert('追加する候補を選んでください（基準の⚓→行タップ）');return;}
+  if(picks.length>5){alert('選択は最大5件です（今 '+picks.length+'件）。安い順に5件へ絞ってください。');return;}
   if(!supplies[idx])supplies[idx]=[];
   var space=5-supplies[idx].length;
-  if(picks.length>space){alert('候補枠が足りません（空き'+space+'件）。'+space+'件まで選び直すか、既存候補を×で削ってください。');return;}
+  if(picks.length>space){
+    var oldList=supplies[idx].map(function(x){return '・'+Number(x.price).toLocaleString()+'円';}).join('\n');
+    if(!confirm('候補枠（最大5件）が足りません。\n\n既存の候補 '+supplies[idx].length+'件：\n'+oldList+'\n\nこれを捨てて、今回選んだ '+picks.length+'件に置き換えますか？\n（手入力の原価がある場合はそちらが優先のまま変わりません）'))return;
+    supplies[idx]=supplies[idx].filter(function(x){return !x.url&&x.price>0;}); // 手入力原価だけ残す（優先ルール維持）
+    if(supplies[idx].length+picks.length>5){picks=picks.slice(0,5-supplies[idx].length);}
+  }
   picks.forEach(function(d){supplies[idx].push({price:d.p,url:d.u});});
   var all=loadPending(); delete all[String(it.id)]; savePending(all);
   markTouched(idx); saveSupplies(); updateCard(idx);
