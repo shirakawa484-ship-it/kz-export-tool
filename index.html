@@ -82,6 +82,24 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabInv .mainted-divider{font-size:11px;font-weight:700;color:#8a97ab;background:#f2f4f8;border:1px dashed #cdd6e4;border-radius:8px;padding:7px 12px;margin:14px 0 10px;text-align:center;letter-spacing:.02em}
 .deferbtn{font-size:10.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;margin-left:6px;color:#666;flex-shrink:0}
 .deferbtn.on{background:#e8e8e8;color:#555;border-color:#ccc;font-weight:700}
+/* まとめ取りv4 選別UI：行全体タップ・状態色 */
+.p2row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;user-select:none;min-height:56px;background:#fff}
+.p2row img{width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0}
+.p2row .noimg{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;background:#f2f2f2;border-radius:6px;flex-shrink:0}
+.p2row .pp{font-weight:700;font-size:14px;flex-shrink:0;min-width:76px}
+.p2row .pt{flex:1;font-size:11.5px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p2row a{font-size:11px;flex-shrink:0}
+.p2row.on{border-color:#1d6f56;background:#e8f2ee}
+.p2row.on .pp{color:#1d6f56}
+.p2row.on::after{content:"✓";font-weight:900;color:#1d6f56;font-size:16px;margin-left:4px}
+.p2row.below,.p2row.far{opacity:.45;background:#f6f6f6;cursor:not-allowed}
+.p2row.far{cursor:pointer;opacity:.55}
+.p2row.pre{background:#fffdf4}
+.p2note{font-size:10px;color:#a33c37;margin-left:6px;font-weight:700}
+.anch{font-size:14px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;flex-shrink:0}
+.anch.on{background:#1d3557;color:#fff;border-color:#1d3557}
+.multchip{font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;margin-left:4px}
+.multchip.on{background:#1d3557;color:#fff;border-color:#1d3557}
 /* ①A 軽量1行表示（メンテ済み・監視なし・在庫あり＝非作業ゾーン） */
 #tabInv .lrow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:6px}
 #tabInv .lrow img{width:36px;height:36px;object-fit:cover;border-radius:6px;border:1px solid #e2ded3;flex-shrink:0}
@@ -262,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.20</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.21</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -291,20 +309,14 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
       <li>ツールで商品の検索ボタン（メルカリ/Yahoo!フリマ/駿河屋）を押す（＝メンテ中にする）。</li>
       <li>各サイトで良い出品ページを開き、ブックマークレットをクリック。</li>
       <li>価格を読み取り、この商品の仕入れ候補に自動追加（最大5件・最安値を採用）。価格は一覧で手修正できます。</li>
-      <li><b>まとめ取り</b>：メルカリの<b>商品ページ</b>で押すと、その商品＋関連出品のうち<b>同価格帯（その商品の9割〜2倍）</b>だけを最大10件取り込み。検索結果ページでも使えます（その場合はフィルタなし）。→ツール側で画像を見て選別→選んだ分だけ候補に追加。</li>
+      <li><b>まとめ取り v4</b>：メルカリで検索（キーワードは検索し直してもOK）→<b>検索結果ページ</b>で押す。画面の検索結果（Shops含む・最大40件）を取り込み→ツール側で<b>基準（最安の本物）の行の⚓を押す</b>→基準〜1.3倍が安い順に自動チェック（倍率は変更可）→行タップで調整→追加。基準未満の怪しい安値は自動で除外されます。</li>
     </ol>
-    <a class="bm alt2" href="javascript:(function(){var out=[],seen={};function push(u,p,t,i){var m=u.match(/\/item\/(m\d+)/);if(!m||seen[m[1]]||!p||p<50)return;seen[m[1]]=1;out.push({u:'https://jp.mercari.com/item/'+m[1],p:p,t:(t||'').slice(0,60),i:i||''});}
-var self=location.pathname.match(/^\/item\/(m\d+)/),sp=null;
-if(self){var prices=[];document.querySelectorAll('script[type=&quot;application/ld+json&quot;]').forEach(function(sc){try{var d=JSON.parse(sc.textContent);var dd=Array.isArray(d)?d:[d];function dig(x){if(!x||typeof x!=='object')return;if(x.offers){var of=Array.isArray(x.offers)?x.offers:[x.offers];of.forEach(function(f){if(f&amp;&amp;f.price)prices.push(parseInt(String(f.price).replace(/[^\d]/g,''),10));});}if(x.price)prices.push(parseInt(String(x.price).replace(/[^\d]/g,''),10));}dd.forEach(function(o){dig(o);if(o&amp;&amp;o['@graph'])o['@graph'].forEach(dig);});}catch(e){}});
-prices=prices.filter(function(p){return p&amp;&amp;p>=50;});sp=prices.length?prices[0]:null;
-if(!sp){var mm=document.querySelector('meta[itemprop=&quot;price&quot;],meta[property*=&quot;price:amount&quot;]');if(mm)sp=parseInt(String(mm.getAttribute('content')||'').replace(/[^\d]/g,''),10)||null;}
-var og=document.querySelector('meta[property=&quot;og:image&quot;]');
-if(sp)push(location.href,sp,document.title,og?og.getAttribute('content'):'');}
-document.querySelectorAll('a[href*=&quot;/item/m&quot;]').forEach(function(a){if(out.length>=10)return;var root=a;for(var i=0;i<5&amp;&amp;root.parentElement;i++){root=root.parentElement;if(root.querySelector('img'))break;}var img=root.querySelector('img');var txt=(root.textContent||'').replace(/[,\uFF0C]/g,'');var pm=txt.match(/(\d{3,7})\s*\u5186|\u00A5\s*(\d{3,7})/);var price=pm?parseInt(pm[1]||pm[2],10):null;
-if(sp&amp;&amp;price&amp;&amp;(price<sp*0.9||price>sp*2))return;
-push(a.href,price,(img&amp;&amp;img.alt||''),(img&amp;&amp;(img.currentSrc||img.src))||'');});
-if(!out.length){alert('\u53d6\u308a\u8fbc\u3081\u308b\u5546\u54c1\u304c\u3042\u308a\u307e\u305b\u3093\u3067\u3057\u305f');return;}
-window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#batch='+encodeURIComponent(JSON.stringify(out.slice(0,10))),'_blank');})();">まとめ取り（メルカリ検索結果で・最大10件）</a>
+    <a class="bm alt2" href="javascript:(function(){var out=[],seen={};function push(u,p,t,i){var key=null,full=null;var m=u.match(/\/item\/(m\d+)/);if(m){key=m[1];full=&#x27;https://jp.mercari.com/item/&#x27;+m[1];}var sh=u.match(/\/shops\/product\/([A-Za-z0-9]+)/);if(sh){key=&#x27;s_&#x27;+sh[1];full=&#x27;https://jp.mercari.com/shops/product/&#x27;+sh[1];}if(!key||seen[key]||!p||p&lt;50)return;seen[key]=1;out.push({u:full,p:p,t:(t||&#x27;&#x27;).slice(0,60),i:i||&#x27;&#x27;});}
+document.querySelectorAll(&#x27;a[href*=&quot;/item/m&quot;],a[href*=&quot;/shops/product/&quot;]&#x27;).forEach(function(a){if(out.length&gt;=40)return;var root=a;for(var k=0;k&lt;5&amp;&amp;root.parentElement;k++){root=root.parentElement;if(root.querySelector(&#x27;img&#x27;))break;}var img=root.querySelector(&#x27;img&#x27;);var txt=(root.textContent||&#x27;&#x27;).replace(/[,\uFF0C]/g,&#x27;&#x27;);var pm=txt.match(/(\d{3,7})\s*\u5186|[\u00A5\uFFE5]\s*(\d{3,7})/);var price=pm?parseInt(pm[1]||pm[2],10):null;push(a.href,price,(img&amp;&amp;img.alt||&#x27;&#x27;),(img&amp;&amp;(img.currentSrc||img.src))||&#x27;&#x27;);});
+var q=new URLSearchParams(location.search);var kw=q.get(&#x27;keyword&#x27;)||q.get(&#x27;search_word&#x27;)||&#x27;&#x27;;
+if(!out.length){alert(&#x27;\u53d6\u308a\u8fbc\u3081\u308b\u5546\u54c1\u304c\u3042\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002\n\u30e1\u30eb\u30ab\u30ea\u306e\u691c\u7d22\u7d50\u679c\u30da\u30fc\u30b8\u3067\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n[\u8a3a\u65ad] path:&#x27;+location.pathname+&#x27; / a\u30bf\u30b0:&#x27;+document.querySelectorAll(&#x27;a[href]&#x27;).length+&#x27;\u4ef6&#x27;);return;}
+out.sort(function(a,b){return a.p-b.p;});
+window.open(&#x27;https://shirakawa484-ship-it.github.io/kz-export-tool/#batch2=&#x27;+encodeURIComponent(JSON.stringify({kw:kw.slice(0,40),items:out.slice(0,40)})),&#x27;_blank&#x27;);})();">まとめ取り v4（メルカリ検索結果ページで押す・Shops対応）</a>
     <a class="bm" href="javascript:(function(){try{var u=location.href;var prices=[];document.querySelectorAll(&#39;script[type=&quot;application/ld+json&quot;]&#39;).forEach(function(sc){try{var d=JSON.parse(sc.textContent);var dd=Array.isArray(d)?d:[d];function dig(x){if(!x||typeof x!==&#39;object&#39;)return;if(x.offers){var of=Array.isArray(x.offers)?x.offers:[x.offers];of.forEach(function(f){if(f&amp;&amp;f.price)prices.push(parseInt(String(f.price).replace(/[^\d]/g,&#39;&#39;),10));if(f&amp;&amp;f.lowPrice)prices.push(parseInt(String(f.lowPrice).replace(/[^\d]/g,&#39;&#39;),10));});}if(x.price)prices.push(parseInt(String(x.price).replace(/[^\d]/g,&#39;&#39;),10));}dd.forEach(function(o){dig(o);if(o&amp;&amp;o[&#39;@graph&#39;])o[&#39;@graph&#39;].forEach(dig);});}catch(e){}});if(!prices.length){document.querySelectorAll(&#39;meta[itemprop=&quot;price&quot;],meta[property=&quot;product:price:amount&quot;],meta[property=&quot;og:price:amount&quot;],meta[property*=&quot;price&quot;]&#39;).forEach(function(m){var v=m.getAttribute(&#39;content&#39;);if(v)prices.push(parseInt(String(v).replace(/[^\d]/g,&#39;&#39;),10));});}if(!prices.length){document.querySelectorAll(&#39;[itemprop=&quot;price&quot;],[class*=&quot;price&quot;],[class*=&quot;Price&quot;],[data-testid*=&quot;price&quot;]&#39;).forEach(function(el){var v=el.getAttribute(&#39;content&#39;)||el.textContent;var t=String(v).replace(/[,\u00a5\uffe5\s\u5186]/g,&#39;&#39;);var m=t.match(/\d{2,8}/);if(m)prices.push(parseInt(m[0],10));});}prices=prices.filter(function(p){return p&amp;&amp;p&gt;=50&amp;&amp;p&lt;=3000000;});var price=prices.length?prices[0]:null;if(price===null){var inp=prompt(&#39;価格を自動取得できませんでした。手で入力してください（円）:&#39;,&#39;&#39;);if(!inp)return;price=parseInt(String(inp).replace(/[^\d]/g,&#39;&#39;),10);if(!price)return;}var target=&#39;https://shirakawa484-ship-it.github.io/kz-export-tool/&#39;+&#39;?price=&#39;+price+&#39;&amp;url=&#39;+encodeURIComponent(u);window.open(target,&#39;_blank&#39;);}catch(err){alert(&#39;エラー: &#39;+err.message);}})();">仕入れ値取得（これをブックマークバーへ）</a>
     <div style="font-size:11px;color:var(--muted);padding-bottom:12px">※対応：メルカリ・Yahoo!フリマ・駿河屋。自分で開いた1ページだけを読み取ります。自動巡回はしません。</div>
   </details>
@@ -547,11 +559,21 @@ function mainteInfo(it){
 var LS_PENDING='ss_pending_v1';
 function loadPending(){try{return JSON.parse(localStorage.getItem(LS_PENDING)||'{}');}catch(e){return {};}}
 function savePending(p){try{localStorage.setItem(LS_PENDING,JSON.stringify(p));}catch(e){}}
+function setPendAnchor(idx,p){var it=ITEMS[idx];var all=loadPending();var pend=all[String(it.id)];if(!pend)return;pend.anchor=p;savePending(all);updateCard(idx);}
+function setPendMult(idx,m){var it=ITEMS[idx];var all=loadPending();var pend=all[String(it.id)];if(!pend)return;pend.mult=m;savePending(all);updateCard(idx);}
+function togglePendRow(row){
+  if(row.classList.contains('pre')){showToast('先に基準（最安の本物）の ⚓ を押してください');return;}
+  if(row.classList.contains('below')){showToast('基準未満の価格は追加できません（怪しい安値・別商品の想定）');return;}
+  if(row.classList.contains('on')){row.classList.remove('on');row.classList.add('off');}
+  else if(row.classList.contains('off')||row.classList.contains('far')){row.classList.remove('off');row.classList.remove('far');row.classList.add('on');}
+}
 function commitPending(idx){
   var it=ITEMS[idx]; var pend=loadPending()[String(it.id)]; if(!pend)return;
-  var picks=[]; document.querySelectorAll('#pend'+idx+' input[type=checkbox]:checked').forEach(function(cb){
-    var d=pend.items[parseInt(cb.getAttribute('data-i'),10)]; if(d)picks.push(d);});
-  if(!picks.length){alert('追加する候補にチェックを入れてください');return;}
+  var byUrl={};(pend.items||[]).forEach(function(d){byUrl[d.u]=d;});
+  var picks=[]; document.querySelectorAll('#pend'+idx+' .p2row.on').forEach(function(r){
+    var d=byUrl[r.getAttribute('data-u')]; if(d)picks.push(d);});
+  picks.sort(function(a,b){return a.p-b.p;});
+  if(!picks.length){alert('追加する候補を選んでください（基準の⚓→行タップ）');return;}
   if(!supplies[idx])supplies[idx]=[];
   var space=5-supplies[idx].length;
   if(picks.length>space){alert('候補枠が足りません（空き'+space+'件）。'+space+'件まで選び直すか、既存候補を×で削ってください。');return;}
@@ -759,10 +781,30 @@ function cardHtml(it,idx){
     (function(){
       var pend=loadPending()[String(it.id)];
       if(!pend||!pend.items||!pend.items.length)return '';
-      var rows=pend.items.map(function(d,i){
-        return '<label class="pend"><input type="checkbox" data-i="'+i+'"'+(i<5?' checked':'')+'>'+(d.i?'<img src="'+esc(d.i)+'" loading="lazy">':'<span class="noimg">画像なし</span>')+'<span class="pp">'+Number(d.p).toLocaleString()+'円</span><span class="pt">'+esc(d.t||'')+'</span><a href="'+esc(d.u)+'" target="_blank" rel="noopener">開く↗</a></label>';
+      var anchor=pend.anchor||null, mult=pend.mult||1.3;
+      var items=pend.items.slice().sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
+      var autoLeft=5;
+      var rows=items.map(function(d){
+        var st;
+        if(!anchor)st='pre';
+        else if(d.p<anchor)st='below';
+        else if(d.p<=anchor*mult){st=(autoLeft>0)?'on':'off';if(st==='on')autoLeft--;}
+        else if(d.p<=anchor*2)st='off';
+        else st='far';
+        var note=(st==='below')?'基準未満':(st==='far'?'基準の2倍超':'');
+        return '<div class="p2row '+st+'" data-u="'+esc(d.u)+'" data-p="'+d.p+'" onclick="togglePendRow(this)">'+
+          '<button class="anch'+(anchor===d.p?' on':'')+'" title="この商品を基準（最安の本物）にする" onclick="event.stopPropagation();setPendAnchor('+idx+','+d.p+')">⚓</button>'+
+          (d.i?'<img src="'+esc(d.i)+'" loading="lazy">':'<span class="noimg">画像なし</span>')+
+          '<span class="pp">'+Number(d.p).toLocaleString()+'円</span>'+
+          '<span class="pt">'+esc(d.t||'')+(note?'<span class="p2note">'+note+'</span>':'')+'</span>'+
+          '<a href="'+esc(d.u)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">開く↗</a>'+
+        '</div>';
       }).join('');
-      return '<div class="pendwrap" id="pend'+idx+'"><div class="lbl">🛒 選別待ち '+pend.items.length+'件（画像を見てチェック→追加）</div><div class="pendlist">'+rows+'</div>'+
+      var head;
+      if(!anchor){head='🛒 取り込み '+items.length+'件'+(pend.kw?'（検索: '+esc(pend.kw)+'）':'')+' — <b>基準にする商品（最安の本物）の ⚓ を押してください</b>';}
+      else{head='🛒 基準 '+Number(anchor).toLocaleString()+'円 ／ '+Number(anchor).toLocaleString()+'〜'+Math.round(anchor*mult).toLocaleString()+'円を安い順に自動チェック（最大5件・行タップで調整）';}
+      var chips=[1.2,1.3,1.5].map(function(m){return '<button class="multchip'+(mult===m?' on':'')+'" onclick="setPendMult('+idx+','+m+')">×'+m+'</button>';}).join('');
+      return '<div class="pendwrap" id="pend'+idx+'"><div class="lbl">'+head+(anchor?'　倍率:'+chips:'')+'</div><div class="pendlist">'+rows+'</div>'+
         '<div class="pendactions"><button class="addbtn" onclick="commitPending('+idx+')">選んだ候補に追加</button><button class="del2" onclick="clearPending('+idx+')">全部捨てる</button></div></div>';
     })()+
     '<div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div>'+
@@ -1065,12 +1107,22 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     window.ITEM_IMAGES=window.ITEM_IMAGES||{};ITEMS.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});}
 }catch(e){}})();
 (function(){try{
-  if(location.hash&&location.hash.indexOf('#batch=')===0){
+  if(location.hash&&location.hash.indexOf('#batch2=')===0){
+    var pl=JSON.parse(decodeURIComponent(location.hash.slice(8)));
+    var act2=localStorage.getItem(LS_ACTIVE);
+    if(act2&&pl&&pl.items&&pl.items.length){
+      pl.items.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
+      var all2=loadPending(); all2[String(act2)]={at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,40),anchor:null,mult:1.3}; savePending(all2);
+    }
+    history.replaceState(null,'',location.pathname+location.search);
+    window.__scrollToActive=true;
+  }
+  else if(location.hash&&location.hash.indexOf('#batch=')===0){
     var arr=JSON.parse(decodeURIComponent(location.hash.slice(7)));
     var act=localStorage.getItem(LS_ACTIVE);
     if(act&&arr&&arr.length){
       arr.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
-      var all=loadPending(); all[String(act)]={at:new Date().toISOString(),items:arr.slice(0,10)}; savePending(all);
+      var all=loadPending(); all[String(act)]={at:new Date().toISOString(),items:arr.slice(0,10),anchor:null,mult:1.3}; savePending(all);
     }
     history.replaceState(null,'',location.pathname+location.search);
     window.__scrollToActive=true;
