@@ -262,7 +262,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.19</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.20</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -603,7 +603,7 @@ function markTouchedId(id){if(id==null)return;var t=loadTouched();t[String(id)]=
 function commitTouched(){
   var t=loadTouched(); if(!Object.keys(t).length)return;
   var m=loadMainted(),now=new Date().toISOString();
-  Object.keys(t).forEach(function(id){if(!m[id])m[id]={at:now};});
+  Object.keys(t).forEach(function(id){m[id]={at:now};}); // 再メンテでも時刻を更新
   try{localStorage.setItem(LS_MAINTED,JSON.stringify(m));}catch(e){}
   _maintedCache=m; saveTouched({});
 }
@@ -866,6 +866,26 @@ var LS_ENDREQ='ss_endreq_v1'; // {itemId:{at,title}}
 var _endreqCache=null;
 function loadEndReq(){if(_endreqCache)return _endreqCache;try{_endreqCache=JSON.parse(localStorage.getItem(LS_ENDREQ)||'{}');}catch(e){_endreqCache={};}return _endreqCache;}
 function isEndRequested(it){return !!loadEndReq()[String(it.id)];}
+// ▼ 在庫切れへの遷移でメンテ済みマークをリセット（在庫切れ＝新たに対応が必要な事件。過去の価格メンテ済み表示が新しい補充作業を隠すのを防ぐ）
+var LS_STOCKSEEN='ss_stockseen_v1'; // {itemId: 前回見た在庫状態}
+function reconcileStockTransitions(){
+  var seen={};try{seen=JSON.parse(localStorage.getItem(LS_STOCKSEEN)||'{}');}catch(e){}
+  var first=!Object.keys(seen).length;
+  var m=loadMainted(),t=loadTouched(),mChanged=false,tChanged=false;
+  ITEMS.forEach(function(it){
+    var id=String(it.id),now=stockType(it);
+    var was=seen[id];
+    // 「在庫切れになった」瞬間（初回ロード時は在庫切れ＋マーク持ちを移行として一括リセット）
+    if(now==='out'&&(was===undefined?first:was!=='out')){
+      if(m[id]){delete m[id];mChanged=true;}
+      if(t[id]){delete t[id];tChanged=true;}
+    }
+    seen[id]=now;
+  });
+  if(mChanged){try{localStorage.setItem(LS_MAINTED,JSON.stringify(m));}catch(e){}_maintedCache=m;}
+  if(tChanged)saveTouched(t);
+  try{localStorage.setItem(LS_STOCKSEEN,JSON.stringify(seen));}catch(e){}
+}
 function cleanupEndReq(){ // 終了完了＝実在チェックとスプシ行削除で ITEMS から消えた申請を掃除
   var m=loadEndReq();var ids={};ITEMS.forEach(function(it){ids[String(it.id)]=1;});
   var changed=false;Object.keys(m).forEach(function(id){if(!ids[id]){delete m[id];changed=true;}});
@@ -1003,7 +1023,7 @@ function exportCosts(){
     out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
       weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
       ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined)};
-    markTouchedId(it.id); // 保存＝書き出し対象（候補あり）は全部メンテ済み扱い（過去バージョンで編集した商品も次の保存で救済される）
+    if(stockType(it)!=='out')markTouchedId(it.id); // 保存＝候補ありは全部メンテ済み扱い。ただし在庫切れは個別に編集した時だけ（古い候補だけで自動的に沈むと補充漏れを隠すため）
     n++;
   });
   if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
@@ -1084,7 +1104,7 @@ function invImportCosts(data){
 function invLoadInventory(data){
   var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, current_price_usd:(r.current_price_usd!=null?r.current_price_usd:null), days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null};});
   if(!ni.length){alert('在庫データが空です');return;}
-  ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();cleanupEndReq();renderAll();
+  ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();cleanupEndReq();reconcileStockTransitions();renderAll();
   try{localStorage.setItem(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:ni}));}catch(e){}
   window.ITEM_IMAGES=window.ITEM_IMAGES||{};ni.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});
   if(typeof window.paRerender==='function')window.paRerender();
