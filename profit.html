@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eBay利益計算ツール</title>
+<style>
+  :root{
+    --ink:#1a1a18; --muted:#6b6a64; --line:#e0ddd3; --bg:#faf8f3;
+    --card:#ffffff; --accent:#1d6b52; --accent-soft:#e3f1ea;
+    --warn:#a8341f; --warn-soft:#f8e8e4; --field:#f4f1ea; --blue:#185fa5; --blue-soft:#e6f1fb;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.6; padding:16px; max-width:640px; margin:0 auto; -webkit-text-size-adjust:100%;}
+  h1{font-size:20px; font-weight:600; margin-bottom:2px}
+  .sub{font-size:12px; color:var(--muted); margin-bottom:18px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px}
+  .card h2{font-size:13px; font-weight:600; color:var(--muted); margin-bottom:12px}
+  .row{display:flex; gap:10px; margin-bottom:10px}
+  .row:last-child{margin-bottom:0}
+  .field{flex:1; min-width:0}
+  label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px}
+  input,select{width:100%; padding:11px 12px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--field); color:var(--ink); -webkit-appearance:none; appearance:none;}
+  input:focus,select:focus{outline:2px solid var(--accent); outline-offset:-1px; background:#fff}
+  select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%236b6a64' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:30px}
+  .hint{font-size:11px; color:var(--muted); margin-top:3px}
+  .rate-line{display:flex; align-items:center; gap:8px; margin-top:4px}
+  .btn-sm{font-size:11px; padding:6px 10px; border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--accent); cursor:pointer; white-space:nowrap}
+  .btn-sm:active{background:var(--accent-soft)}
+  .result{background:var(--accent-soft); border-color:#bfe0d0}
+  .result.loss{background:var(--warn-soft); border-color:#e8c4ba}
+  .big{font-size:32px; font-weight:700; letter-spacing:-0.5px; line-height:1.1}
+  .big.loss{color:var(--warn)} .big.good{color:var(--accent)}
+  .biglabel{font-size:12px; color:var(--muted); margin-bottom:2px}
+  .metrics{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap}
+  .metric{flex:1; min-width:90px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px 11px}
+  .metric .l{font-size:11px; color:var(--muted)}
+  .metric .v{font-size:17px; font-weight:600; margin-top:1px}
+  .refund-box{margin-top:12px; background:var(--blue-soft); border:1px solid #b5d4f4; border-radius:8px; padding:11px 13px}
+  .refund-box .rl{font-size:12px; color:#0c447c}
+  .refund-box .rv{font-size:18px; font-weight:600; color:#0c447c; margin-top:1px}
+  .refund-box .total{margin-top:8px; padding-top:8px; border-top:1px dashed #b5d4f4; font-size:13px; color:#0c447c}
+  .refund-box .total b{font-size:16px}
+  .breakdown{margin-top:14px; border-top:1px solid #cfe5d9; padding-top:12px}
+  .bd-row{display:flex; justify-content:space-between; font-size:13px; padding:3px 0; color:var(--muted)}
+  .bd-row span:last-child{color:var(--ink); font-variant-numeric:tabular-nums}
+  .bd-row.total{font-weight:600; color:var(--ink); border-top:1px dashed #cfe5d9; margin-top:5px; padding-top:7px}
+  details{margin-bottom:14px}
+  summary{font-size:13px; color:var(--accent); cursor:pointer; padding:8px 0; font-weight:500}
+  .note{font-size:11px; color:var(--muted); line-height:1.5; background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-top:6px}
+  .ship-result{font-size:13px; color:var(--accent); margin-top:6px; font-weight:500}
+  .foot{font-size:11px; color:var(--muted); text-align:center; margin:18px 0 8px; line-height:1.6}
+  .tariff-guide{font-size:11px; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px 11px; margin-top:6px; line-height:1.5}
+</style>
+</head>
+<body>
+
+<h1>eBay利益計算ツール</h1>
+<div class="sub">手数料・送料は辛めに見積もり、赤字を掴むリスクを下げる設計。すべて概算です。</div>
+
+<div class="card">
+  <h2>売上（USD）</h2>
+  <div class="row">
+    <div class="field">
+      <label>商品売上（送料込み）$</label>
+      <input type="number" id="price" inputmode="decimal" placeholder="例 250" oninput="calc()">
+      <div class="hint">あなたが受け取る商品代金</div>
+    </div>
+    <div class="field">
+      <label>ドル円レート</label>
+      <input type="number" id="rate" inputmode="decimal" value="155" oninput="markRateManual();calc()">
+      <div class="rate-line">
+        <button class="btn-sm" onclick="fetchRate()">最新レート再取得 −1円</button>
+        <span class="hint" id="rateStatus">起動時に自動取得します</span>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>eBay代理徴収TAX $</label>
+      <input type="number" id="tax" inputmode="decimal" placeholder="例 0" oninput="markTaxManual();calc()">
+      <div class="rate-line">
+        <button class="btn-sm" onclick="autoTax()">宛先からTAX参考値を入れる</button>
+      </div>
+      <div class="hint" id="taxHint">バイヤーが払う税。利益にはならないが手数料はかかる。宛先選択後にボタンで目安が入る</div>
+    </div>
+    <div class="field">
+      <label>カテゴリ（落札手数料率）</label>
+      <select id="cat" onchange="calc()">
+        <option value="14.5">トレカ・カード・コレクティブル（14.5%）</option>
+        <option value="18.5">書籍・雑誌・写真集・画集（18.5%）</option>
+        <option value="17">中間コレクティブル・サントラ等（17%）</option>
+        <option value="13.6">標準カテゴリ・電子・衣類・玩具（13.6%）</option>
+        <option value="6.7">ギター＆ベース（6.7%）</option>
+        <option value="custom">手動入力</option>
+      </select>
+      <input type="number" id="catCustom" inputmode="decimal" placeholder="手数料率 %" style="display:none;margin-top:8px" oninput="calc()">
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>送料（自動計算）</h2>
+  <div class="row">
+    <div class="field">
+      <label>発送業者</label>
+      <select id="carrier" onchange="updateCountries();calc()">
+        <option value="OC">OrangeConnex（米国向け）</option>
+        <option value="DHL">DHL（米国以外）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>宛先</label>
+      <select id="country" onchange="calc()"></select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>重量</label>
+      <select id="weight" onchange="calc()"></select>
+    </div>
+    <div class="field" id="usZoneField" style="display:none">
+      <label>米国エリア</label>
+      <select id="usZone" onchange="calc()">
+        <option value="1">東部・中部（USE/CA・辛め）</option>
+        <option value="0">西部（USW）</option>
+      </select>
+    </div>
+  </div>
+  <div class="ship-result" id="shipResult">送料：—</div>
+  <div class="hint" id="shipManual" style="margin-top:6px">テーブルにない場合は手動で送料を入力 →
+    <input type="number" id="shipManualInput" inputmode="decimal" placeholder="送料（円）" style="width:120px;display:inline-block;padding:6px 8px;font-size:14px" oninput="calc()"></div>
+</div>
+
+<div class="card">
+  <h2>仕入れコスト（円）</h2>
+  <div class="row">
+    <div class="field">
+      <label>仕入れ値（税込）¥</label>
+      <input type="number" id="cost" inputmode="decimal" placeholder="例 30000" oninput="calc()">
+    </div>
+    <div class="field">
+      <label>外注費・その他 ¥</label>
+      <input type="number" id="other" inputmode="decimal" placeholder="例 0" oninput="calc()">
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>米国向け関税（DDP）</h2>
+  <div class="row">
+    <div class="field">
+      <label>関税率 %（米国DDPのみ）</label>
+      <input type="number" id="dutyRate" inputmode="decimal" placeholder="例 10" oninput="calc()">
+      <div class="hint">米国向けのみ利益から引く。他国は不要（0でOK）</div>
+    </div>
+  </div>
+  <div class="tariff-guide">
+    関税率の目安（2026年・要確認）：書籍・CD・DVD・ゲーム・ブルーレイ＝<b>0%</b>（免税の可能性大）／トレカ・コレクティブル等＝<b>10%前後</b>。正確な率はHTSコードや運送業者の請求実績で確認を。米国DDPは申告価格（商品価格のみ）に課税。
+  </div>
+</div>
+
+<details>
+  <summary>＋ 詳細手数料の設定（広告費・各率・還付率）</summary>
+  <div class="card" style="margin-top:8px">
+    <div class="row">
+      <div class="field"><label>広告費 Promoted（%）</label><input type="number" id="promo" inputmode="decimal" value="2.1" oninput="calc()"><div class="hint">デフォルト2.1%。使わない時は0に</div></div>
+      <div class="field"><label>海外手数料（%）</label><input type="number" id="intl" inputmode="decimal" value="1.35" oninput="calc()"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>為替手数料（%）</label><input type="number" id="fx" inputmode="decimal" value="2" oninput="calc()"></div>
+      <div class="field"><label>固定費（$/注文）</label><input type="number" id="fixed" inputmode="decimal" value="0.40" oninput="calc()"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>消費税還付率（%）</label><input type="number" id="refundRate" inputmode="decimal" value="10" oninput="calc()"><div class="hint">仕入れ値・外注費・落札手数料の対象</div></div>
+    </div>
+    <div class="note">初期値は実取引データと公式テーブルに基づく辛め設定。料率改定時はここを変更。</div>
+  </div>
+</details>
+
+<div class="card result" id="resultCard">
+  <div class="biglabel">想定利益（円）※還付を含まない</div>
+  <div class="big" id="profitYen">¥0</div>
+  <div class="metrics">
+    <div class="metric"><div class="l">利益率</div><div class="v" id="margin">—</div></div>
+    <div class="metric"><div class="l">手取り（円）</div><div class="v" id="netYen">¥0</div></div>
+    <div class="metric"><div class="l">損益分岐（売価$）</div><div class="v" id="breakeven">—</div></div>
+  </div>
+  <div class="refund-box">
+    <div class="rl">消費税還付（目安・別枠）</div>
+    <div class="rv" id="refundYen">¥0</div>
+    <div class="total">利益＋還付の合計：<b id="totalWithRefund">¥0</b></div>
+  </div>
+  <div class="breakdown" id="breakdown"></div>
+</div>
+
+<div class="foot">
+  これは仕入れ判断のための概算です。確定申告・会計・還付の確定は会計ソフトと税理士で。<br>
+  手数料率・送料・関税はeBayや各社・各国の改定で変わります。定期的に実際の明細で答え合わせを。
+</div>
+
+<script>
+const WEIGHTS = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0];
+const DHL = {"米国": {"0.5": 2998, "1.0": 3025, "1.5": 3129, "2.0": 3304, "2.5": 4241, "3.0": 4561, "3.5": 4881, "4.0": 5201, "4.5": 5688, "5.0": 6175, "5.5": 6689, "6.0": 7886, "6.5": 9358, "7.0": 10830, "7.5": 12302, "8.0": 13774, "8.5": 15246, "9.0": 16718, "9.5": 18190, "10.0": 19662}, "カナダ": {"0.5": 2998, "1.0": 3025, "1.5": 3129, "2.0": 3304, "2.5": 4241, "3.0": 4561, "3.5": 4881, "4.0": 5201, "4.5": 5688, "5.0": 6175, "5.5": 6689, "6.0": 7886, "6.5": 9358, "7.0": 10830, "7.5": 12302, "8.0": 13774, "8.5": 15246, "9.0": 16718, "9.5": 18190, "10.0": 19662}, "英国": {"0.5": 2148, "1.0": 2293, "1.5": 2707, "2.0": 3119, "2.5": 4805, "3.0": 4959, "3.5": 5113, "4.0": 5267, "4.5": 5423, "5.0": 5577, "5.5": 6707, "6.0": 9514, "6.5": 11539, "7.0": 13564, "7.5": 15589, "8.0": 17614, "8.5": 19639, "9.0": 21664, "9.5": 23689, "10.0": 25714}, "ドイツ": {"0.5": 2148, "1.0": 2293, "1.5": 2707, "2.0": 3119, "2.5": 4805, "3.0": 4959, "3.5": 5113, "4.0": 5267, "4.5": 5423, "5.0": 5577, "5.5": 6707, "6.0": 9514, "6.5": 11539, "7.0": 13564, "7.5": 15589, "8.0": 17614, "8.5": 19639, "9.0": 21664, "9.5": 23689, "10.0": 25714}, "フランス": {"0.5": 2148, "1.0": 2293, "1.5": 2707, "2.0": 3119, "2.5": 4805, "3.0": 4959, "3.5": 5113, "4.0": 5267, "4.5": 5423, "5.0": 5577, "5.5": 6707, "6.0": 9514, "6.5": 11539, "7.0": 13564, "7.5": 15589, "8.0": 17614, "8.5": 19639, "9.0": 21664, "9.5": 23689, "10.0": 25714}, "イタリア": {"0.5": 2148, "1.0": 2293, "1.5": 2707, "2.0": 3119, "2.5": 4805, "3.0": 4959, "3.5": 5113, "4.0": 5267, "4.5": 5423, "5.0": 5577, "5.5": 6707, "6.0": 9514, "6.5": 11539, "7.0": 13564, "7.5": 15589, "8.0": 17614, "8.5": 19639, "9.0": 21664, "9.5": 23689, "10.0": 25714}, "スペイン": {"0.5": 2148, "1.0": 2293, "1.5": 2707, "2.0": 3119, "2.5": 4805, "3.0": 4959, "3.5": 5113, "4.0": 5267, "4.5": 5423, "5.0": 5577, "5.5": 6707, "6.0": 9514, "6.5": 11539, "7.0": 13564, "7.5": 15589, "8.0": 17614, "8.5": 19639, "9.0": 21664, "9.5": 23689, "10.0": 25714}, "豪州": {"0.5": 2243, "1.0": 2243, "1.5": 2243, "2.0": 2243, "2.5": 3901, "3.0": 3901, "3.5": 3901, "4.0": 3901, "4.5": 3901, "5.0": 3901, "5.5": 5271, "6.0": 6641, "6.5": 8010, "7.0": 9379, "7.5": 10748, "8.0": 12117, "8.5": 13486, "9.0": 14855, "9.5": 16224, "10.0": 17593}, "NZ": {"0.5": 2243, "1.0": 2243, "1.5": 2243, "2.0": 2243, "2.5": 3901, "3.0": 3901, "3.5": 3901, "4.0": 3901, "4.5": 3901, "5.0": 3901, "5.5": 5271, "6.0": 6641, "6.5": 8010, "7.0": 9379, "7.5": 10748, "8.0": 12117, "8.5": 13486, "9.0": 14855, "9.5": 16224, "10.0": 17593}, "香港": {"0.5": 2011, "1.0": 2011, "1.5": 2238, "2.0": 2464, "2.5": 3119, "3.0": 3195, "3.5": 3271, "4.0": 3347, "4.5": 3421, "5.0": 3497, "5.5": 4174, "6.0": 4850, "6.5": 5526, "7.0": 6202, "7.5": 6878, "8.0": 7554, "8.5": 8230, "9.0": 8906, "9.5": 9582, "10.0": 10258}, "台湾": {"0.5": 1907, "1.0": 1925, "1.5": 2199, "2.0": 2471, "2.5": 3064, "3.0": 3138, "3.5": 3212, "4.0": 3286, "4.5": 3363, "5.0": 3437, "5.5": 4114, "6.0": 4793, "6.5": 5470, "7.0": 6147, "7.5": 6824, "8.0": 7501, "8.5": 8178, "9.0": 8855, "9.5": 9532, "10.0": 10209}, "シンガポール": {"0.5": 2072, "1.0": 2072, "1.5": 2300, "2.0": 2526, "2.5": 3406, "3.0": 3482, "3.5": 3558, "4.0": 3634, "4.5": 3708, "5.0": 3784, "5.5": 4531, "6.0": 5280, "6.5": 6130, "7.0": 6980, "7.5": 7830, "8.0": 8680, "8.5": 9530, "9.0": 10380, "9.5": 11230, "10.0": 12080}, "韓国": {"0.5": 1907, "1.0": 1925, "1.5": 2199, "2.0": 2471, "2.5": 3064, "3.0": 3138, "3.5": 3212, "4.0": 3286, "4.5": 3363, "5.0": 3437, "5.5": 4114, "6.0": 4793, "6.5": 5470, "7.0": 6147, "7.5": 6824, "8.0": 7501, "8.5": 8178, "9.0": 8855, "9.5": 9532, "10.0": 10209}, "中国": {"0.5": 2011, "1.0": 2011, "1.5": 2238, "2.0": 2464, "2.5": 3119, "3.0": 3195, "3.5": 3271, "4.0": 3347, "4.5": 3421, "5.0": 3497, "5.5": 4174, "6.0": 4850, "6.5": 5526, "7.0": 6202, "7.5": 6878, "8.0": 7554, "8.5": 8230, "9.0": 8906, "9.5": 9582, "10.0": 10258}, "タイ": {"0.5": 2072, "1.0": 2072, "1.5": 2300, "2.0": 2526, "2.5": 3406, "3.0": 3482, "3.5": 3558, "4.0": 3634, "4.5": 3708, "5.0": 3784, "5.5": 4531, "6.0": 5280, "6.5": 6130, "7.0": 6980, "7.5": 7830, "8.0": 8680, "8.5": 9530, "9.0": 10380, "9.5": 11230, "10.0": 12080}, "マレーシア": {"0.5": 2072, "1.0": 2072, "1.5": 2300, "2.0": 2526, "2.5": 3406, "3.0": 3482, "3.5": 3558, "4.0": 3634, "4.5": 3708, "5.0": 3784, "5.5": 4531, "6.0": 5280, "6.5": 6130, "7.0": 6980, "7.5": 7830, "8.0": 8680, "8.5": 9530, "9.0": 10380, "9.5": 11230, "10.0": 12080}};
+const OC_US = {"0.5": [2082, 2115], "1.0": [2558, 2599], "1.5": [2797, 2840], "2.0": [3061, 3108], "2.5": [3328, 3383], "3.0": [3492, 3540], "3.5": [3549, 3593], "4.0": [3973, 4022], "4.5": [4395, 4451], "5.0": [4718, 4718], "5.5": [5043, 5043], "6.0": [5366, 5366], "6.5": [5734, 5735], "7.0": [6183, 6184], "7.5": [6575, 6683], "8.0": [6761, 6871], "8.5": [6947, 7060], "9.0": [7131, 7249], "9.5": [8735, 8865], "10.0": [8958, 9089]};
+
+  function n(id){ var el=document.getElementById(id); if(!el) return 0; var v=parseFloat(el.value); return isNaN(v)?0:v; }
+  function yen(x){ return '¥'+Math.round(x).toLocaleString('ja-JP'); }
+  function usd(x){ return '$'+x.toFixed(2); }
+
+  // カテゴリ手動入力の切替
+  document.getElementById('cat').addEventListener('change',function(){
+    document.getElementById('catCustom').style.display = this.value==='custom' ? 'block':'none';
+  });
+  function fvfRate(){ var c=document.getElementById('cat').value; return c==='custom'? n('catCustom'): parseFloat(c); }
+
+  // 宛先リストを業者に応じて更新
+  function updateCountries(){
+    var carrier=document.getElementById('carrier').value;
+    var sel=document.getElementById('country');
+    sel.innerHTML='';
+    var usZoneField=document.getElementById('usZoneField');
+    if(carrier==='OC'){
+      var o=document.createElement('option'); o.value='米国'; o.textContent='米国（OrangeConnex）'; sel.appendChild(o);
+      usZoneField.style.display='block';
+    } else {
+      usZoneField.style.display='none';
+      Object.keys(DHL).forEach(function(c){
+        if(c==='米国'||c==='カナダ') return; // 米国はOC、カナダもDDP系なので一旦除外可だが残す
+        var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o);
+      });
+      // カナダは米国以外なのでDHLに残す
+      var oc=document.createElement('option'); oc.value='カナダ'; oc.textContent='カナダ'; sel.appendChild(oc);
+    }
+  }
+
+  // 重量リスト
+  function initWeights(){
+    var sel=document.getElementById('weight');
+    WEIGHTS.forEach(function(w){
+      var o=document.createElement('option'); o.value=w; o.textContent=w+' kg'; sel.appendChild(o);
+    });
+  }
+
+  // 送料を取得
+  function getShipping(){
+    var manual=n('shipManualInput');
+    if(manual>0) return manual;
+    var carrier=document.getElementById('carrier').value;
+    var w=document.getElementById('weight').value;
+    if(carrier==='OC'){
+      var zone=parseInt(document.getElementById('usZone').value);
+      if(OC_US[w]) return OC_US[w][zone];
+    } else {
+      var c=document.getElementById('country').value;
+      if(DHL[c] && DHL[c][w]!==undefined) return DHL[c][w];
+    }
+    return 0;
+  }
+
+  // 為替・TAXを手動で触ったらフラグを立てる（自動上書きを防ぐ）
+  var rateManual=false, taxManual=false;
+  function markRateManual(){ rateManual=true; }
+  function markTaxManual(){ taxManual=true; }
+
+  // 為替自動取得（CORS対応の無料APIを複数試す。失敗時は手動のまま）
+  async function fetchRate(isAuto){
+    var status=document.getElementById('rateStatus');
+    status.textContent='取得中...';
+    // CORS許可が知られている無料エンドポイントを順に試す
+    var apis=[
+      {url:'https://api.exchangerate-api.com/v4/latest/USD', pick:function(d){return d.rates&&d.rates.JPY;}},
+      {url:'https://open.er-api.com/v6/latest/USD', pick:function(d){return d.rates&&d.rates.JPY;}},
+      {url:'https://api.frankfurter.dev/v1/latest?base=USD&symbols=JPY', pick:function(d){return d.rates&&d.rates.JPY;}},
+      {url:'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', pick:function(d){return d.usd&&d.usd.jpy;}},
+      {url:'https://latest.currency-api.pages.dev/v1/currencies/usd.json', pick:function(d){return d.usd&&d.usd.jpy;}}
+    ];
+    for(var i=0;i<apis.length;i++){
+      try{
+        var res=await fetch(apis[i].url);
+        if(!res.ok) continue;
+        var d=await res.json();
+        var jpy=apis[i].pick(d);
+        if(jpy){
+          var adjusted=Math.floor(jpy)-1; // 辛め：切り捨て −1円
+          document.getElementById('rate').value=adjusted;
+          rateManual=false;
+          status.textContent='取得 '+Number(jpy).toFixed(2)+' → '+adjusted+'円（辛め）';
+          calc();
+          return;
+        }
+      }catch(e){ /* 次のAPIへ */ }
+    }
+    status.textContent = isAuto ? '自動取得できず。手動入力か再取得を' : '取得失敗。手動で入力してください';
+  }
+
+  // 宛先別TAX参考率（%）。米国は希望どおり10%。EUはVAT標準率、豪10/NZ15。書籍は実際より低い場合あり。
+  var TAX_RATE = {
+    '米国':10, 'カナダ':5, '英国':20, 'ドイツ':19, 'フランス':20, 'イタリア':22,
+    'スペイン':21, '豪州':10, 'NZ':15, '香港':0, '台湾':0, 'シンガポール':9,
+    '韓国':0, '中国':0, 'タイ':0, 'マレーシア':0
+  };
+  function autoTax(){
+    var carrier=document.getElementById('carrier').value;
+    var country = carrier==='OC' ? '米国' : document.getElementById('country').value;
+    var price=n('price');
+    var rate = TAX_RATE[country];
+    if(rate===undefined) rate=0;
+    var taxUsd = price*rate/100;
+    document.getElementById('tax').value = taxUsd>0 ? taxUsd.toFixed(2) : 0;
+    taxManual=false;
+    document.getElementById('taxHint').textContent = country+'の目安 '+rate+'%（参考値・書籍は低い場合あり。要確認）';
+    calc();
+  }
+
+  function calc(){
+    var price=n('price'), tax=n('tax'), rate=n('rate');
+    var fvf=fvfRate(), promo=n('promo'), intl=n('intl'), fx=n('fx'), fixed=n('fixed');
+    var cost=n('cost'), other=n('other'), dutyRate=n('dutyRate'), refundRate=n('refundRate');
+
+    var ship=getShipping();
+    document.getElementById('shipResult').textContent = ship>0 ? ('送料：'+yen(ship)) : '送料：—（重量・宛先を選択、または手動入力）';
+
+    // 手数料は商品売上＋TAXにかかる
+    var feeBase=price+tax;
+    var feeRakusatu=feeBase*fvf/100, feeIntl=feeBase*intl/100, feeFx=feeBase*fx/100, feePromo=feeBase*promo/100;
+    var feeFixed=feeBase>0?(feeBase<=10?0.30:fixed):0;
+    var feeTotal=feeRakusatu+feeIntl+feeFx+feePromo+feeFixed;
+
+    var netUsd=price-feeTotal;
+    var netYen=netUsd*rate;
+
+    // 関税：米国DDPのみ。申告価格=商品価格（ドル）に率をかけ、円換算して引く
+    var dutyYen = dutyRate>0 ? (price*dutyRate/100*rate) : 0;
+
+    // 利益（還付は含まない）
+    var profitYen = netYen - cost - other - ship - dutyYen;
+
+    // 消費税還付（仕入れ値・外注費・落札手数料の対象 × 還付率）
+    var rakusatuYen = feeRakusatu*rate;
+    var refundYen = (cost + other + rakusatuYen) * refundRate/100;
+
+    var costYenTotal = cost + other + ship + dutyYen;
+    var salesYen = price*rate;
+    var margin = salesYen>0 ? (profitYen/salesYen*100) : 0;
+
+    // 損益分岐：利益（還付抜き）がちょうど0になる商品売価ドルを逆算
+    // 0 = (price - (price+tax)*r1 - fixed)*rate - cost - other - ship - price*d*rate
+    // price = (tax*r1*rate + fixed*rate + cost + other + ship) / (rate*(1 - r1 - d))
+    var r1=(fvf+intl+fx+promo)/100;
+    var d=dutyRate/100;
+    var be='—';
+    var denom=rate*(1-r1-d);
+    if(rate>0 && denom>0){
+      var fixedFee = 0.40; // 固定費は売価に比例しない（10ドル以下は0.30だが分岐点は通常それ以上）
+      var beUsd=(tax*r1*rate + fixedFee*rate + cost + other + ship)/denom;
+      be=usd(beUsd);
+    }
+
+    document.getElementById('profitYen').textContent=yen(profitYen);
+    document.getElementById('margin').textContent= price>0? margin.toFixed(1)+'%':'—';
+    document.getElementById('netYen').textContent=yen(netYen);
+    document.getElementById('breakeven').textContent=be;
+    document.getElementById('refundYen').textContent=yen(refundYen);
+    document.getElementById('totalWithRefund').textContent=yen(profitYen+refundYen);
+
+    var pe=document.getElementById('profitYen'), rc=document.getElementById('resultCard');
+    pe.classList.remove('loss','good'); rc.classList.remove('loss');
+    if(price>0){ if(profitYen<0){pe.classList.add('loss');rc.classList.add('loss');} else {pe.classList.add('good');} }
+
+    var bd=document.getElementById('breakdown');
+    if(price>0){
+      bd.innerHTML =
+        (tax>0?row('手数料の対象', usd(feeBase)+' （商品'+usd(price)+'＋TAX'+usd(tax)+'）'):'') +
+        row('落札手数料 ('+fvf+'%)', '−'+usd(feeRakusatu)) +
+        row('海外手数料 ('+intl+'%)', '−'+usd(feeIntl)) +
+        row('為替手数料 ('+fx+'%)', '−'+usd(feeFx)) +
+        (promo>0?row('広告費 ('+promo+'%)', '−'+usd(feePromo)):'') +
+        row('固定費', '−'+usd(feeFixed)) +
+        row('手数料合計', '−'+usd(feeTotal),'total') +
+        '<div style="height:8px"></div>' +
+        row('手取り（ドル）', usd(netUsd)) +
+        row('仕入れ値（円）', '−'+yen(cost)) +
+        (other>0?row('外注費等（円）', '−'+yen(other)):'') +
+        (ship>0?row('送料（円）', '−'+yen(ship)):'') +
+        (dutyYen>0?row('米国関税 ('+dutyRate+'%)', '−'+yen(dutyYen)):'');
+    } else {
+      bd.innerHTML='<div class="bd-row"><span>商品売上を入力すると内訳が表示されます</span><span></span></div>';
+    }
+  }
+  function row(l,v,cls){ return '<div class="bd-row'+(cls?' '+cls:'')+'"><span>'+l+'</span><span>'+v+'</span></div>'; }
+
+  // 初期化
+  initWeights();
+  updateCountries();
+  calc();
+  // 起動時に為替を自動取得（デフォルトで入れる）
+  fetchRate(true);
+</script>
+</body>
+</html>
