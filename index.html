@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.24</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.25</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -656,12 +656,12 @@ function commitTouched(){
   try{localStorage.setItem(LS_MAINTED,JSON.stringify(m));}catch(e){}
   _maintedCache=m; saveTouched({});
 }
-// 沈める条件：監視なしは常に沈める。
-// 通常ソート：メンテ済み（保存確定）を沈める。
-// ⚠️売価メンテ順：在庫メンテのメンテ済みフラグは使わず（保存で全商品に付くため）、
-//   「現在計画の生成後に個別編集した」商品（isPMainted）だけを沈める。未対応の警告は上に残る。
+// 沈める条件：監視なしは常に沈める。メンテ済み（保存確定）は沈める。
+// ⚠️売価メンテ順の警告持ちだけは特別扱い：「現在計画の生成後に個別編集したか」で判定
+//   （計画が再生成されて警告が残れば未対応として再浮上する。警告なしの商品にこの判定を
+//    使ってはいけない：保存→replanのたびに全部浮上してしまう。v1.9.24の失敗）
 function sinkRank(i){var it=ITEMS[i];if(!it)return 0;if(isDeferred(it))return 1;
-  if(sortMode==='mainte')return isPMainted(it)?1:0;
+  if(sortMode==='mainte'&&mainteInfo(it).suspect)return isPMainted(it)?1:0;
   return isMainted(it)?1:0;}
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
 function saveWeights(w){markDirty();try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
@@ -782,7 +782,7 @@ function cardHtml(it,idx){
       var m=mainteInfo(it); if(!m.suspect)return '';
       var d=(m.days!=null)?('（再出品まで'+m.days+'日）'):'';
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
-    })()+(sortMode==='mainte'
+    })()+(sortMode==='mainte'&&mainteInfo(it).suspect
       ?(isPMainted(it)?'<span class="maintedbadge" title="この計画の警告後に仕入れ値を編集済み。次回の計画再生成に反映されます（警告が残れば再浮上します）">売価メンテ済み</span>':'')
       :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':''))+'</div>'+
     '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
@@ -891,8 +891,8 @@ function scrollToCard(idx){
   setTimeout(function(){near();finish();},250); // 展開・画像ロード後の再補正（0.7秒→0.25秒に短縮）
 }
 function onMaintJump(){
+  // ソートはこのセッション限りで切り替え（永続保存しない：通常作業のソート設定を乗っ取らないため。v1.9.24で永続化して失敗）
   sortMode='mainte'; var sel=document.getElementById('sortSel'); if(sel)sel.value='mainte';
-  try{localStorage.setItem('ss_sort_v1','mainte');}catch(e){}
   renderAll();
   setTimeout(function(){
     // 飛び先は「画面の表示順で最初の未対応⚠️」＝DOM順で最初の.mbadge（ITEMS配列順で選ぶとソート後の画面とズレる）
@@ -927,10 +927,7 @@ function shouldLight(i){
   var it=ITEMS[i]; if(!it)return false;
   if(EXPANDED[String(it.id)])return false;
   if(query)return false;                 // 絞り込み中は探し物なのでフル表示
-  if(sortMode==='mainte'){
-    if(mainteInfo(it).suspect&&!isPMainted(it))return false; // 未対応の⚠️警告はフルで見せる（警告を隠さない）
-    if(isPMainted(it))return true;       // 対応済み（沈み先）は軽量＝DOM節約
-  }
+  if(sortMode==='mainte'&&mainteInfo(it).suspect)return isPMainted(it); // ⚠️：未対応=フル（隠さない）、対応済み=軽量
   if(stockType(it)==='in')return true;   // 在庫あり＝対応不要
   if(isDeferred(it))return true;         // 監視なし
   if(isMainted(it))return true;          // メンテ済み（売価メンテ順でも警告なしなら軽量のまま＝一斉フルカード化によるフリーズ防止）
@@ -940,7 +937,7 @@ function lightRowHtml(it,i){
   return '<div class="lrow" id="card'+i+'">'+
     (it.image_url?'<a href="'+ebayItmUrl(it.id)+'" target="_blank" rel="noopener"><img src="'+esc(it.image_url)+'" loading="lazy" alt=""></a>':'')+
     '<span class="ln" title="'+esc(it.title||it.name)+'">'+esc(it.title||it.name)+'</span>'+
-    (sortMode==='mainte'?(isPMainted(it)?'<span class="lb m">売価メンテ済み</span>':''):(isMainted(it)?'<span class="lb m">メンテ済み</span>':''))+
+    (sortMode==='mainte'&&mainteInfo(it).suspect?(isPMainted(it)?'<span class="lb m">売価メンテ済み</span>':''):(isMainted(it)?'<span class="lb m">メンテ済み</span>':''))+
     (isDeferred(it)?'<span class="lb d">監視なし</span>':'')+
     (it.current_price_usd!=null?'<span style="font-size:11px;color:#888;flex-shrink:0">$'+Number(it.current_price_usd).toFixed(2)+'</span>':'')+
     '<button class="openbtn" onclick="expandCard('+i+')">開く</button>'+
