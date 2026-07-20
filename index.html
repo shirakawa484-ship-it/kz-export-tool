@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.23</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.24</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -529,11 +529,20 @@ function detectCategory(title){
 }
 var _rc=null; // 描画キャッシュ：renderAll冒頭で1回だけ構築（計画parse・ID索引・mainteInfoメモ）。数千回の全計画parseによるフリーズ対策
 function beginRenderCache(){
-  var plan={};
+  var plan={}; var pgenMs=null;
   try{var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
-    if(s&&s.plan&&s.plan.items)s.plan.items.forEach(function(p){plan[String(p.item_id)]=p;});}catch(e){}
+    if(s&&s.plan&&s.plan.items)s.plan.items.forEach(function(p){plan[String(p.item_id)]=p;});
+    if(s){var g=(s.plan&&(s.plan.generated_at||s.plan.plan_generated_at))||s.loaded_at;
+      if(g){var t=new Date(g).getTime();if(!isNaN(t))pgenMs=t;}}}catch(e){}
   var idx={}; ITEMS.forEach(function(it,i){idx[String(it.id)]=i;});
-  _rc={plan:plan, idx:idx, mi:{}};
+  _rc={plan:plan, idx:idx, mi:{}, pgenMs:pgenMs};
+}
+// 現在の計画の生成時刻（ms）。⚠️売価メンテの「対応済み」判定基準（この時刻より後に触ったか）
+function planGenAtMs(){
+  if(_rc&&_rc.pgenMs!==undefined)return _rc.pgenMs;
+  try{var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
+    var g=s&&((s.plan&&(s.plan.generated_at||s.plan.plan_generated_at))||s.loaded_at);
+    if(!g)return null; var t=new Date(g).getTime(); return isNaN(t)?null:t;}catch(e){return null;}
 }
 function mainteInfo(it){
   if(_rc){
@@ -626,8 +635,20 @@ function loadMainted(){if(_maintedCache)return _maintedCache;try{_maintedCache=J
 function isMainted(it){return !!loadMainted()[String(it.id)];}
 function loadTouched(){try{return JSON.parse(localStorage.getItem(LS_TOUCHED)||'{}');}catch(e){return {};}}
 function saveTouched(t){try{localStorage.setItem(LS_TOUCHED,JSON.stringify(t));}catch(e){}}
-function markTouched(idx){var it=ITEMS[idx];if(!it)return;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);}
+function markTouched(idx){var it=ITEMS[idx];if(!it)return;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);markPmaint(it.id);}
 function markTouchedId(id){if(id==null)return;var t=loadTouched();t[String(id)]=1;saveTouched(t);}
+// ▼ 売価メンテの個別対応記録：この商品を「いつ個別に編集したか」を永続記録。
+//   ⚠️警告への対応判定は「編集時刻 > 現在計画の生成時刻」で行う（計画が再生成されて警告が残れば未対応に戻る＝正しい）。
+//   注意：保存時の一括メンテ済み付与（markTouchedId）はここに入れない。全商品が毎回「対応済み」になる誤判定の温床のため。
+var LS_PMAINT='ss_pmaint_v1'; // {itemId:{at}}
+var _pmaintCache=null;
+function loadPmaint(){if(_pmaintCache)return _pmaintCache;try{_pmaintCache=JSON.parse(localStorage.getItem(LS_PMAINT)||'{}');}catch(e){_pmaintCache={};}return _pmaintCache;}
+function markPmaint(id){if(id==null)return;var p=loadPmaint();p[String(id)]={at:new Date().toISOString()};try{localStorage.setItem(LS_PMAINT,JSON.stringify(p));}catch(e){}_pmaintCache=p;}
+function isPMainted(it){
+  var p=loadPmaint()[String(it.id)]; if(!p)return false;
+  var g=planGenAtMs(); if(g==null)return true; // 計画未読込なら「触った＝対応済み」扱い
+  var t=new Date(p.at).getTime(); return !isNaN(t)&&t>=g;
+}
 function commitTouched(){
   var t=loadTouched(); if(!Object.keys(t).length)return;
   var m=loadMainted(),now=new Date().toISOString();
@@ -635,9 +656,13 @@ function commitTouched(){
   try{localStorage.setItem(LS_MAINTED,JSON.stringify(m));}catch(e){}
   _maintedCache=m; saveTouched({});
 }
-// 沈める条件：監視なしは常に沈める。メンテ済みは「⚠️売価メンテ順」以外で沈める
-// （売価メンテ順では本物の警告を隠さないため、監視なしのみ沈める）
-function sinkRank(i){var it=ITEMS[i];if(!it)return 0;if(isDeferred(it))return 1;if(sortMode!=='mainte'&&isMainted(it))return 1;return 0;}
+// 沈める条件：監視なしは常に沈める。
+// 通常ソート：メンテ済み（保存確定）を沈める。
+// ⚠️売価メンテ順：在庫メンテのメンテ済みフラグは使わず（保存で全商品に付くため）、
+//   「現在計画の生成後に個別編集した」商品（isPMainted）だけを沈める。未対応の警告は上に残る。
+function sinkRank(i){var it=ITEMS[i];if(!it)return 0;if(isDeferred(it))return 1;
+  if(sortMode==='mainte')return isPMainted(it)?1:0;
+  return isMainted(it)?1:0;}
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
 function saveWeights(w){markDirty();try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
 function resolveWeight(it){
@@ -757,7 +782,9 @@ function cardHtml(it,idx){
       var m=mainteInfo(it); if(!m.suspect)return '';
       var d=(m.days!=null)?('（再出品まで'+m.days+'日）'):'';
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
-    })()+(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':'')+'</div>'+
+    })()+(sortMode==='mainte'
+      ?(isPMainted(it)?'<span class="maintedbadge" title="この計画の警告後に仕入れ値を編集済み。次回の計画再生成に反映されます（警告が残れば再浮上します）">売価メンテ済み</span>':'')
+      :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':''))+'</div>'+
     '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
     (isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':(stockType(it)==='out'?'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>':'<button class="endbtn subtle" onclick="endListing('+idx+')" title="この商品の扱いをやめる：eBayの出品を終了し、スプシの行も削除します（取り消し不可）">終了…</button>'))+'</div>'+
@@ -865,10 +892,18 @@ function scrollToCard(idx){
 }
 function onMaintJump(){
   sortMode='mainte'; var sel=document.getElementById('sortSel'); if(sel)sel.value='mainte';
+  try{localStorage.setItem('ss_sort_v1','mainte');}catch(e){}
   renderAll();
-  var idx=-1; ITEMS.forEach(function(it,i){if(idx<0&&mainteInfo(it).suspect)idx=i;});
   setTimeout(function(){
-    if(idx>=0){scrollToCard(idx);}
+    // 飛び先は「画面の表示順で最初の未対応⚠️」＝DOM順で最初の.mbadge（ITEMS配列順で選ぶとソート後の画面とズレる）
+    var b=document.querySelector('#tabInv .mbadge');
+    var card=b?b.closest('.card'):null;
+    var m=(card&&card.id)?card.id.match(/^card(\d+)$/):null;
+    if(m){
+      var ci=parseInt(m[1],10);
+      scrollToCard(ci);
+      setTimeout(function(){var c=document.getElementById('card'+ci);if(c)c.scrollIntoView({behavior:'auto',block:'center'});},700); // 画像ロードで高さが変わった後の最終補正
+    }
     else{var el=document.getElementById('secOut');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
   },80);
 }
@@ -892,7 +927,10 @@ function shouldLight(i){
   var it=ITEMS[i]; if(!it)return false;
   if(EXPANDED[String(it.id)])return false;
   if(query)return false;                 // 絞り込み中は探し物なのでフル表示
-  if(sortMode==='mainte'&&mainteInfo(it).suspect)return false; // ⚠️売価メンテ警告持ちはフルで見せる（警告を隠さない）
+  if(sortMode==='mainte'){
+    if(mainteInfo(it).suspect&&!isPMainted(it))return false; // 未対応の⚠️警告はフルで見せる（警告を隠さない）
+    if(isPMainted(it))return true;       // 対応済み（沈み先）は軽量＝DOM節約
+  }
   if(stockType(it)==='in')return true;   // 在庫あり＝対応不要
   if(isDeferred(it))return true;         // 監視なし
   if(isMainted(it))return true;          // メンテ済み（売価メンテ順でも警告なしなら軽量のまま＝一斉フルカード化によるフリーズ防止）
@@ -902,7 +940,7 @@ function lightRowHtml(it,i){
   return '<div class="lrow" id="card'+i+'">'+
     (it.image_url?'<a href="'+ebayItmUrl(it.id)+'" target="_blank" rel="noopener"><img src="'+esc(it.image_url)+'" loading="lazy" alt=""></a>':'')+
     '<span class="ln" title="'+esc(it.title||it.name)+'">'+esc(it.title||it.name)+'</span>'+
-    (isMainted(it)?'<span class="lb m">メンテ済み</span>':'')+
+    (sortMode==='mainte'?(isPMainted(it)?'<span class="lb m">売価メンテ済み</span>':''):(isMainted(it)?'<span class="lb m">メンテ済み</span>':''))+
     (isDeferred(it)?'<span class="lb d">監視なし</span>':'')+
     (it.current_price_usd!=null?'<span style="font-size:11px;color:#888;flex-shrink:0">$'+Number(it.current_price_usd).toFixed(2)+'</span>':'')+
     '<button class="openbtn" onclick="expandCard('+i+')">開く</button>'+
@@ -987,7 +1025,7 @@ function renderCards(idxArr){
     if(!dividerDone && sinkRank(i)===1){
       var cnt=0; for(var j=k;j<idxArr.length;j++){if(sinkRank(idxArr[j])===1)cnt++;}
       var anchor=_maintedAnchorDone?'':' id="jumpMainted"';
-      html+='<div class="mainted-divider"'+anchor+'>── ここから下：対応済み（メンテ済み・監視なし）'+cnt+'件 ──</div>';
+      html+='<div class="mainted-divider"'+anchor+'>── ここから下：対応済み（'+(sortMode==='mainte'?'売価メンテ済み':'メンテ済み')+'・監視なし）'+cnt+'件 ──</div>';
       dividerDone=true; _maintedAnchorDone=true;
     }
     var lite=shouldLight(i);
@@ -1019,7 +1057,8 @@ function renderAll(){
   document.getElementById('outChip').textContent='在庫切れ '+groups.out.length;
   document.getElementById('errChip').textContent='要確認 '+groups.err.length;
   document.getElementById('inChip').textContent='在庫あり '+groups.in.length;
-  (function(){var n=0;ITEMS.forEach(function(it){if(mainteInfo(it).suspect)n++;});
+  // 件数＝「未対応の⚠️」のみ（対応済み・絞り込み非表示分は数えない）。画面に見える作業残と一致させる
+  (function(){var n=0;ITEMS.forEach(function(it){if(matchQuery(it)&&mainteInfo(it).suspect&&!isPMainted(it))n++;});
     var c=document.getElementById('maintChip');
     if(c){c.textContent='⚠️売価メンテ '+n;c.style.display=n?'inline-block':'none';}})();
 
@@ -1028,7 +1067,9 @@ function renderAll(){
   var se=document.getElementById('secErr');
   se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+groups.err.length+'件'+suffix+'</h2>'+(groups.err.length?renderCards(groups.err):'<div class="empty">該当なし</div>');
   var si=document.getElementById('secIn');
-  si.innerHTML='<details'+(query?' open':'')+'><summary>在庫あり（対応不要） '+groups.in.length+'件'+suffix+' ▼</summary><div style="margin-top:10px">'+(groups.in.length?renderCards(groups.in):'<div class="empty">該当なし</div>')+'</div></details>';
+  // 開閉状態を保持：計画同期ポーリング等でrenderAllが走るたびに閉じ直さない（まとめ取り作業中の巻き戻り防止）
+  var inWasOpen=(function(){var d=si?si.querySelector('details'):null;return !!(d&&d.open);})();
+  si.innerHTML='<details'+((query||inWasOpen)?' open':'')+'><summary>在庫あり（対応不要） '+groups.in.length+'件'+suffix+' ▼</summary><div style="margin-top:10px">'+(groups.in.length?renderCards(groups.in):'<div class="empty">該当なし</div>')+'</div></details>';
 
   (function(){var any=groups.out.concat(groups.err,groups.in).some(function(i){return sinkRank(i)===1;});
     var c=document.getElementById('maintedChip');if(c)c.style.display=any?'inline-block':'none';})();
