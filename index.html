@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.25</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.26</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -741,6 +741,19 @@ function restoreAll(){
     if(meta[it.id]){var m=meta[it.id];if(m.kw!=null)keywords[i]=m.kw;if(m.dest!=null)dests[i]=m.dest;if(m.duty!=null)duties[i]=m.duty;}
     if(au[it.id])addUrls[i]=au[it.id];
   });
+  // 2026-07-26 米国関税率 10%→12.5% への一括移行（1回だけ実行）。
+  // 旧デフォルトの10のまま保存されている米国宛は12.5へ更新する。
+  // 米国宛以外・手動で10以外を設定している商品には触らない。
+  try{
+    if(!localStorage.getItem('ss_duty_migr125_v1')){
+      var dutyMigrated=false;
+      ITEMS.forEach(function(it,i){
+        if((dests[i]||'us')==='us'&&Number(duties[i])===10){duties[i]=12.5;dutyMigrated=true;}
+      });
+      if(dutyMigrated)saveMeta();
+      localStorage.setItem('ss_duty_migr125_v1','1');
+    }
+  }catch(e){}
 }
 function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(function(){t.style.display='none';},2600);}
 
@@ -794,7 +807,7 @@ function cardHtml(it,idx){
       '<button class="searchbtn alt" onclick="doSearch('+idx+',\'paypay\')">Yahoo!フリマ</button>'+
       '<button class="searchbtn alt" onclick="doSearch('+idx+',\'suruga\')">駿河屋</button>'+
       '<div class="f"><label>宛先</label><select onchange="onDest('+idx+',this.value)"><option value="us"'+((dests[idx]||'us')==='us'?' selected':'')+'>米国(DDP)</option><option value="other"'+(dests[idx]==='other'?' selected':'')+'>その他</option></select></div>'+
-      '<div class="f"><label>関税率%</label><input type="number" value="'+(duties[idx]!==undefined?duties[idx]:10)+'" style="width:64px" oninput="onDuty('+idx+',this.value)"></div>'+
+      '<div class="f"><label>関税率%</label><input type="number" value="'+(duties[idx]!==undefined?duties[idx]:12.5)+'" style="width:64px" oninput="onDuty('+idx+',this.value)"></div>'+
     '</div>'+
     (existing?'<div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div>'+existing+'</div>':'')+
     (function(){
@@ -1140,7 +1153,7 @@ function exportCosts(){
 function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';markTouched(idx);saveAddUrls();updateCard(idx);}
 function delAddUrl(idx,i){addUrls[idx].splice(i,1);markTouched(idx);saveAddUrls();updateCard(idx);}
 
-function recalc(idx){var cost=minCost(idx);var calc=document.getElementById('calc'+idx);if(!calc)return;if(cost===null){calc.classList.remove('show');return;}calc.classList.add('show');var dest=dests[idx]||'us';var dr=(dest==='us')?(duties[idx]!==undefined?duties[idx]:10):0;var ship=(dest==='us')?n('shipUS'):n('shipOther');document.getElementById('mc'+idx).textContent=cost.toLocaleString()+'円';var tp=calcTarget(cost,ship,dr);if(tp===null||tp<=0){document.getElementById('tp'+idx).textContent='計算不可';return;}var r=calcProfit(tp,cost,ship,dr);document.getElementById('tp'+idx).textContent=usd(tp);var pf=document.getElementById('pf'+idx);pf.textContent=yen(r.profit);pf.className='v '+(r.profit<0?'loss':'ok');document.getElementById('mg'+idx).textContent=r.margin.toFixed(1)+'%';document.getElementById('rf'+idx).textContent=yen(r.refund);}
+function recalc(idx){var cost=minCost(idx);var calc=document.getElementById('calc'+idx);if(!calc)return;if(cost===null){calc.classList.remove('show');return;}calc.classList.add('show');var dest=dests[idx]||'us';var dr=(dest==='us')?(duties[idx]!==undefined?duties[idx]:12.5):0;var ship=(dest==='us')?n('shipUS'):n('shipOther');document.getElementById('mc'+idx).textContent=cost.toLocaleString()+'円';var tp=calcTarget(cost,ship,dr);if(tp===null||tp<=0){document.getElementById('tp'+idx).textContent='計算不可';return;}var r=calcProfit(tp,cost,ship,dr);document.getElementById('tp'+idx).textContent=usd(tp);var pf=document.getElementById('pf'+idx);pf.textContent=yen(r.profit);pf.className='v '+(r.profit<0?'loss':'ok');document.getElementById('mg'+idx).textContent=r.margin.toFixed(1)+'%';document.getElementById('rf'+idx).textContent=yen(r.refund);}
 function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
 
 
@@ -1270,6 +1283,7 @@ function chosenPrice(it){
   if(s.choice==='c') return it.option_c?.[s.cpct]?.price_usd ?? null;
   if(s.choice==='m') return (s.manual!=null&&!isNaN(s.manual))?s.manual:null;
   if(s.choice==='r'){ const r=pickedRival(it); return r?Math.max(0, Math.round((r.total_usd-UNDERCUT)*100)/100):null; }
+  if(s.choice==='n') return it.current_price_usd ?? null; // 変更なし＝現在価格のまま
   return null;
 }
 function chosenProfit(it){
@@ -1277,9 +1291,10 @@ function chosenProfit(it){
   if(s.choice==='a') return it.option_a?.profit_yen;
   if(s.choice==='b') return it.option_b?.profit_yen;
   if(s.choice==='c') return it.option_c?.[s.cpct]?.profit_yen;
-  return null; // 手入力・ライバル指定はPython側で計算
+  return null; // 手入力・ライバル指定はPython側で計算。変更なし(n)は利益表示なし（現状維持）
 }
 function priceStatus(it){
+  if(state[it.item_id]&&state[it.item_id].choice==='n') return {level:'info',msg:'価格を変更せず、この計画では処理済みとして扱います（eBayへの反映は行いません）'};
   const p=chosenPrice(it); if(p==null) return {level:'warn',msg:'価格が未入力です'};
   const cur=it.current_price_usd, r=p/cur;
   if(it.excluded){
@@ -1303,6 +1318,17 @@ function expandPaCard(id){window.PA_EXPANDED=window.PA_EXPANDED||{};window.PA_EX
 function paOutbox(){try{return JSON.parse(localStorage.getItem('pa_outbox_v1')||'{}');}catch(e){return {};}}
 function paSaveOutbox(m){try{localStorage.setItem('pa_outbox_v1',JSON.stringify(m));}catch(e){}}
 function paRejected(){try{return JSON.parse(localStorage.getItem('pa_rejected_v1')||'{}');}catch(e){return {};}}
+// ▼ 変更なし承認：この計画世代では「価格を変えない」と決めた記録。eBayへは何も送らない（Reviseコールを1件も使わない）。
+//   計画が新しくなったら（generated_atが変わったら）無効＝新しい相場で再判断する
+function paNochange(){
+  var m; try{m=JSON.parse(localStorage.getItem('pa_nochange_v1')||'{}');}catch(e){m={};}
+  var gen=(typeof DATA!=='undefined'&&DATA&&DATA.generated_at)||null;
+  var changed=false;
+  Object.keys(m).forEach(function(id){if(!m[id]||m[id].gen!==gen){delete m[id];changed=true;}});
+  if(changed){try{localStorage.setItem('pa_nochange_v1',JSON.stringify(m));}catch(e){}}
+  return m;
+}
+function paSaveNochange(m){try{localStorage.setItem('pa_nochange_v1',JSON.stringify(m));}catch(e){}}
 function paSaveRejected(m){try{localStorage.setItem('pa_rejected_v1',JSON.stringify(m));}catch(e){}}
 // Python(auto_apply)のapply_status.json内 rejections を突合：承認より後の却下→送信箱から外し、却下表示へ
 function paReconcileRejections(){
@@ -1330,8 +1356,8 @@ function paPendingMap(){ // 承認済み（反映待ち）：送信箱から導�
 }
 function paSorted(items){
   const a=items.slice(); const m=window.paSortMode;
-  const APs=appliedMap(); const PEND=paPendingMap();
-  const sinkRank=(o)=>{ if(APs[String(o.item_id)])return 3; if(PEND[String(o.item_id)])return 2; if(isNoChangeDefault(o))return 1; return 0; };
+  const APs=appliedMap(); const PEND=paPendingMap(); const NCX=paNochange();
+  const sinkRank=(o)=>{ if(APs[String(o.item_id)])return 4; if(NCX[String(o.item_id)])return 3; if(PEND[String(o.item_id)])return 2; if(isNoChangeDefault(o))return 1; return 0; };
   a.sort((x,y)=>sinkRank(x)-sinkRank(y));
   const stable=a.slice();
   const idxOf=(o)=>stable.indexOf(o);
@@ -1372,6 +1398,7 @@ function render(){
   if(window.paPage>pages)window.paPage=pages;
   renderPager(sorted.length,pages);
   const AP=appliedMap();
+  const NCA=paNochange();
   const PEND=paPendingMap();
   sorted.slice((window.paPage-1)*PA_PAGE_SIZE,window.paPage*PA_PAGE_SIZE).forEach(it=>{
     // ①A 軽量1行表示（承認タブ版）：対応済みゾーン（反映済み・承認済み反映待ち・変化なし）は1行に。「開く」で展開
@@ -1407,10 +1434,10 @@ function render(){
           if(found){ rv=lc.rival_item_id; }
           else { ch=(it.recommended||'a'); rgone=true; } // 基準ライバル消滅→通常ロジックに戻す
         }
-        state[it.item_id]={checked:true, choice:ch,
+        state[it.item_id]={checked:!paNochange()[String(it.item_id)], choice:ch,
                            cpct:(lcC||def), manual:(lcM!=null?Number(lcM):null), rival:rv, rivalGone:rgone};
       } else {
-        var nc0=(it.option_a&&it.current_price_usd!=null&&Math.abs(it.option_a.price_usd-it.current_price_usd)<=0.05);
+        var nc0=(it.option_a&&it.current_price_usd!=null&&Math.abs(it.option_a.price_usd-it.current_price_usd)<=0.05)||!!paNochange()[String(it.item_id)];
         state[it.item_id]={checked:!nc0, choice:(it.recommended||'a'), cpct:def, manual:null, rival:null, rivalGone:false};
       }
       }
@@ -1423,7 +1450,7 @@ function render(){
 
     const p=chosenPrice(it), pf=chosenProfit(it), st=priceStatus(it);
     let deltaHtml="";
-    if(p!=null){const pct=((p-it.current_price_usd)/it.current_price_usd*100);
+    if(p!=null&&s.choice!=='n'){const pct=((p-it.current_price_usd)/it.current_price_usd*100);
       deltaHtml=`<span class="delta ${pct<0?'down':'up'}">${pct>0?'+':''}${pct.toFixed(1)}%</span>`;}
 
     const oa=it.option_a, ob=it.option_b, oc=it.option_c;
@@ -1432,11 +1459,13 @@ function render(){
     const cCur=oc?oc[s.cpct]:null;
 
     const apRec=AP[String(it.item_id)];
+    const ncaRec=(!apRec)?(NCA[String(it.item_id)]||null):null;
     if(apRec){card.classList.add('done'); s.checked=false;}
+    else if(ncaRec){card.classList.add('nochange');}
     else if(isNoChange(it)){card.classList.add('nochange');}
     card.innerHTML=`
       ${rejRec&&!apRec?`<div class="doneband reject">⚠️ 反映されませんでした（${new Date(rejRec.at).toLocaleString('ja-JP')}）：${esc(rejRec.reason)}<br>内容を確認し、価格を選び直して再承認してください。</div>`:""}
-      ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:(pendRec?`<div class="doneband pending">🕒 承認済み・反映待ち ${money(pendRec.price)}（${new Date(pendRec.at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})} 承認）— 10分以内に自動反映されます</div>`:(isNoChange(it)?`<div class="doneband nc">＝ 現在価格と同じ（反映不要）</div>`:""))}
+      ${apRec?`<div class="doneband">✅ 反映済み ${money(apRec.price)}（${new Date(apRec.applied_at).toLocaleString('ja-JP')}）</div>`:(pendRec?`<div class="doneband pending">🕒 承認済み・反映待ち ${money(pendRec.price)}（${new Date(pendRec.at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})} 承認）— 10分以内に自動反映されます</div>`:(ncaRec?`<div class="doneband nc">⏸ 変更なし承認（${new Date(ncaRec.at).toLocaleString('ja-JP')}）— この計画では価格を変更しません（eBay反映なし）</div>`:(isNoChange(it)?`<div class="doneband nc">＝ 現在価格と同じ（反映不要）</div>`:"")))}
       ${isExtreme&&!apRec?`<div class="doneband extreme">⚠️ 要注意（極端値）：${it.reason||"提案価格が現在価格の±50%を超えています"}<br>一括承認の対象外です。内容を確認し、反映するなら手動でチェックを入れてください。</div>`:""}
       <div class="chk"><input type="checkbox" ${s.checked?"checked":""} ${apRec?"disabled":""} data-id="${it.item_id}"></div>
       <div>
@@ -1462,7 +1491,7 @@ function render(){
           return ` <span class="lastpick">前回：${nm}</span>`;
         })()}</div>
         <div class="sel-line">選んだ価格 <b>${p!=null?money(p):"—"}</b>${deltaHtml}
-          ${pf!=null?` <span class="muted">利益 約${Math.round(pf).toLocaleString()}円</span>`:((s.choice==='m'||s.choice==='r')?` <span class="muted">利益はPython側で計算</span>`:"")}</div>
+          ${pf!=null?` <span class="muted">利益 約${Math.round(pf).toLocaleString()}円</span>`:((s.choice==='m'||s.choice==='r')?` <span class="muted">利益はPython側で計算</span>`:(s.choice==='n'?` <span class="muted">現状維持（eBay反映なし）</span>`:""))}</div>
         <div class="options">
           <div class="opt ${aNA?'na':''} ${s.choice==='a'?'selected':''}" data-id="${it.item_id}" data-choice="a">
             ${it.recommended==='a'?'<span class="rec">推奨</span>':''}
@@ -1487,6 +1516,11 @@ function render(){
             <div class="lab">手入力</div>
             <input type="number" step="0.01" min="0" placeholder="例 65.00" value="${s.manual!=null?s.manual:''}" data-manual="${it.item_id}">
             <div class="pf">自分で決める</div>
+          </div>
+          <div class="opt ${s.choice==='n'?'selected':''}" data-id="${it.item_id}" data-choice="n">
+            <div class="lab">変更なし（現状維持）</div>
+            <div class="pr">${money(it.current_price_usd)}</div>
+            <div class="pf">価格を変えず処理済みに（eBay反映なし）</div>
           </div>
         </div>
         ${warn?`<div class="warnbox">⚠️ ${it.market_deviation_note||"相場乖離の疑い。根拠ライバルを確認してください"}</div>`:""}
@@ -1558,20 +1592,27 @@ function updateCount(){
   let note=""; if(warns) note+=`（⚠️注意 ${warns}件`; if(blocked) note+=`${warns?'／':'（'}🚫要修正 ${blocked}件`; if(warns||blocked) note+="）";
   document.getElementById("warnCount").textContent=note;
   document.getElementById("approveBtn").disabled=(sel===0||blocked>0);
-  (function(){var AP=appliedMap();var done=0,tot=0;
-    DATA.items.forEach(function(it){tot++;if(AP[String(it.item_id)])done++;});
+  (function(){var AP=appliedMap();var NCA2=paNochange();var done=0,nc=0,tot=0;
+    DATA.items.forEach(function(it){tot++;var id=String(it.item_id);
+      if(AP[id]){done++;return;}
+      var s2=state[it.item_id];
+      if(NCA2[id]&&!(s2&&s2.checked))nc++;});
     var pc=document.getElementById('progCount');
-    if(pc)pc.textContent='　｜　反映済み '+done+'／未処理 '+(tot-done-sel)+'（全'+tot+'件）';})();
+    if(pc)pc.textContent='　｜　反映済み '+done+(nc?'／変更なし '+nc:'')+'／未処理 '+(tot-done-nc-sel)+'（全'+tot+'件）';})();
 }
 document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded&&state[it.item_id])state[it.item_id].checked=true;});render();}; // 要注意（極端値）は一括チェックの対象外＝個別チェックのみ
 document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(state[it.item_id])state[it.item_id].checked=false;});render();};
 document.getElementById("approveBtn").onclick=()=>{
-  const approved=DATA.items.filter(it=>state[it.item_id]&&state[it.item_id].checked);
+  const checkedAll=DATA.items.filter(it=>state[it.item_id]&&state[it.item_id].checked);
+  const keeps=checkedAll.filter(it=>state[it.item_id].choice==='n');   // 変更なし＝eBayに送らない
+  const approved=checkedAll.filter(it=>state[it.item_id].choice!=='n'); // 価格変更あり＝従来どおり送信
   const warns=approved.filter(it=>it.market_deviation_flag);
   const manuals=approved.filter(it=>state[it.item_id].choice==='m');
   const extremes=approved.filter(it=>it.excluded);
-  const notChecked=DATA.items.filter(it=>state[it.item_id]&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])).length;
-  let msg=`チェック済みの ${approved.length}件を承認します。`;
+  const ncNow=paNochange();
+  const notChecked=DATA.items.filter(it=>state[it.item_id]&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])&&!ncNow[String(it.item_id)]).length;
+  let msg=`チェック済みの ${checkedAll.length}件を承認します。`;
+  if(keeps.length) msg+=`\nうち変更なし ${keeps.length}件は価格を変えず処理済みにします（eBayへの反映なし）。`;
   if(notChecked>0) msg+=`\nチェックしていない ${notChecked}件は今回の対象外（未処理のまま残ります）。`;
   if(extremes.length) msg+=`\n\n⚠️ 要注意（極端値）${extremes.length}件が含まれます：\n`+extremes.map(it=>`・${it.title.slice(0,30)}… ${money(it.current_price_usd)} → ${money(chosenPrice(it))}`).join('\n')+`\n大きな価格変更です。本当に反映しますか？`;
   if(warns.length) msg+=`\n\n⚠️ 注意商品 ${warns.length}件（根拠ライバルは確認しましたか？）`;
@@ -1579,6 +1620,9 @@ document.getElementById("approveBtn").onclick=()=>{
   msg+=`\n\n本当によろしいですか？`;
   if(!confirm(msg)) return;
   var nowIso=new Date().toISOString();
+  // ▼ 変更なし：ローカル記録のみ（この計画世代限り）。eBayへのRevise・承認ファイルへの同送は一切しない
+  var ncm=paNochange();var ncChanged=false;
+  keeps.forEach(function(it){ncm[String(it.item_id)]={at:nowIso,gen:(DATA.generated_at||null)};state[it.item_id].checked=false;ncChanged=true;});
   var payloads=approved.map(it=>{const s=state[it.item_id];
       const rv=(s.choice==='r')?pickedRival(it):null;
       return {item_id:it.item_id, new_price_usd:chosenPrice(it),
@@ -1586,22 +1630,32 @@ document.getElementById("approveBtn").onclick=()=>{
               rival_item_id: rv? rv.rival_item_id : undefined,
               rival_total_usd: rv? rv.total_usd : undefined,
               extreme_ack: it.excluded? true : undefined};});
+  // 価格変更で再承認された商品は「変更なし」記録を取り消す（判断のやり直し）
+  payloads.forEach(function(p){if(ncm[String(p.item_id)]){delete ncm[String(p.item_id)];ncChanged=true;}});
+  if(ncChanged)paSaveNochange(ncm);
   // 送信箱に合流：今回の承認＋未反映の過去承認をまとめて書き出す（上書き消滅の根治）
   var ob=paOutbox();
   payloads.forEach(function(p){ob[String(p.item_id)]={at:nowIso,price:p.new_price_usd,payload:p};});
   paSaveOutbox(ob);
-  // 再承認された商品の却下表示はクリア
+  // 再承認・変更なし承認された商品の却下表示はクリア（判断済みのため）
   var rj=paRejected();var rjChanged=false;
   payloads.forEach(function(p){if(rj[String(p.item_id)]){delete rj[String(p.item_id)];rjChanged=true;}});
+  keeps.forEach(function(it){if(rj[String(it.item_id)]){delete rj[String(it.item_id)];rjChanged=true;}});
   if(rjChanged)paSaveRejected(rj);
   var allItems=Object.keys(ob).map(function(id){return ob[id].payload;});
+  if(allItems.length===0){
+    // 全件「変更なし」＝eBayに送るものが無い。ファイルも書かない（Python側の空バッチ処理も不要）
+    render();
+    alert("変更なし "+keeps.length+"件を処理済みにしました（eBayへの反映はありません）。");
+    return;
+  }
   const out={approved_at:nowIso, approved_items:allItems};
   if(DATA.generated_at) out.plan_generated_at=DATA.generated_at;
   autoSaveApproved(out).then(function(ok){
     render(); // 送信箱（outbox）が反映待ち表示の源なので、追加の記録は不要
     if(ok){
       var extra=allItems.length-approved.length;
-      alert("承認結果を保存しました（今回 "+approved.length+"件"+(extra>0?"＋未反映の過去分 "+extra+"件を同送":"")+"）。\n10分以内に自動でeBayに反映されます（画面のヘッダーに結果が表示されます）。");
+      alert("承認結果を保存しました（今回 "+approved.length+"件"+(keeps.length?"＋変更なし "+keeps.length+"件（反映なし）":"")+(extra>0?"＋未反映の過去分 "+extra+"件を同送":"")+"）。\n10分以内に自動でeBayに反映されます（画面のヘッダーに結果が表示されます）。");
     }
     else{
       const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
