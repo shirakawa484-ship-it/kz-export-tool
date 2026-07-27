@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.26</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.27</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1402,13 +1402,14 @@ function render(){
   const PEND=paPendingMap();
   sorted.slice((window.paPage-1)*PA_PAGE_SIZE,window.paPage*PA_PAGE_SIZE).forEach(it=>{
     // ①A 軽量1行表示（承認タブ版）：対応済みゾーン（反映済み・承認済み反映待ち・変化なし）は1行に。「開く」で展開
-    const apL=AP[String(it.item_id)]||null, pendL=PEND[String(it.item_id)]||null;
+    const apL=AP[String(it.item_id)]||null, pendL=PEND[String(it.item_id)]||null, ncL=NCA[String(it.item_id)]||null;
     if(!window.PA_EXPANDED)window.PA_EXPANDED={};
-    if((apL||pendL||isNoChangeDefault(it))&&!window.PA_EXPANDED[String(it.item_id)]){
+    if((apL||pendL||ncL||isNoChangeDefault(it))&&!window.PA_EXPANDED[String(it.item_id)]){
       const img=paGetImage(it.item_id);
       const stBadge=apL?`<span class="pab done">✅ 反映済み ${money(apL.price)}</span>`
         :(pendL?`<span class="pab pend">🕒 反映待ち ${money(pendL.price)}</span>`
-        :`<span class="pab nc">＝ 変化なし</span>`);
+        :(ncL?`<span class="pab nc">⏸ 変更なし承認</span>`
+        :`<span class="pab nc">＝ 変化なし</span>`));
       const d=document.createElement("div"); d.className="parow";
       d.innerHTML=(img?`<a href="${ebayItmUrl(it.item_id)}" target="_blank" rel="noopener"><img src="${img}" loading="lazy" alt=""></a>`:'')+
         `<span class="pan" title="${it.title}">${it.title}</span>`+stBadge+
@@ -1592,13 +1593,14 @@ function updateCount(){
   let note=""; if(warns) note+=`（⚠️注意 ${warns}件`; if(blocked) note+=`${warns?'／':'（'}🚫要修正 ${blocked}件`; if(warns||blocked) note+="）";
   document.getElementById("warnCount").textContent=note;
   document.getElementById("approveBtn").disabled=(sel===0||blocked>0);
-  (function(){var AP=appliedMap();var NCA2=paNochange();var done=0,nc=0,tot=0;
+  (function(){var AP=appliedMap();var NCA2=paNochange();var PD=paPendingMap();var done=0,nc=0,pend=0,tot=0;
     DATA.items.forEach(function(it){tot++;var id=String(it.item_id);
       if(AP[id]){done++;return;}
       var s2=state[it.item_id];
+      if(PD[id]&&!(s2&&s2.checked)){pend++;return;}
       if(NCA2[id]&&!(s2&&s2.checked))nc++;});
     var pc=document.getElementById('progCount');
-    if(pc)pc.textContent='　｜　反映済み '+done+(nc?'／変更なし '+nc:'')+'／未処理 '+(tot-done-nc-sel)+'（全'+tot+'件）';})();
+    if(pc)pc.textContent='　｜　反映済み '+done+(pend?'／反映待ち '+pend:'')+(nc?'／変更なし '+nc:'')+'／未処理 '+(tot-done-pend-nc-sel)+'（全'+tot+'件）';})();
 }
 document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded&&state[it.item_id])state[it.item_id].checked=true;});render();}; // 要注意（極端値）は一括チェックの対象外＝個別チェックのみ
 document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(state[it.item_id])state[it.item_id].checked=false;});render();};
@@ -1637,6 +1639,9 @@ document.getElementById("approveBtn").onclick=()=>{
   var ob=paOutbox();
   payloads.forEach(function(p){ob[String(p.item_id)]={at:nowIso,price:p.new_price_usd,payload:p};});
   paSaveOutbox(ob);
+  // 承認した商品はチェックを外す（2026-07-27：承認後もチェック済みのまま残り、
+  // カウンタが動かず「何も起きていない」ように見えていた問題への対応。反映待ち🕒として下に沈む）
+  approved.forEach(function(it){if(state[it.item_id])state[it.item_id].checked=false;});
   // 再承認・変更なし承認された商品の却下表示はクリア（判断済みのため）
   var rj=paRejected();var rjChanged=false;
   payloads.forEach(function(p){if(rj[String(p.item_id)]){delete rj[String(p.item_id)];rjChanged=true;}});
