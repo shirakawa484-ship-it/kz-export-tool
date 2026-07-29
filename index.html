@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.28</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.29</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -639,11 +639,14 @@ var _touchedCache=null;
 function loadTouched(){if(_touchedCache)return _touchedCache;try{_touchedCache=JSON.parse(localStorage.getItem(LS_TOUCHED)||'{}');}catch(e){_touchedCache={};}return _touchedCache;}
 function saveTouched(t){try{localStorage.setItem(LS_TOUCHED,JSON.stringify(t));}catch(e){}_touchedCache=t;}
 function isTouchedId(id){return !!loadTouched()[String(id)];}
-// 編集完了後、少し置いて並べ替え（編集した商品を沈める）。スクロール位置は保持。
-// 2026-07-28：従来は保存ボタンを押すまで沈まず「メンテしても沈まない」ように見えていた問題への対応
-var _resortTimer=null;
-function scheduleResort(){clearTimeout(_resortTimer);_resortTimer=setTimeout(function(){var y=window.pageYOffset;renderAll();window.scrollTo(0,y);},600);}
-function markTouched(idx){var it=ITEMS[idx];if(!it)return;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);markPmaint(it.id);scheduleResort();}
+// ▼ 沈み・軽量化の安全ガード（2026-07-29）
+// v1.9.28の「編集0.6秒後に並べ替え」は、作業中のカードを畳んで足元から崩す大失敗だった。
+// 原則：作業中の商品（メンテ中activeIdx／直近90秒以内に編集）は絶対に沈めない・畳まない。
+// 沈むのは①保存ボタン（従来どおり）②放置90秒後の自然な再描画（60秒ポーリング）のどちらか。
+var TOUCH_GRACE_MS=90000;
+function isRecentlyTouchedId(id){var p=loadPmaint()[String(id)];if(!p)return false;var t=new Date(p.at).getTime();return !isNaN(t)&&(Date.now()-t)<TOUCH_GRACE_MS;}
+function isWorkingOn(i,it){return (activeIdx!==null&&i===activeIdx)||isRecentlyTouchedId(it.id);}
+function markTouched(idx){var it=ITEMS[idx];if(!it)return;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);markPmaint(it.id);}
 function markTouchedId(id){if(id==null)return;var t=loadTouched();t[String(id)]=1;saveTouched(t);}
 // ▼ 売価メンテの個別対応記録：この商品を「いつ個別に編集したか」を永続記録。
 //   ⚠️警告への対応判定は「編集時刻 > 現在計画の生成時刻」で行う（計画が再生成されて警告が残れば未対応に戻る＝正しい）。
@@ -669,9 +672,9 @@ function commitTouched(){
 //   （計画が再生成されて警告が残れば未対応として再浮上する。警告なしの商品にこの判定を
 //    使ってはいけない：保存→replanのたびに全部浮上してしまう。v1.9.24の失敗）
 function sinkRank(i){var it=ITEMS[i];if(!it)return 0;if(isDeferred(it))return 1;
+  if(isWorkingOn(i,it))return 0; // 作業中は絶対に沈めない（2026-07-29）
   if(sortMode==='mainte'&&mainteInfo(it).suspect)return isPMainted(it)?1:0;
-  // メンテ済み（保存確定）に加え、編集済み（保存待ち）も沈める（2026-07-28：編集した瞬間に片付く体感にする。
-  // 保存せずリロードすると編集ごと消えるので浮上する＝正しい挙動）
+  // メンテ済み（保存確定）と、放置90秒を過ぎた編集済み（保存待ち）を沈める
   return (isMainted(it)||isTouchedId(it.id))?1:0;}
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
 function saveWeights(w){markDirty();try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
@@ -950,11 +953,12 @@ function shouldLight(i){
   var it=ITEMS[i]; if(!it)return false;
   if(EXPANDED[String(it.id)])return false;
   if(query)return false;                 // 絞り込み中は探し物なのでフル表示
+  if(isWorkingOn(i,it))return false;     // 作業中は絶対に畳まない（2026-07-29：v1.9.28で作業中カードが1行に畳まれ操作不能になった失敗への対応）
   if(sortMode==='mainte'&&mainteInfo(it).suspect)return isPMainted(it); // ⚠️：未対応=フル（隠さない）、対応済み=軽量
   if(stockType(it)==='in')return true;   // 在庫あり＝対応不要
   if(isDeferred(it))return true;         // 監視なし
   if(isMainted(it))return true;          // メンテ済み（売価メンテ順でも警告なしなら軽量のまま＝一斉フルカード化によるフリーズ防止）
-  if(isTouchedId(it.id))return true;     // 編集済み（保存待ち）も軽量＝沈み先
+  if(isTouchedId(it.id))return true;     // 編集済み（保存待ち）＝放置90秒後に軽量＝沈み先
   return false;
 }
 function lightRowHtml(it,i){
@@ -1184,6 +1188,7 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     if(act2&&pl&&pl.items&&pl.items.length){
       pl.items.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
       var all2=loadPending(); all2[String(act2)]={at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,100),anchor:null,mult:1.3}; savePending(all2);
+      try{setTimeout(function(){showToast('まとめ取り '+pl.items.length+'件を取り込みました。⚓で基準を選んでください');},400);}catch(te){}
     }
     history.replaceState(null,'',location.pathname+location.search);
     window.__scrollToActive=true;
