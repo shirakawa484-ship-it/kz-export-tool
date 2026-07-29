@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.30</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.31</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -309,16 +309,29 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
       <li>ツールで商品の検索ボタン（メルカリ/Yahoo!フリマ/駿河屋）を押す（＝メンテ中にする）。</li>
       <li>各サイトで良い出品ページを開き、ブックマークレットをクリック。</li>
       <li>価格を読み取り、この商品の仕入れ候補に自動追加（最大5件・最安値を採用）。価格は一覧で手修正できます。</li>
-      <li><b>まとめ取り v5</b>：メルカリで検索（キーワードは検索し直してもOK）→<b>検索結果ページ</b>で押す。画面の検索結果（Shops含む・最大100件。<b>メルカリ側を「安い順」に並べ替えてから押すと確実</b>）を取り込み→ツール側で<b>基準（最安の本物）の行の⚓を押す</b>→基準〜1.3倍が安い順に自動チェック（倍率は変更可）→行タップで調整→追加。基準未満の怪しい安値は自動で除外されます。</li>
+      <li><b>まとめ取り v6</b>：メルカリで検索（キーワードは検索し直してもOK）→<b>検索結果ページ</b>で押す。画面の検索結果（Shops含む・最大100件。<b>メルカリ側を「安い順」に並べ替えてから押すと確実。押すと自動でスクロールしながら収集します（画面右上に件数表示）</b>）を取り込み→ツール側で<b>基準（最安の本物）の行の⚓を押す</b>→基準〜1.3倍が安い順に自動チェック（倍率は変更可）→行タップで調整→追加。基準未満の怪しい安値は自動で除外されます。</li>
     </ol>
-    <a class="bm alt2" href="javascript:(function(){var out=[],seen={};function push(u,p,t,i){var key=null,full=null;var m=u.match(/\/item\/(m\d+)/);if(m){key=m[1];full=&#x27;https://jp.mercari.com/item/&#x27;+m[1];}var sh=u.match(/\/shops\/product\/([A-Za-z0-9]+)/);if(sh){key=&#x27;s_&#x27;+sh[1];full=&#x27;https://jp.mercari.com/shops/product/&#x27;+sh[1];}if(!key||seen[key]||!p||p&lt;50)return;seen[key]=1;out.push({u:full,p:p,t:(t||&#x27;&#x27;).slice(0,60),i:i||&#x27;&#x27;});}
-document.querySelectorAll(&#x27;a[href*=&quot;/item/m&quot;],a[href*=&quot;/shops/product/&quot;]&#x27;).forEach(function(a){if(out.length&gt;=100)return;var root=a;for(var k=0;k&lt;5&amp;&amp;root.parentElement;k++){root=root.parentElement;if(root.querySelector(&#x27;img&#x27;))break;}var img=root.querySelector(&#x27;img&#x27;);var txt=(root.textContent||&#x27;&#x27;).replace(/[,\uFF0C]/g,&#x27;&#x27;);var pm=txt.match(/(\d{3,7})\s*\u5186|[\u00A5\uFFE5]\s*(\d{3,7})/);var price=pm?parseInt(pm[1]||pm[2],10):null;var isrc=(img&amp;&amp;(img.currentSrc||img.src))||&#x27;&#x27;;if(isrc.indexOf(&#x27;data:&#x27;)===0||isrc.length&gt;300)isrc=&#x27;&#x27;;push(a.href,price,(img&amp;&amp;img.alt||&#x27;&#x27;),isrc);});
-var q=new URLSearchParams(location.search);var kw=q.get(&#x27;keyword&#x27;)||q.get(&#x27;search_word&#x27;)||&#x27;&#x27;;
+    <a class="bm alt2" href="javascript:(function(){if(window.__kzBusy){return;}window.__kzBusy=1;
+var out=[],seen={};
+function push(u,p,t,i){var key=null,full=null;var m=u.match(/\/item\/(m\d+)/);if(m){key=m[1];full=&#x27;https://jp.mercari.com/item/&#x27;+m[1];}var sh=u.match(/\/shops\/product\/([A-Za-z0-9]+)/);if(sh){key=&#x27;s_&#x27;+sh[1];full=&#x27;https://jp.mercari.com/shops/product/&#x27;+sh[1];}if(!key||seen[key]||!p||p&lt;50)return;seen[key]=1;out.push({u:full,p:p,t:(t||&#x27;&#x27;).slice(0,60),i:i||&#x27;&#x27;});}
+function collect(){var before=out.length;document.querySelectorAll(&#x27;a[href*=&quot;/item/m&quot;],a[href*=&quot;/shops/product/&quot;]&#x27;).forEach(function(a){if(out.length&gt;=100)return;var root=a;for(var k=0;k&lt;5&amp;&amp;root.parentElement;k++){root=root.parentElement;if(root.querySelector(&#x27;img&#x27;))break;}var img=root.querySelector(&#x27;img&#x27;);var txt=(root.textContent||&#x27;&#x27;).replace(/[,\uFF0C]/g,&#x27;&#x27;);var pm=txt.match(/(\d{3,7})\s*\u5186|[\u00A5\uFFE5]\s*(\d{3,7})/);var price=pm?parseInt(pm[1]||pm[2],10):null;var isrc=(img&amp;&amp;(img.currentSrc||img.src))||&#x27;&#x27;;if(isrc.indexOf(&#x27;data:&#x27;)===0||isrc.length&gt;300)isrc=&#x27;&#x27;;push(a.href,price,(img&amp;&amp;img.alt||&#x27;&#x27;),isrc);});return out.length-before;}
+var hud=document.createElement(&#x27;div&#x27;);hud.style.cssText=&#x27;position:fixed;top:12px;right:12px;z-index:2147483647;background:#0a7d55;color:#fff;padding:10px 16px;border-radius:10px;font:bold 14px/1.4 sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3)&#x27;;hud.textContent=&#x27;\u53d6\u308a\u8fbc\u307f\u4e2d\u2026 0\u4ef6&#x27;;document.body.appendChild(hud);
+var y0=window.scrollY,noNew=0;
+function finish(){window.scrollTo(0,y0);hud.remove();window.__kzBusy=0;
 if(!out.length){alert(&#x27;\u53d6\u308a\u8fbc\u3081\u308b\u5546\u54c1\u304c\u3042\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002\n\u30e1\u30eb\u30ab\u30ea\u306e\u691c\u7d22\u7d50\u679c\u30da\u30fc\u30b8\u3067\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n[\u8a3a\u65ad] path:&#x27;+location.pathname+&#x27; / a\u30bf\u30b0:&#x27;+document.querySelectorAll(&#x27;a[href]&#x27;).length+&#x27;\u4ef6&#x27;);return;}
 out.sort(function(a,b){return a.p-b.p;});
+var q=new URLSearchParams(location.search);var kw=q.get(&#x27;keyword&#x27;)||q.get(&#x27;search_word&#x27;)||&#x27;&#x27;;
 var items=out.slice(0,100);var payload=JSON.stringify({kw:kw.slice(0,40),items:items});
 while(payload.length&gt;60000&amp;&amp;items.length){var trimmed=false;for(var z=items.length-1;z&gt;=0;z--){if(items[z].i){items[z].i=&#x27;&#x27;;trimmed=true;break;}}if(!trimmed)items.pop();payload=JSON.stringify({kw:kw.slice(0,40),items:items});}
-window.open(&#x27;https://shirakawa484-ship-it.github.io/kz-export-tool/#batch2=&#x27;+encodeURIComponent(payload),&#x27;_blank&#x27;);})();">まとめ取り v5（メルカリ検索結果ページで押す・Shops対応）</a>
+var w=window.open(&#x27;https://shirakawa484-ship-it.github.io/kz-export-tool/#batch2=&#x27;+encodeURIComponent(payload),&#x27;_blank&#x27;);
+if(!w)alert(&#x27;\u30dd\u30c3\u30d7\u30a2\u30c3\u30d7\u304c\u30d6\u30ed\u30c3\u30af\u3055\u308c\u307e\u3057\u305f\u3002\u30a2\u30c9\u30ec\u30b9\u30d0\u30fc\u306e\u30d6\u30ed\u30c3\u30af\u30a2\u30a4\u30b3\u30f3\u304b\u3089\u8a31\u53ef\u3057\u3066\u3082\u3046\u4e00\u5ea6\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002&#x27;);}
+function loop(){var gained=collect();hud.textContent=&#x27;\u53d6\u308a\u8fbc\u307f\u4e2d\u2026 &#x27;+out.length+&#x27;\u4ef6&#x27;;
+var atBottom=(window.innerHeight+window.scrollY)&gt;=(document.documentElement.scrollHeight-80);
+noNew=gained?0:noNew+1;
+if(out.length&gt;=100||noNew&gt;=3||(atBottom&amp;&amp;!gained)){finish();return;}
+window.scrollBy(0,Math.round(window.innerHeight*1.5));
+setTimeout(loop,650);}
+loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・自動スクロール収集）</a>
     <a class="bm" href="javascript:(function(){try{var u=location.href;var prices=[];document.querySelectorAll(&#39;script[type=&quot;application/ld+json&quot;]&#39;).forEach(function(sc){try{var d=JSON.parse(sc.textContent);var dd=Array.isArray(d)?d:[d];function dig(x){if(!x||typeof x!==&#39;object&#39;)return;if(x.offers){var of=Array.isArray(x.offers)?x.offers:[x.offers];of.forEach(function(f){if(f&amp;&amp;f.price)prices.push(parseInt(String(f.price).replace(/[^\d]/g,&#39;&#39;),10));if(f&amp;&amp;f.lowPrice)prices.push(parseInt(String(f.lowPrice).replace(/[^\d]/g,&#39;&#39;),10));});}if(x.price)prices.push(parseInt(String(x.price).replace(/[^\d]/g,&#39;&#39;),10));}dd.forEach(function(o){dig(o);if(o&amp;&amp;o[&#39;@graph&#39;])o[&#39;@graph&#39;].forEach(dig);});}catch(e){}});if(!prices.length){document.querySelectorAll(&#39;meta[itemprop=&quot;price&quot;],meta[property=&quot;product:price:amount&quot;],meta[property=&quot;og:price:amount&quot;],meta[property*=&quot;price&quot;]&#39;).forEach(function(m){var v=m.getAttribute(&#39;content&#39;);if(v)prices.push(parseInt(String(v).replace(/[^\d]/g,&#39;&#39;),10));});}if(!prices.length){document.querySelectorAll(&#39;[itemprop=&quot;price&quot;],[class*=&quot;price&quot;],[class*=&quot;Price&quot;],[data-testid*=&quot;price&quot;]&#39;).forEach(function(el){var v=el.getAttribute(&#39;content&#39;)||el.textContent;var t=String(v).replace(/[,\u00a5\uffe5\s\u5186]/g,&#39;&#39;);var m=t.match(/\d{2,8}/);if(m)prices.push(parseInt(m[0],10));});}prices=prices.filter(function(p){return p&amp;&amp;p&gt;=50&amp;&amp;p&lt;=3000000;});var price=prices.length?prices[0]:null;if(price===null){var inp=prompt(&#39;価格を自動取得できませんでした。手で入力してください（円）:&#39;,&#39;&#39;);if(!inp)return;price=parseInt(String(inp).replace(/[^\d]/g,&#39;&#39;),10);if(!price)return;}var target=&#39;https://shirakawa484-ship-it.github.io/kz-export-tool/&#39;+&#39;?price=&#39;+price+&#39;&amp;url=&#39;+encodeURIComponent(u);window.open(target,&#39;_blank&#39;);}catch(err){alert(&#39;エラー: &#39;+err.message);}})();">仕入れ値取得（これをブックマークバーへ）</a>
     <div style="font-size:11px;color:var(--muted);padding-bottom:12px">※対応：メルカリ・Yahoo!フリマ・駿河屋。自分で開いた1ページだけを読み取ります。自動巡回はしません。</div>
   </details>
@@ -534,16 +547,20 @@ function beginRenderCache(){
   var plan={}; var pgenMs=null;
   try{var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
     if(s&&s.plan&&s.plan.items)s.plan.items.forEach(function(p){plan[String(p.item_id)]=p;});
-    if(s){var g=(s.plan&&(s.plan.generated_at||s.plan.plan_generated_at))||s.loaded_at;
-      if(g){var t=new Date(g).getTime();if(!isNaN(t))pgenMs=t;}}}catch(e){}
+    var seen=JSON.parse(localStorage.getItem('pa_plangen_v1')||'null');
+    var g=(seen&&seen.gen_at)||(s&&((s.plan&&(s.plan.generated_at||s.plan.plan_generated_at))||s.loaded_at));
+    if(g){var t=new Date(g).getTime();if(!isNaN(t))pgenMs=t;}}catch(e){}
   var idx={}; ITEMS.forEach(function(it,i){idx[String(it.id)]=i;});
   _rc={plan:plan, idx:idx, mi:{}, pgenMs:pgenMs};
 }
 // 現在の計画の生成時刻（ms）。⚠️売価メンテの「対応済み」判定基準（この時刻より後に触ったか）
 function planGenAtMs(){
   if(_rc&&_rc.pgenMs!==undefined)return _rc.pgenMs;
-  try{var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
-    var g=s&&((s.plan&&(s.plan.generated_at||s.plan.plan_generated_at))||s.loaded_at);
+  try{
+    var seen=JSON.parse(localStorage.getItem('pa_plangen_v1')||'null');
+    var g=(seen&&seen.gen_at)||null; // 安定化済みの世代開始時刻（最優先）
+    if(!g){var s=JSON.parse(localStorage.getItem('pa_plan_v1')||'null');
+      g=s&&((s.plan&&(s.plan.generated_at||s.plan.plan_generated_at))||s.loaded_at);}
     if(!g)return null; var t=new Date(g).getTime(); return isNaN(t)?null:t;}catch(e){return null;}
 }
 function mainteInfo(it){
@@ -1261,7 +1278,13 @@ function invImportCosts(data){
 function invLoadInventory(data){
   var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, current_price_usd:(r.current_price_usd!=null?r.current_price_usd:null), days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null};});
   if(!ni.length){alert('在庫データが空です');return;}
-  ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};activeIdx=null;restoreAll();cleanupEndReq();reconcileStockTransitions();renderAll();
+  ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};
+  // メンテ中の商品は同期を跨いで維持する（2026-07-29：同期のたびにactiveIdxが消え、
+  // 作業中ガードが外れて画面が動く一因になっていた）
+  activeIdx=null;
+  (function(){var actId=localStorage.getItem(LS_ACTIVE);
+    if(actId){ni.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}})();
+  restoreAll();cleanupEndReq();reconcileStockTransitions();renderAll();
   try{localStorage.setItem(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:ni}));}catch(e){}
   window.ITEM_IMAGES=window.ITEM_IMAGES||{};ni.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});
   if(typeof window.paRerender==='function')window.paRerender();
@@ -1368,9 +1391,12 @@ function paSaveOutbox(m){try{localStorage.setItem('pa_outbox_v1',JSON.stringify(
 function paRejected(){try{return JSON.parse(localStorage.getItem('pa_rejected_v1')||'{}');}catch(e){return {};}}
 // ▼ 変更なし承認：この計画世代では「価格を変えない」と決めた記録。eBayへは何も送らない（Reviseコールを1件も使わない）。
 //   計画が新しくなったら（generated_atが変わったら）無効＝新しい相場で再判断する
+function planGenKey(){try{var seen=JSON.parse(localStorage.getItem('pa_plangen_v1')||'null');
+  if(seen&&seen.sig)return seen.sig;}catch(e){}
+  return (typeof DATA!=='undefined'&&DATA&&DATA.generated_at)||null;}
 function paNochange(){
   var m; try{m=JSON.parse(localStorage.getItem('pa_nochange_v1')||'{}');}catch(e){m={};}
-  var gen=(typeof DATA!=='undefined'&&DATA&&DATA.generated_at)||null;
+  var gen=planGenKey();
   var changed=false;
   Object.keys(m).forEach(function(id){if(!m[id]||m[id].gen!==gen){delete m[id];changed=true;}});
   if(changed){try{localStorage.setItem('pa_nochange_v1',JSON.stringify(m));}catch(e){}}
@@ -1672,7 +1698,7 @@ document.getElementById("approveBtn").onclick=()=>{
   var nowIso=new Date().toISOString();
   // ▼ 変更なし：ローカル記録のみ（この計画世代限り）。eBayへのRevise・承認ファイルへの同送は一切しない
   var ncm=paNochange();var ncChanged=false;
-  keeps.forEach(function(it){ncm[String(it.item_id)]={at:nowIso,gen:(DATA.generated_at||null)};state[it.item_id].checked=false;ncChanged=true;});
+  keeps.forEach(function(it){ncm[String(it.item_id)]={at:nowIso,gen:planGenKey()};state[it.item_id].checked=false;ncChanged=true;});
   var payloads=approved.map(it=>{const s=state[it.item_id];
       const rv=(s.choice==='r')?pickedRival(it):null;
       return {item_id:it.item_id, new_price_usd:chosenPrice(it),
@@ -1738,8 +1764,25 @@ function paApply(obj,fname,loadedAt){
   var b=document.getElementById("paBadge"); if(b){b.textContent=n; b.style.display=n?"inline-block":"none";}
   if(typeof renderAll==='function') renderAll(); // 在庫タブの⚠️売価メンテも最新計画で更新
 }
+// 計画内容の指紋（generated_atが無い計画でも「同じ計画か・新しい計画か」を判別する）
+function planSig(obj){try{var items=obj.items||[];var c=0;
+  for(var i=0;i<items.length;i++){var it=items[i];
+    var str=String(it.item_id)+':'+String((it.option_a&&it.option_a.price_usd)||'')+':'+String(it.current_price_usd||'');
+    for(var j=0;j<str.length;j++)c=(c*31+str.charCodeAt(j))>>>0;}
+  return items.length+'-'+c;}catch(e){return 'err';}}
 window.paLoadPlan=function(obj,fname){
   var loadedAt=new Date().toISOString();
+  // ▼ 計画の「世代開始時刻」の安定化（2026-07-29の根本修正）
+  // 従来は判定基準にloaded_at（読み込むたびに今の時刻）へフォールバックしていたため、
+  // 60秒ポーリングのたびに基準が「今」になり、⚠️の対応済みが毎回未対応へ戻っていた
+  //（＝メンテしても沈まない・沈んでも復活する、の真因）。
+  // generated_atがあればそれを、無ければ「内容の指紋が変わった時刻」を世代開始として固定する。
+  try{
+    var sig=obj.generated_at?('g:'+obj.generated_at):('c:'+planSig(obj));
+    var seen=null;try{seen=JSON.parse(localStorage.getItem('pa_plangen_v1')||'null');}catch(e2){}
+    if(!seen||seen.sig!==sig){seen={sig:sig,gen_at:obj.generated_at||loadedAt};
+      try{localStorage.setItem('pa_plangen_v1',JSON.stringify(seen));}catch(e3){}}
+  }catch(e){}
   try{localStorage.setItem("pa_plan_v1",JSON.stringify({loaded_at:loadedAt,fname:fname||"",plan:obj}));}catch(e){}
   paApply(obj,fname,loadedAt);
 };
