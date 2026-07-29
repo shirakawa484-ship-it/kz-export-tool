@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.33</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.34</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -479,6 +479,49 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
 
 var ITEMS = [{"name": "ZEHAHAHAHAHA TEACH R Parallel OP16-116 ONE PIECE The Time of Battle Japanese", "id": "358713488131", "urls": ["https://jp.mercari.com/item/m23915787484", "https://jp.mercari.com/item/m52270915722", "https://jp.mercari.com/item/m28425300480", "https://jp.mercari.com/item/m79994546683", "https://jp.mercari.com/item/m58831867045"], "stock": "在庫あり", "method": "OR"}, {"name": "Portgas D Ace ST15-005 SP SR The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358713510134", "urls": ["https://jp.mercari.com/item/m59728095255"], "stock": "在庫なし", "method": "OR"}, {"name": "Tashigi R-SPC OP14-029 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358713546726", "urls": ["https://jp.mercari.com/item/m54366159059", "https://jp.mercari.com/item/m48588187869"], "stock": "在庫なし", "method": "OR"}, {"name": "Boa Hancock SR-P OP16-032 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358716076492", "urls": [], "stock": "エラー：フリマサイトURLが1つも入力されていません", "method": "OR"}, {"name": "ONE PIECE Card Game Monkey D Luffy leader The Time of Battle OP16 japanese", "id": "358716089832", "urls": ["https://jp.mercari.com/item/m36550973387", "https://jp.mercari.com/item/m73810046382", "https://jp.mercari.com/item/m91737221694"], "stock": "在庫あり", "method": "OR"}, {"name": "Monkey D Luffy SR-P OP16-015 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358716115938", "urls": ["https://jp.mercari.com/item/m66154102657", "https://jp.mercari.com/item/m20067251799", "https://jp.mercari.com/item/m94168091379"], "stock": "在庫あり", "method": "OR"}, {"name": "Prisoner of Impel Down OP16-042 TR R The Time Of Battle ONE PIECE Card Japanese", "id": "358716120651", "urls": [], "stock": "エラー：フリマサイトURLが1つも入力されていません", "method": "OR"}, {"name": "One Piece Card Vinsmoke Reiju OP06-042 L Parallel Japanese Leader EB02 Gold", "id": "358716125423", "urls": ["https://jp.mercari.com/item/m90303982651", "https://jp.mercari.com/item/m31054169190"], "stock": "在庫あり", "method": "OR"}];
 var LS_SUPPLY='ss_supplies_v1', LS_ACTIVE='ss_active_v1', LS_META='ss_meta_v1', LS_ADDURL='ss_addurl_v1', LS_INV='ss_inventory_v1';
+// ▼ 保存失敗の可視化（2026-07-29）：localStorageが満杯だとsetItemが例外を投げるが、
+//   これまで全箇所try/catchで握りつぶしていた＝「保存したのに消える」「まとめ取りが成功表示なのに空」
+//   等の怪現象の最有力容疑。失敗したら必ず赤バナーで知らせる。
+window.ssStorageAlert=function(key,err){
+  try{
+    if(window.__ssStorageAlerted&&window.__ssStorageAlerted[key])return;
+    (window.__ssStorageAlerted=window.__ssStorageAlerted||{})[key]=1;
+    var b=document.createElement('div');
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c0392b;color:#fff;padding:10px 44px 10px 14px;font:bold 13px/1.5 sans-serif';
+    b.textContent='⚠️ ブラウザの保存領域への書き込みに失敗しました（'+key+'）。容量満杯の可能性。ヘッダーのバージョン番号をクリックすると使用量を確認できます — '+String(err&&err.name||err).slice(0,40);
+    var x=document.createElement('span');x.textContent='×';x.style.cssText='position:absolute;right:14px;top:8px;cursor:pointer;font-size:18px';
+    x.onclick=function(){b.remove();};b.appendChild(x);
+    if(document.body)document.body.appendChild(b);
+  }catch(e2){}
+};
+window.ssSafeSet=function(key,val){
+  try{localStorage.setItem(key,val);return true;}
+  catch(e){window.ssStorageAlert(key,e);return false;}
+};
+// 診断：バージョン番号クリックで保存領域の内訳と主要状態をダンプ
+window.ssDiag=function(){
+  try{
+    var total=0,rows=[];
+    for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);var v=localStorage.getItem(k)||'';total+=v.length;rows.push([k,v.length]);}
+    rows.sort(function(a,b){return b[1]-a[1];});
+    var lines=['localStorage 使用量: 約'+Math.round(total/1024)+'KB（上限は通常5,000KB前後）','── 上位キー ──'];
+    rows.slice(0,8).forEach(function(r){lines.push(r[0]+': '+Math.round(r[1]/1024)+'KB');});
+    var actId=localStorage.getItem('ss_active_v1');
+    if(actId){
+      lines.push('── メンテ中商品（ID:'+actId+'）──');
+      var t={},m={},pm={};
+      try{t=JSON.parse(localStorage.getItem('ss_touched_v1')||'{}');}catch(e1){}
+      try{m=JSON.parse(localStorage.getItem('ss_mainted_v1')||'{}');}catch(e2){}
+      try{pm=JSON.parse(localStorage.getItem('ss_pmaint_v1')||'{}');}catch(e3){}
+      lines.push('touched:'+(!!t[actId])+' / mainted:'+(m[actId]?m[actId].at:'なし')+' / pmaint:'+(pm[actId]?pm[actId].at:'なし'));
+      try{var pg=JSON.parse(localStorage.getItem('pa_plangen_v1')||'null');lines.push('計画世代: '+(pg?pg.gen_at+' ('+pg.sig.slice(0,20)+')':'なし'));}catch(e4){}
+    }
+    try{var bl=JSON.parse(localStorage.getItem('ss_batch_log_v1')||'[]');
+      lines.push('── まとめ取り受信ログ（直近）──');
+      bl.slice(0,3).forEach(function(r){lines.push(r.at.slice(11,19)+' '+r.outcome+' '+r.count+'件 → '+(r.name||r.act||''));});}catch(e5){}
+    alert(lines.join('\n'));
+  }catch(e){alert('診断に失敗: '+e.message);}
+};
 // ===== 送料自動化（v1.2）: カテゴリマスター・自動判定・重量永続化 =====
 var LS_WEIGHT='ss_weight_v1';
 var SHIP_OC={0.5:2115,1.0:2599,1.5:2840,2.0:3108,2.5:3383,3.0:3540,3.5:3593,4.0:4022,4.5:4451,5.0:4718,5.5:5043,6.0:5366,6.5:5735,7.0:6184,7.5:6683,8.0:6871,8.5:7060,9.0:7249,9.5:8865,10.0:9089};
@@ -586,7 +629,7 @@ function mainteInfo(it){
 }
 var LS_PENDING='ss_pending_v1';
 function loadPending(){try{return JSON.parse(localStorage.getItem(LS_PENDING)||'{}');}catch(e){return {};}}
-function savePending(p){try{localStorage.setItem(LS_PENDING,JSON.stringify(p));}catch(e){}}
+function savePending(p){return window.ssSafeSet(LS_PENDING,JSON.stringify(p));}
 function setPendAnchor(idx,p){var it=ITEMS[idx];var all=loadPending();var pend=all[String(it.id)];if(!pend)return;pend.anchor=p;savePending(all);updateCard(idx);}
 function setPendMult(idx,m){var it=ITEMS[idx];var all=loadPending();var pend=all[String(it.id)];if(!pend)return;pend.mult=m;savePending(all);updateCard(idx);}
 function togglePendRow(row){
@@ -662,7 +705,7 @@ function loadMainted(){if(_maintedCache)return _maintedCache;
 function isMainted(it){return !!loadMainted()[String(it.id)];}
 var _touchedCache=null;
 function loadTouched(){if(_touchedCache)return _touchedCache;try{_touchedCache=JSON.parse(localStorage.getItem(LS_TOUCHED)||'{}');}catch(e){_touchedCache={};}return _touchedCache;}
-function saveTouched(t){try{localStorage.setItem(LS_TOUCHED,JSON.stringify(t));}catch(e){}_touchedCache=t;}
+function saveTouched(t){if(window.ssSafeSet(LS_TOUCHED,JSON.stringify(t)))_touchedCache=t;else _touchedCache=null;}
 function isTouchedId(id){return !!loadTouched()[String(id)];}
 // ▼ 沈み・軽量化の安全ガード（2026-07-29）
 // v1.9.28の「編集0.6秒後に並べ替え」は、作業中のカードを畳んで足元から崩す大失敗だった。
@@ -716,7 +759,7 @@ function markTouchedId(id){if(id==null)return;_touchedCache=null;var t=loadTouch
 var LS_PMAINT='ss_pmaint_v1'; // {itemId:{at}}
 var _pmaintCache=null;
 function loadPmaint(){if(_pmaintCache)return _pmaintCache;try{_pmaintCache=JSON.parse(localStorage.getItem(LS_PMAINT)||'{}');}catch(e){_pmaintCache={};}return _pmaintCache;}
-function markPmaint(id){if(id==null)return;_pmaintCache=null;var p=loadPmaint();p[String(id)]={at:new Date().toISOString()};try{localStorage.setItem(LS_PMAINT,JSON.stringify(p));}catch(e){}_pmaintCache=p;}
+function markPmaint(id){if(id==null)return;_pmaintCache=null;var p=loadPmaint();p[String(id)]={at:new Date().toISOString()};if(window.ssSafeSet(LS_PMAINT,JSON.stringify(p)))_pmaintCache=p;else _pmaintCache=null;}
 var PLAN_INCORPORATION_MS=15*60*1000;
 function isPMainted(it){
   var p=loadPmaint()[String(it.id)]; if(!p)return false;
@@ -734,8 +777,8 @@ function commitTouched(){
   var t=loadTouched(); if(!Object.keys(t).length)return;
   var m=loadMainted(),now=new Date().toISOString();
   Object.keys(t).forEach(function(id){m[id]={at:now};}); // 再メンテでも時刻を更新
-  try{localStorage.setItem(LS_MAINTED,JSON.stringify(m));}catch(e){}
-  _maintedCache=m; saveTouched({});
+  if(window.ssSafeSet(LS_MAINTED,JSON.stringify(m)))_maintedCache=m;else _maintedCache=null;
+  saveTouched({});
 }
 // 沈める条件：監視なしは常に沈める。メンテ済み（保存確定）は沈める。
 // ⚠️売価メンテ順の警告持ちだけは特別扱い：「現在計画の生成後に個別編集したか」で判定
@@ -1290,9 +1333,15 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
       var actName='';try{ITEMS.forEach(function(it){if(String(it.id)===String(act2))actName=(it.name||it.title||'').slice(0,24);});}catch(ne){}
       var actFound=!!actName;
       pl.items.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
-      var all2=loadPending(); all2[String(act2)]={at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,100),anchor:null,mult:1.3}; savePending(all2);
-      showBanner(actFound?'#0a7d55':'#b35900','📥 まとめ取り '+pl.items.length+'件を「'+(actName||('ID:'+act2+'（現在の一覧に見つかりません）'))+'」に取り込みました（'+t2+'）。⚓で基準を選んでください');
-      logRecv('ok',pl.items.length,act2,actName||null);
+      var all2=loadPending(); all2[String(act2)]={at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,100),anchor:null,mult:1.3};
+      var saved=savePending(all2);
+      if(saved){
+        showBanner(actFound?'#0a7d55':'#b35900','📥 まとめ取り '+pl.items.length+'件を「'+(actName||('ID:'+act2+'（現在の一覧に見つかりません）'))+'」に取り込みました（'+t2+'）。⚓で基準を選んでください');
+        logRecv('ok',pl.items.length,act2,actName||null);
+      }else{
+        showBanner('#c0392b','📥 まとめ取り '+pl.items.length+'件を受信しましたが、保存領域が満杯で書き込めませんでした（'+t2+'）。バージョン番号をクリックして使用量を確認してください');
+        logRecv('quota_fail',pl.items.length,act2,actName||null);
+      }
     }
     history.replaceState(null,'',location.pathname+location.search);
     window.__scrollToActive=true;
@@ -1830,6 +1879,13 @@ function planSig(obj){try{var items=obj.items||[];var c=0;
   return items.length+'-'+c;}catch(e){return 'err';}}
 window.paLoadPlan=function(obj,fname){
   var loadedAt=new Date().toISOString();
+  // ▼ 容量対策（2026-07-29）：計画キャッシュはlocalStorage最大の容量食い（毎ポーリング丸ごと書き直し）。
+  //   ライバルの画像URLを落として保存する。画面はメモリ上の原本(obj)で描画するため影響なし。
+  //   リロード直後だけライバルサムネが無いが、数秒後の自動読み込みで完全版に置き換わる。
+  var slim=obj;
+  try{slim=JSON.parse(JSON.stringify(obj));
+    (slim.items||[]).forEach(function(it){if(it.rivals)it.rivals.forEach(function(r){delete r.image_url;});});
+  }catch(se){slim=obj;}
   // ▼ 計画の「世代開始時刻」の安定化（2026-07-29の根本修正）
   // 従来は判定基準にloaded_at（読み込むたびに今の時刻）へフォールバックしていたため、
   // 60秒ポーリングのたびに基準が「今」になり、⚠️の対応済みが毎回未対応へ戻っていた
@@ -1841,7 +1897,7 @@ window.paLoadPlan=function(obj,fname){
     if(!seen||seen.sig!==sig){seen={sig:sig,gen_at:obj.generated_at||loadedAt};
       try{localStorage.setItem('pa_plangen_v1',JSON.stringify(seen));}catch(e3){}}
   }catch(e){}
-  try{localStorage.setItem("pa_plan_v1",JSON.stringify({loaded_at:loadedAt,fname:fname||"",plan:obj}));}catch(e){}
+  (window.ssSafeSet||function(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}})("pa_plan_v1",JSON.stringify({loaded_at:loadedAt,fname:fname||"",plan:slim}));
   paApply(obj,fname,loadedAt);
 };
 (function(){try{var s=JSON.parse(localStorage.getItem("pa_plan_v1")||"null");
