@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.32</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.33</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -706,15 +706,17 @@ setInterval(function(){
     var y=window.pageYOffset;renderAll();window.scrollTo(0,y);
   }catch(e){}
 },45000);
-function markTouched(idx){var it=ITEMS[idx];if(!it)return;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);markPmaint(it.id);}
-function markTouchedId(id){if(id==null)return;var t=loadTouched();t[String(id)]=1;saveTouched(t);}
+// 書き込みは必ず生読み→変更→書き戻し（2026-07-29：別タブの古いキャッシュ経由で書くと
+// 他タブの保存やメンテ済みを消してしまう「lost write」が起きるため）
+function markTouched(idx){var it=ITEMS[idx];if(!it)return;_touchedCache=null;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);markPmaint(it.id);}
+function markTouchedId(id){if(id==null)return;_touchedCache=null;var t=loadTouched();t[String(id)]=1;saveTouched(t);}
 // ▼ 売価メンテの個別対応記録：この商品を「いつ個別に編集したか」を永続記録。
 //   ⚠️警告への対応判定は「編集時刻 > 現在計画の生成時刻」で行う（計画が再生成されて警告が残れば未対応に戻る＝正しい）。
 //   注意：保存時の一括メンテ済み付与（markTouchedId）はここに入れない。全商品が毎回「対応済み」になる誤判定の温床のため。
 var LS_PMAINT='ss_pmaint_v1'; // {itemId:{at}}
 var _pmaintCache=null;
 function loadPmaint(){if(_pmaintCache)return _pmaintCache;try{_pmaintCache=JSON.parse(localStorage.getItem(LS_PMAINT)||'{}');}catch(e){_pmaintCache={};}return _pmaintCache;}
-function markPmaint(id){if(id==null)return;var p=loadPmaint();p[String(id)]={at:new Date().toISOString()};try{localStorage.setItem(LS_PMAINT,JSON.stringify(p));}catch(e){}_pmaintCache=p;}
+function markPmaint(id){if(id==null)return;_pmaintCache=null;var p=loadPmaint();p[String(id)]={at:new Date().toISOString()};try{localStorage.setItem(LS_PMAINT,JSON.stringify(p));}catch(e){}_pmaintCache=p;}
 var PLAN_INCORPORATION_MS=15*60*1000;
 function isPMainted(it){
   var p=loadPmaint()[String(it.id)]; if(!p)return false;
@@ -728,6 +730,7 @@ function isPMainted(it){
   return t>=g-PLAN_INCORPORATION_MS;
 }
 function commitTouched(){
+  _touchedCache=null;_maintedCache=null; // 生読み（lost write防止）
   var t=loadTouched(); if(!Object.keys(t).length)return;
   var m=loadMainted(),now=new Date().toISOString();
   Object.keys(t).forEach(function(id){m[id]={at:now};}); // 再メンテでも時刻を更新
@@ -1252,15 +1255,44 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
 }catch(e){}})();
 (function(){try{
   if(location.hash&&location.hash.indexOf('#batch2=')===0){
-    var pl=null;
-    try{pl=JSON.parse(decodeURIComponent(location.hash.slice(8)));}
-    catch(pe){alert('まとめ取りの受信に失敗しました（データが壊れています。取り込み件数が多すぎた可能性）。\nもう一度ブックマークレットを押してください。改善しなければ検索結果の絞り込みで件数を減らしてみてください。');}
+    // ▼ 受信計器（2026-07-29）：受信の結果を必ず「消えないバナー」で表示し、直近5回をログに残す。
+    //   「メッセージが出ない・取り込まれない」の切り分けを次の1回で確定させるため。
+    var showBanner=function(color,text){
+      try{var b=document.createElement('div');
+        b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:'+color+';color:#fff;padding:10px 44px 10px 14px;font:bold 13px/1.5 sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+        b.textContent=text;
+        var x=document.createElement('span');x.textContent='×';
+        x.style.cssText='position:absolute;right:14px;top:8px;cursor:pointer;font-size:18px';
+        x.onclick=function(){b.remove();};b.appendChild(x);
+        var add=function(){document.body.appendChild(b);};
+        if(document.body)add();else document.addEventListener('DOMContentLoaded',add);
+      }catch(be){}
+    };
+    var logRecv=function(outcome,count,act,name){
+      try{var lg=JSON.parse(localStorage.getItem('ss_batch_log_v1')||'[]');
+        lg.unshift({at:new Date().toISOString(),outcome:outcome,count:count,act:act||null,name:name||null});
+        localStorage.setItem('ss_batch_log_v1',JSON.stringify(lg.slice(0,5)));}catch(le){}
+    };
+    var pl=null,parseErr=null;
+    try{pl=JSON.parse(decodeURIComponent(location.hash.slice(8)));}catch(pe){parseErr=String(pe&&pe.message||pe);}
     var act2=localStorage.getItem(LS_ACTIVE);
-    if(pl&&pl.items&&pl.items.length&&!act2){alert('メンテ対象の商品が選ばれていません。\n先にツールで対象商品の「メルカリ」等の検索ボタンを押して「メンテ中」にしてから、ブックマークレットを押してください。');}
-    if(act2&&pl&&pl.items&&pl.items.length){
+    var t2=new Date().toLocaleTimeString('ja-JP');
+    if(parseErr){
+      showBanner('#c0392b','📥 まとめ取り受信 失敗（'+t2+'）：データが壊れています（'+parseErr.slice(0,60)+'）。もう一度押すか、件数を絞ってください');
+      logRecv('parse_error',0,act2,null);
+    }else if(!pl||!pl.items||!pl.items.length){
+      showBanner('#c0392b','📥 まとめ取り受信 失敗（'+t2+'）：受信データが0件でした（ブックマークレット側で商品を拾えていません）');
+      logRecv('empty',0,act2,null);
+    }else if(!act2){
+      showBanner('#b35900','📥 まとめ取り '+pl.items.length+'件を受信しましたが、メンテ対象が未選択のため取り込めません（'+t2+'）。先に対象商品の「メルカリ」等の検索ボタンを押してください');
+      logRecv('no_active',pl.items.length,null,null);
+    }else{
+      var actName='';try{ITEMS.forEach(function(it){if(String(it.id)===String(act2))actName=(it.name||it.title||'').slice(0,24);});}catch(ne){}
+      var actFound=!!actName;
       pl.items.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
       var all2=loadPending(); all2[String(act2)]={at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,100),anchor:null,mult:1.3}; savePending(all2);
-      try{setTimeout(function(){showToast('まとめ取り '+pl.items.length+'件を取り込みました。⚓で基準を選んでください');},400);}catch(te){}
+      showBanner(actFound?'#0a7d55':'#b35900','📥 まとめ取り '+pl.items.length+'件を「'+(actName||('ID:'+act2+'（現在の一覧に見つかりません）'))+'」に取り込みました（'+t2+'）。⚓で基準を選んでください');
+      logRecv('ok',pl.items.length,act2,actName||null);
     }
     history.replaceState(null,'',location.pathname+location.search);
     window.__scrollToActive=true;
