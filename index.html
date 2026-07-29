@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.31</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.32</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -671,6 +671,25 @@ function isTouchedId(id){return !!loadTouched()[String(id)];}
 var TOUCH_GRACE_MS=90000;
 function isRecentlyTouchedId(id){var p=loadPmaint()[String(id)];if(!p)return false;var t=new Date(p.at).getTime();return !isNaN(t)&&(Date.now()-t)<TOUCH_GRACE_MS;}
 function isWorkingOn(i,it){return (activeIdx!==null&&i===activeIdx)||isRecentlyTouchedId(it.id);}
+// ▼ マルチタブ整合（2026-07-29）：まとめ取りは毎回新タブで受信し、保存も別タブで起こり得るのに、
+//   メンテ済み等のキャッシュがタブごとに孤立していた（保存したのに別タブでは保存待ちのまま等）。
+//   他タブがss_/pa_系キーを書いたらキャッシュを捨てて再描画する（storageイベントは書いた本人以外で発火）。
+window.addEventListener('storage',function(e){
+  if(!e||!e.key)return;
+  if(e.key.indexOf('ss_')!==0&&e.key.indexOf('pa_')!==0)return;
+  _touchedCache=null;_maintedCache=null;_pmaintCache=null;
+  try{var actId=localStorage.getItem(LS_ACTIVE);activeIdx=null;
+    if(actId)ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}catch(e2){}
+  clearTimeout(window.__xtabT);
+  window.__xtabT=setTimeout(function(){
+    var ae=document.activeElement;
+    if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName||''))return; // 入力中は画面を作り直さない
+    var y=window.pageYOffset;
+    if(typeof renderAll==='function')renderAll();
+    window.scrollTo(0,y);
+    if(typeof window.paRerender==='function')window.paRerender();
+  },400);
+});
 // 手が離れた（90秒経過した）編集済みを静かに沈める定期処理。入力中は動かさない。同じ顔ぶれでは一度だけ。
 var _lastResortSig='';
 setInterval(function(){
@@ -696,10 +715,17 @@ var LS_PMAINT='ss_pmaint_v1'; // {itemId:{at}}
 var _pmaintCache=null;
 function loadPmaint(){if(_pmaintCache)return _pmaintCache;try{_pmaintCache=JSON.parse(localStorage.getItem(LS_PMAINT)||'{}');}catch(e){_pmaintCache={};}return _pmaintCache;}
 function markPmaint(id){if(id==null)return;var p=loadPmaint();p[String(id)]={at:new Date().toISOString()};try{localStorage.setItem(LS_PMAINT,JSON.stringify(p));}catch(e){}_pmaintCache=p;}
+var PLAN_INCORPORATION_MS=15*60*1000;
 function isPMainted(it){
   var p=loadPmaint()[String(it.id)]; if(!p)return false;
   var g=planGenAtMs(); if(g==null)return true; // 計画未読込なら「触った＝対応済み」扱い
-  var t=new Date(p.at).getTime(); return !isNaN(t)&&t>=g;
+  var t=new Date(p.at).getTime(); if(isNaN(t))return false;
+  // 対応（編集）から15分以内に生成された計画は、その編集を（保存→replanの時差で）まだ
+  // 取り込めていない可能性が高いので「未対応に戻す」判定をしない。
+  // 2026-07-29：対応→数分後に届く旧データ製の計画で即復活する徒労ループへの対応。
+  // 15分＝保存→replanクールダウン10分＋生成時間の余裕。これを超えて生成された計画でまだ
+  // ⚠️が残るなら、それは新しい仕入れ値でも競争が厳しいという本物のシグナル。
+  return t>=g-PLAN_INCORPORATION_MS;
 }
 function commitTouched(){
   var t=loadTouched(); if(!Object.keys(t).length)return;
