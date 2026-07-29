@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.29</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888">統合版 v1.9.30</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -633,7 +633,15 @@ function toggleDefer(idx){
 var LS_MAINTED='ss_mainted_v1';   // {itemId:{at}} 永続
 var LS_TOUCHED='ss_touched_v1';   // 未保存の「触った商品」。localStorage保持＝リロード・ブックマークレット往復でも消えない
 var _maintedCache=null;
-function loadMainted(){if(_maintedCache)return _maintedCache;try{_maintedCache=JSON.parse(localStorage.getItem(LS_MAINTED)||'{}');}catch(e){_maintedCache={};}return _maintedCache;}
+function loadMainted(){if(_maintedCache)return _maintedCache;
+  try{_maintedCache=JSON.parse(localStorage.getItem(LS_MAINTED)||'{}');}catch(e){_maintedCache={};}
+  // メンテ済みは24時間で自然消滅（2026-07-29：期限が無く「対応済みの山」が各セクション下に永久に残っていた問題への対応。
+  // 24時間経てば通常の並びに戻る＝翌日また相場を見る、という運用に一致）
+  var cutoff=Date.now()-24*3600*1000;var changed=false;
+  Object.keys(_maintedCache).forEach(function(id){var at=_maintedCache[id]&&_maintedCache[id].at;var t=at?new Date(at).getTime():NaN;
+    if(isNaN(t)||t<cutoff){delete _maintedCache[id];changed=true;}});
+  if(changed){try{localStorage.setItem(LS_MAINTED,JSON.stringify(_maintedCache));}catch(e){}}
+  return _maintedCache;}
 function isMainted(it){return !!loadMainted()[String(it.id)];}
 var _touchedCache=null;
 function loadTouched(){if(_touchedCache)return _touchedCache;try{_touchedCache=JSON.parse(localStorage.getItem(LS_TOUCHED)||'{}');}catch(e){_touchedCache={};}return _touchedCache;}
@@ -646,6 +654,22 @@ function isTouchedId(id){return !!loadTouched()[String(id)];}
 var TOUCH_GRACE_MS=90000;
 function isRecentlyTouchedId(id){var p=loadPmaint()[String(id)];if(!p)return false;var t=new Date(p.at).getTime();return !isNaN(t)&&(Date.now()-t)<TOUCH_GRACE_MS;}
 function isWorkingOn(i,it){return (activeIdx!==null&&i===activeIdx)||isRecentlyTouchedId(it.id);}
+// 手が離れた（90秒経過した）編集済みを静かに沈める定期処理。入力中は動かさない。同じ顔ぶれでは一度だけ。
+var _lastResortSig='';
+setInterval(function(){
+  try{
+    var ae=document.activeElement;
+    if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName||''))return; // 入力中は画面を作り直さない
+    var t=loadTouched();var ids=Object.keys(t);if(!ids.length){_lastResortSig='';return;}
+    var settled=false;
+    for(var k=0;k<ids.length;k++){if(!isRecentlyTouchedId(ids[k])){settled=true;break;}}
+    if(!settled)return;
+    var sig=ids.slice().sort().join(',');
+    if(sig===_lastResortSig)return; // この顔ぶれは既に並べ替え済み
+    _lastResortSig=sig;
+    var y=window.pageYOffset;renderAll();window.scrollTo(0,y);
+  }catch(e){}
+},45000);
 function markTouched(idx){var it=ITEMS[idx];if(!it)return;var t=loadTouched();t[String(it.id)]=1;saveTouched(t);markPmaint(it.id);}
 function markTouchedId(id){if(id==null)return;var t=loadTouched();t[String(id)]=1;saveTouched(t);}
 // ▼ 売価メンテの個別対応記録：この商品を「いつ個別に編集したか」を永続記録。
@@ -672,10 +696,13 @@ function commitTouched(){
 //   （計画が再生成されて警告が残れば未対応として再浮上する。警告なしの商品にこの判定を
 //    使ってはいけない：保存→replanのたびに全部浮上してしまう。v1.9.24の失敗）
 function sinkRank(i){var it=ITEMS[i];if(!it)return 0;if(isDeferred(it))return 1;
-  if(isWorkingOn(i,it))return 0; // 作業中は絶対に沈めない（2026-07-29）
-  if(sortMode==='mainte'&&mainteInfo(it).suspect)return isPMainted(it)?1:0;
-  // メンテ済み（保存確定）と、放置90秒を過ぎた編集済み（保存待ち）を沈める
-  return (isMainted(it)||isTouchedId(it.id))?1:0;}
+  if(sortMode==='mainte'&&mainteInfo(it).suspect){
+    if(!isPMainted(it))return 0;                      // 未対応⚠️は上に残す
+    return (isMainted(it)||!isWorkingOn(i,it))?1:0;   // 対応済み：保存確定なら即沈む、未保存は手が離れて（90秒）から
+  }
+  if(isMainted(it))return 1;                          // 保存確定＝即沈む（従来どおり。v1.9.29でここまでガードしてしまい「保存したのに沈まない」を起こした）
+  if(isTouchedId(it.id))return isWorkingOn(i,it)?0:1; // 保存待ち：作業中は沈めない・手が離れたら沈む
+  return 0;}
 function loadWeights(){try{return JSON.parse(localStorage.getItem(LS_WEIGHT)||'{}');}catch(e){return {};}}
 function saveWeights(w){markDirty();try{localStorage.setItem(LS_WEIGHT,JSON.stringify(w));}catch(e){}}
 function resolveWeight(it){
@@ -953,12 +980,14 @@ function shouldLight(i){
   var it=ITEMS[i]; if(!it)return false;
   if(EXPANDED[String(it.id)])return false;
   if(query)return false;                 // 絞り込み中は探し物なのでフル表示
-  if(isWorkingOn(i,it))return false;     // 作業中は絶対に畳まない（2026-07-29：v1.9.28で作業中カードが1行に畳まれ操作不能になった失敗への対応）
-  if(sortMode==='mainte'&&mainteInfo(it).suspect)return isPMainted(it); // ⚠️：未対応=フル（隠さない）、対応済み=軽量
+  if(sortMode==='mainte'&&mainteInfo(it).suspect){
+    if(!isPMainted(it))return false;     // 未対応⚠️はフル（隠さない）
+    return isMainted(it)||!isWorkingOn(i,it); // 対応済み：保存確定なら即軽量、未保存は手が離れてから
+  }
   if(stockType(it)==='in')return true;   // 在庫あり＝対応不要
   if(isDeferred(it))return true;         // 監視なし
-  if(isMainted(it))return true;          // メンテ済み（売価メンテ順でも警告なしなら軽量のまま＝一斉フルカード化によるフリーズ防止）
-  if(isTouchedId(it.id))return true;     // 編集済み（保存待ち）＝放置90秒後に軽量＝沈み先
+  if(isMainted(it))return true;          // メンテ済み（保存確定）＝即軽量（従来どおり）
+  if(isTouchedId(it.id))return !isWorkingOn(i,it); // 保存待ち：作業中は畳まない・手が離れたら軽量
   return false;
 }
 function lightRowHtml(it,i){
