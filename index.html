@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.36</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.37</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -618,7 +618,7 @@ function beginRenderCache(){
     var g=(seen&&seen.gen_at)||(s&&((s.plan&&(s.plan.generated_at||s.plan.plan_generated_at))||s.loaded_at));
     if(g){var t=new Date(g).getTime();if(!isNaN(t))pgenMs=t;}}catch(e){}
   var idx={}; ITEMS.forEach(function(it,i){idx[String(it.id)]=i;});
-  _rc={plan:plan, idx:idx, mi:{}, pgenMs:pgenMs};
+  _rc={plan:plan, idx:idx, mi:{}, pgenMs:pgenMs, pend:loadPending()};
 }
 // 現在の計画の生成時刻（ms）。⚠️売価メンテの「対応済み」判定基準（この時刻より後に触ったか）
 function planGenAtMs(){
@@ -1093,6 +1093,11 @@ function shouldLight(i){
   var it=ITEMS[i]; if(!it)return false;
   if(EXPANDED[String(it.id)])return false;
   if(query)return false;                 // 絞り込み中は探し物なのでフル表示
+  // メンテ中の商品は在庫状態に関わらずフルカード（2026-07-30：⚠️売価メンテは「在庫あり」商品を
+  // 仕入れ直す作業なのに、下の「在庫あり＝軽量」の早期returnが先に効いて作業カードが畳まれていた）
+  if(activeIdx!==null&&i===activeIdx)return false;
+  // まとめ取り候補の選別中（pendingあり）も畳まない（選別UIが折りたたみの中に消えるのを防ぐ）
+  if(_rc&&_rc.pend&&_rc.pend[String(it.id)])return false;
   if(sortMode==='mainte'&&mainteInfo(it).suspect){
     if(!isPMainted(it))return false;     // 未対応⚠️はフル（隠さない）
     return isMainted(it)||!isWorkingOn(i,it); // 対応済み：保存確定なら即軽量、未保存は手が離れてから
