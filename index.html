@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.34</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.35</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -494,9 +494,33 @@ window.ssStorageAlert=function(key,err){
     if(document.body)document.body.appendChild(b);
   }catch(e2){}
 };
+window.ssStorageNote=function(text){
+  try{var b=document.createElement('div');
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#b35900;color:#fff;padding:8px 44px 8px 14px;font:bold 12px/1.5 sans-serif';
+    b.textContent=text;
+    var x=document.createElement('span');x.textContent='×';x.style.cssText='position:absolute;right:14px;top:6px;cursor:pointer;font-size:16px';
+    x.onclick=function(){b.remove();};b.appendChild(x);
+    if(document.body)document.body.appendChild(b);
+    setTimeout(function(){try{b.remove();}catch(e2){}},15000);
+  }catch(e3){}
+};
 window.ssSafeSet=function(key,val){
   try{localStorage.setItem(key,val);return true;}
-  catch(e){window.ssStorageAlert(key,e);return false;}
+  catch(e){
+    // ▼ 自動整理（2026-07-29）：満杯なら「ファイルから自動で再構築されるキャッシュ」を捨てて再試行。
+    //   pa_plan_v1＝次の自動読み込み（60秒以内）でplan_latest.jsonから復元される
+    //   ss_inventory_v1＝次の同期でinventoryから復元される（起動直後のサムネが一瞬無くなるだけ）
+    var sacrificial=['pa_plan_v1','ss_inventory_v1'];
+    for(var i=0;i<sacrificial.length;i++){
+      var k=sacrificial[i]; if(k===key)continue;
+      if(localStorage.getItem(k)==null)continue;
+      try{localStorage.removeItem(k);}catch(e2){}
+      try{localStorage.setItem(key,val);
+        window.ssStorageNote('保存領域が満杯だったため、自動で再構築されるキャッシュ（'+k+'）を整理して保存しました');
+        return true;}catch(e3){}
+    }
+    window.ssStorageAlert(key,e);return false;
+  }
 };
 // 診断：バージョン番号クリックで保存領域の内訳と主要状態をダンプ
 window.ssDiag=function(){
@@ -1392,7 +1416,8 @@ function invLoadInventory(data){
   (function(){var actId=localStorage.getItem(LS_ACTIVE);
     if(actId){ni.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}})();
   restoreAll();cleanupEndReq();reconcileStockTransitions();renderAll();
-  try{localStorage.setItem(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:ni}));}catch(e){}
+  (function(){var invSlim=ni.map(function(r){var c={};for(var kk in r){if(kk!=='image_url')c[kk]=r[kk];}return c;});
+    window.ssSafeSet(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:invSlim}));})();
   window.ITEM_IMAGES=window.ITEM_IMAGES||{};ni.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});
   if(typeof window.paRerender==='function')window.paRerender();
   showToast('在庫データを読み込みました（'+ni.length+'件）');
