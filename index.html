@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.37</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.38</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -787,7 +787,14 @@ function markPmaint(id){if(id==null)return;_pmaintCache=null;var p=loadPmaint();
 var PLAN_INCORPORATION_MS=15*60*1000;
 function isPMainted(it){
   var p=loadPmaint()[String(it.id)]; if(!p)return false;
-  var g=planGenAtMs(); if(g==null)return true; // 計画未読込なら「触った＝対応済み」扱い
+  // 基準時刻＝その商品のupdated_at（差分replan対応：この商品の競合データを実際に再計算した時刻）。
+  // 無ければ従来の計画世代時刻へフォールバック（後方互換）。
+  // これにより差分replanで計画世代が進んでも、未変更の⚠️商品が「未対応」に巻き戻されない。
+  var g=null;
+  var pit=(_rc&&_rc.plan)?_rc.plan[String(it.id)]:null;
+  if(pit&&pit.updated_at){var ut=new Date(pit.updated_at).getTime();if(!isNaN(ut))g=ut;}
+  if(g==null)g=planGenAtMs();
+  if(g==null)return true; // 計画未読込なら「触った＝対応済み」扱い
   var t=new Date(p.at).getTime(); if(isNaN(t))return false;
   // 対応（編集）から15分以内に生成された計画は、その編集を（保存→replanの時差で）まだ
   // 取り込めていない可能性が高いので「未対応に戻す」判定をしない。
@@ -1919,7 +1926,8 @@ window.paLoadPlan=function(obj,fname){
       price_drop_suspect:!!pit.price_drop_suspect,
       below_breakeven_pct:(pit.below_breakeven_pct!=null?pit.below_breakeven_pct:null),
       days_to_renewal:(pit.days_to_renewal!=null?pit.days_to_renewal:null),
-      benchmark_dropped:pit.benchmark_dropped||null};})};
+      benchmark_dropped:pit.benchmark_dropped||null,
+      updated_at:pit.updated_at||null};})}; // 差分replan：商品単位の再計算時刻（⚠️対応済み判定の基準）
   // ▼ 計画の「世代開始時刻」の安定化（2026-07-29の根本修正）
   // 従来は判定基準にloaded_at（読み込むたびに今の時刻）へフォールバックしていたため、
   // 60秒ポーリングのたびに基準が「今」になり、⚠️の対応済みが毎回未対応へ戻っていた
