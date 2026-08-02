@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.38</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.39</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -738,12 +738,14 @@ function isTouchedId(id){return !!loadTouched()[String(id)];}
 var TOUCH_GRACE_MS=90000;
 function isRecentlyTouchedId(id){var p=loadPmaint()[String(id)];if(!p)return false;var t=new Date(p.at).getTime();return !isNaN(t)&&(Date.now()-t)<TOUCH_GRACE_MS;}
 function isWorkingOn(i,it){return (activeIdx!==null&&i===activeIdx)||isRecentlyTouchedId(it.id);}
+var _inAutoOpened=false; // 在庫ありセクションを「候補あり」で自動的に開いたかどうか（自動で畳むための記憶）
 // ▼ マルチタブ整合（2026-07-29）：まとめ取りは毎回新タブで受信し、保存も別タブで起こり得るのに、
 //   メンテ済み等のキャッシュがタブごとに孤立していた（保存したのに別タブでは保存待ちのまま等）。
 //   他タブがss_/pa_系キーを書いたらキャッシュを捨てて再描画する（storageイベントは書いた本人以外で発火）。
 window.addEventListener('storage',function(e){
   if(!e||!e.key)return;
   if(e.key.indexOf('ss_')!==0&&e.key.indexOf('pa_')!==0)return;
+  if(e.key==='ss_pending_v1')window.__xtabPend=1; // 別タブでまとめ取り候補を受信→再描画後にジャンプ
   _touchedCache=null;_maintedCache=null;_pmaintCache=null;
   try{var actId=localStorage.getItem(LS_ACTIVE);activeIdx=null;
     if(actId)ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}catch(e2){}
@@ -751,9 +753,15 @@ window.addEventListener('storage',function(e){
   window.__xtabT=setTimeout(function(){
     var ae=document.activeElement;
     if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName||''))return; // 入力中は画面を作り直さない
+    var jumpPend=window.__xtabPend;window.__xtabPend=0;
     var y=window.pageYOffset;
     if(typeof renderAll==='function')renderAll();
     window.scrollTo(0,y);
+    // 別タブ受信の候補がメンテ中の商品に付いたら、その商品へジャンプ（セクションはscrollToCardが開く）
+    if(jumpPend&&activeIdx!==null&&ITEMS[activeIdx]){
+      var aid=String(ITEMS[activeIdx].id);
+      try{if(loadPending()[aid])scrollToCard(activeIdx);}catch(je){}
+    }
     if(typeof window.paRerender==='function')window.paRerender();
   },400);
 });
@@ -1246,9 +1254,18 @@ function renderAll(){
   var se=document.getElementById('secErr');
   se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+groups.err.length+'件'+suffix+'</h2>'+(groups.err.length?renderCards(groups.err):'<div class="empty">該当なし</div>');
   var si=document.getElementById('secIn');
-  // 開閉状態を保持：計画同期ポーリング等でrenderAllが走るたびに閉じ直さない（まとめ取り作業中の巻き戻り防止）
+  // 開閉状態（2026-08-02改）：手動の開閉は保持しつつ、まとめ取り候補（pending）を持つ在庫あり商品が
+  // ある間は自動で開く（在庫あり商品の売価メンテで、メンテ中の商品が折りたたみの中に消えて
+  // 迷子になる問題への対応）。候補を確定/破棄して無くなったら自動で畳んで元に戻す。
   var inWasOpen=(function(){var d=si?si.querySelector('details'):null;return !!(d&&d.open);})();
-  si.innerHTML='<details'+((query||inWasOpen)?' open':'')+'><summary>在庫あり（対応不要） '+groups.in.length+'件'+suffix+' ▼</summary><div style="margin-top:10px">'+(groups.in.length?renderCards(groups.in):'<div class="empty">該当なし</div>')+'</div></details>';
+  var hasPendingIn=(function(){try{var pend=(_rc&&_rc.pend)||loadPending();
+    for(var pid in pend){var ii=(_rc&&_rc.idx)?_rc.idx[String(pid)]:undefined;
+      if(ii!==undefined&&ITEMS[ii]&&stockType(ITEMS[ii])==='in')return true;}}catch(e){}return false;})();
+  var inOpen;
+  if(hasPendingIn){inOpen=true;_inAutoOpened=true;}
+  else if(_inAutoOpened){inOpen=false;_inAutoOpened=false;} // 候補が無くなった＝取り込み完了→自動で畳む
+  else inOpen=inWasOpen;
+  si.innerHTML='<details'+((query||inOpen)?' open':'')+'><summary>在庫あり（対応不要） '+groups.in.length+'件'+suffix+' ▼</summary><div style="margin-top:10px">'+(groups.in.length?renderCards(groups.in):'<div class="empty">該当なし</div>')+'</div></details>';
 
   (function(){var any=groups.out.concat(groups.err,groups.in).some(function(i){return sinkRank(i)===1;});
     var c=document.getElementById('maintedChip');if(c)c.style.display=any?'inline-block':'none';})();
