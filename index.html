@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.40</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.41</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1612,6 +1612,25 @@ function paSorted(items){
   return a;
 }
 window.paPage=window.paPage||1; var PA_PAGE_SIZE=100;
+// 🚫要修正の商品へジャンプ（表示順で最初の1件。ページ跨ぎ対応・赤枠ハイライト。
+// 直した後もう一度クリックすれば次の要修正へ移動できる）
+window.paJumpBlocked=function(){
+  try{
+    const sorted=paSorted(DATA.items);
+    let idx=-1,target=null;
+    for(let i=0;i<sorted.length;i++){const it=sorted[i];const st=state[it.item_id];
+      if(st&&st.checked&&priceStatus(it).level==='danger'){idx=i;target=it;break;}}
+    if(!target){alert('要修正の商品は見つかりませんでした（解消済みの可能性）。');updateCount();return;}
+    const pg=Math.floor(idx/PA_PAGE_SIZE)+1;
+    if(window.paPage!==pg){window.paPage=pg;render();}
+    setTimeout(function(){
+      const el=document.querySelector('[data-item-id="'+String(target.item_id)+'"]');
+      if(el){el.scrollIntoView({behavior:'smooth',block:'center'});
+        el.style.outline='3px solid #c0392b';el.style.outlineOffset='2px';
+        setTimeout(function(){el.style.outline='';el.style.outlineOffset='';},4000);}
+    },150);
+  }catch(e){}
+};
 function appliedMap(){
   // 反映済み判定：計画世代の一致ではなく「applied_atが24時間以内」で判定する。
   // （計画は日中も再生成されるため、世代照合だと反映直後に✅が消えて承認が振り出しに戻って見えるバグがあった。
@@ -1688,6 +1707,7 @@ function render(){
     const pendRec=paPendingMap()[String(it.item_id)]||null;
     const rejRec=paRejected()[String(it.item_id)]||null;
     const card=document.createElement("div");
+    card.dataset.itemId=String(it.item_id);
     card.className="card"+(warn?" warn":"")+(isExtreme?" extreme":"")+(s.checked?"":" unchecked")+(pendRec?" pendingapp":"");
 
     const p=chosenPrice(it), pf=chosenProfit(it), st=priceStatus(it);
@@ -1831,9 +1851,15 @@ function updateCount(){
   DATA.items.forEach(it=>{ const s=state[it.item_id]; if(!s||!s.checked) return;
     sel++; if(it.market_deviation_flag) warns++; if(priceStatus(it).level==='danger') blocked++; });
   document.getElementById("selCount").textContent=sel;
-  let note=""; if(warns) note+=`（⚠️注意 ${warns}件`; if(blocked) note+=`${warns?'／':'（'}🚫要修正 ${blocked}件`; if(warns||blocked) note+="）";
-  document.getElementById("warnCount").textContent=note;
-  document.getElementById("approveBtn").disabled=(sel===0||blocked>0);
+  // 🚫要修正はクリックで該当商品へジャンプできるリンクにする（2026-08-03：
+  // 「なぜ押せないのか・どこにあるのか分からない」問題への対応）
+  let note=""; if(warns) note+=`（⚠️注意 ${warns}件`;
+  if(blocked) note+=`${warns?'／':'（'}<span style="cursor:pointer;text-decoration:underline;color:#c0392b;font-weight:bold" onclick="paJumpBlocked()" title="クリックで要修正の商品へ移動します">🚫要修正 ${blocked}件</span>`;
+  if(warns||blocked) note+="）";
+  document.getElementById("warnCount").innerHTML=note;
+  const ab=document.getElementById("approveBtn");
+  ab.disabled=(sel===0||blocked>0);
+  ab.title=blocked?('要修正が'+blocked+'件あるため承認できません（手入力/ライバル指定の価格が現在価格の2倍超または半額以下＝打ち間違いブロック）。左の赤い「🚫要修正」をクリックすると該当商品へ移動します'):(sel===0?'チェック済みの商品がありません':'');
   (function(){var AP=appliedMap();var NCA2=paNochange();var PD=paPendingMap();var done=0,nc=0,pend=0,tot=0;
     DATA.items.forEach(function(it){tot++;var id=String(it.item_id);
       if(AP[id]){done++;return;}
