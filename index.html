@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.43</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.45</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1578,8 +1578,13 @@ function priceStatus(it){
     // 代わりに「手動チェック＝明示承認（extreme_ack）」＋Python側の利益・赤字チェックが最終ガード
     if(r>=2.0||r<=0.5) return {level:'info',msg:`現在価格の${r>=2.0?(r.toFixed(1)+'倍'):(Math.round(r*100)+'%')}。要注意商品として明示承認され、反映前にPython側で利益・赤字チェックされます`};
   } else {
-    if(r>=2.0) return {level:'danger',msg:`現在価格の${r.toFixed(1)}倍。打ち間違いの可能性`};
-    if(r<=0.5) return {level:'danger',msg:`現在価格の${Math.round(r*100)}%（半額以下）。打ち間違いの可能性`};
+    // 大きな変更でも「価格を確認した」明示承認（bigAck）があれば通す。
+    // 2026-08-03：誤反映した価格を正しい水準に「復元」する正当な大変更が、
+    // 打ち間違いブロックに毎日引っかかり続けるループへの対応。
+    // extreme_ack付きで送るため、反映前のPython側利益・赤字チェックは必ず通る
+    const acked=state[it.item_id]&&state[it.item_id].bigAck;
+    if(r>=2.0) return acked?{level:'info',msg:`現在価格の${r.toFixed(1)}倍（確認済み）。反映前にPython側で利益・赤字チェックされます`}:{level:'danger',msg:`現在価格の${r.toFixed(1)}倍。打ち間違いの可能性`};
+    if(r<=0.5) return acked?{level:'info',msg:`現在価格の${Math.round(r*100)}%（確認済み）。反映前にPython側で利益・赤字チェックされます`}:{level:'danger',msg:`現在価格の${Math.round(r*100)}%（半額以下）。打ち間違いの可能性`};
   }
   if(state[it.item_id].choice==='m') return {level:'info',msg:'手入力価格は反映前にPython側で正確に利益計算・赤字チェックします'};
   if(state[it.item_id].choice==='r') return {level:'info',msg:'ライバル指定価格は反映前にPython側で正確に利益計算・赤字チェックします'};
@@ -1652,6 +1657,8 @@ function paSorted(items){
 window.paPage=window.paPage||1; var PA_PAGE_SIZE=100;
 // 🚫要修正の商品へジャンプ（表示順で最初の1件。ページ跨ぎ対応・赤枠ハイライト。
 // 直した後もう一度クリックすれば次の要修正へ移動できる）
+// 大きな価格変更の明示承認：打ち間違いでないことを人間が確認した記録（このセッション限り）
+window.paAckBig=function(id){if(state[id]){state[id].bigAck=true;render();}};
 window.paJumpBlocked=function(){
   try{
     const sorted=paSorted(DATA.items);
@@ -1751,6 +1758,11 @@ function render(){
       }
     }
     const s=state[it.item_id]; const warn=it.market_deviation_flag;
+    // 推奨のままではdanger（打ち間違いブロック）になる商品は、初期チェックを自動で外す（初回評価時のみ・
+    // 手動チェックは尊重）。要注意商品と同じopt-in方式。2026-08-03：1件のdangerが「まとめて承認」
+    // 全体を止め、ユーザーが毎日探して手当てするループへの対応
+    if(!state[it.item_id]._dngInit){state[it.item_id]._dngInit=1;
+      if(!isExtreme&&state[it.item_id].checked&&priceStatus(it).level==='danger')state[it.item_id].checked=false;}
     const pendRec=paPendingMap()[String(it.item_id)]||null;
     const rejRec=paRejected()[String(it.item_id)]||null;
     const card=document.createElement("div");
@@ -1833,7 +1845,7 @@ function render(){
           </div>
         </div>
         ${warn?`<div class="warnbox">⚠️ ${it.market_deviation_note||"相場乖離の疑い。根拠ライバルを確認してください"}</div>`:""}
-        ${st.level==='danger'?`<div class="dangerbox">🚫 ${st.msg}（このままでは承認できません）</div>`:""}
+        ${st.level==='danger'?`<div class="dangerbox">🚫 ${st.msg}（このままでは承認できません）<button class="ackbtn" onclick="paAckBig('${String(it.item_id)}')" style="margin-left:10px;padding:3px 10px;border:1px solid #c0392b;background:#fff;color:#c0392b;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold">価格を確認した（この変更で正しい）</button></div>`:""}
         ${st.level==='info'?`<div class="warnbox">ℹ️ ${st.msg}</div>`:""}
         <div class="row-actions">${it.reference_listing_url?`<a href="${it.reference_listing_url}" target="_blank" rel="noopener">根拠にしたライバルを見る ↗</a>`:""}<a href="https://www.ebay.com/sh/research?marketplace=EBAY-US&keywords=${encodeURIComponent(it.title||"")}&dayRange=90&tabName=SOLD" target="_blank" rel="noopener" style="margin-left:12px">テラピークで確認 ↗</a></div>
         <details class="reb" ${s.choice==='r'||s.rivalGone?'open':''}><summary>ライバルを選び直す${s.choice==='r'?'（指定中）':''}${isExtreme?'（要注意商品：ライバルの実物確認はここから）':''}</summary>
@@ -1916,7 +1928,7 @@ function updateCount(){
     var pc=document.getElementById('progCount');
     if(pc)pc.textContent='　｜　反映済み '+done+(pend?'／反映待ち '+pend:'')+(nc?'／変更なし '+nc:'')+'／未処理 '+(tot-done-pend-nc-sel)+'（全'+tot+'件）';})();
 }
-document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded&&state[it.item_id])state[it.item_id].checked=true;});render();}; // 要注意（極端値）は一括チェックの対象外＝個別チェックのみ
+document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded&&state[it.item_id]&&priceStatus(it).level!=='danger')state[it.item_id].checked=true;});render();}; // 要注意（極端値）とdanger（打ち間違いブロック）は一括チェックの対象外＝個別チェックのみ
 document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(state[it.item_id])state[it.item_id].checked=false;});render();};
 document.getElementById("approveBtn").onclick=()=>{
   const checkedAll=DATA.items.filter(it=>state[it.item_id]&&state[it.item_id].checked);
@@ -1945,7 +1957,7 @@ document.getElementById("approveBtn").onclick=()=>{
               chosen:s.choice, c_margin: s.choice==='c'? s.cpct : undefined,
               rival_item_id: rv? rv.rival_item_id : undefined,
               rival_total_usd: rv? rv.total_usd : undefined,
-              extreme_ack: it.excluded? true : undefined};});
+              extreme_ack: (it.excluded||s.bigAck)? true : undefined};});
   // 価格変更で再承認された商品は「変更なし」記録を取り消す（判断のやり直し）
   payloads.forEach(function(p){if(ncm[String(p.item_id)]){delete ncm[String(p.item_id)];ncChanged=true;}});
   if(ncChanged)paSaveNochange(ncm);
