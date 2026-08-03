@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.41</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.42</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1621,14 +1621,19 @@ window.paJumpBlocked=function(){
     for(let i=0;i<sorted.length;i++){const it=sorted[i];const st=state[it.item_id];
       if(st&&st.checked&&priceStatus(it).level==='danger'){idx=i;target=it;break;}}
     if(!target){alert('要修正の商品は見つかりませんでした（解消済みの可能性）。');updateCount();return;}
+    if(!window.PA_EXPANDED)window.PA_EXPANDED={};
+    window.PA_EXPANDED[String(target.item_id)]=true; // 1行化されていてもフルカードで開く
     const pg=Math.floor(idx/PA_PAGE_SIZE)+1;
-    if(window.paPage!==pg){window.paPage=pg;render();}
-    setTimeout(function(){
+    window.paPage=pg;render();
+    const seek=function(tries){
       const el=document.querySelector('[data-item-id="'+String(target.item_id)+'"]');
       if(el){el.scrollIntoView({behavior:'smooth',block:'center'});
         el.style.outline='3px solid #c0392b';el.style.outlineOffset='2px';
         setTimeout(function(){el.style.outline='';el.style.outlineOffset='';},4000);}
-    },150);
+      else if(tries>0){setTimeout(function(){seek(tries-1);},350);}
+      else{alert('要修正の商品：「'+String(target.title||'').slice(0,40)+'」（選んだ価格が現在価格の2倍超か半額以下です）。検索欄にタイトルを入れて探すこともできます');}
+    };
+    setTimeout(function(){seek(3);},150);
   }catch(e){}
 };
 function appliedMap(){
@@ -1664,13 +1669,17 @@ function render(){
     // ①A 軽量1行表示（承認タブ版）：対応済みゾーン（反映済み・承認済み反映待ち・変化なし）は1行に。「開く」で展開
     const apL=AP[String(it.item_id)]||null, pendL=PEND[String(it.item_id)]||null, ncL=NCA[String(it.item_id)]||null;
     if(!window.PA_EXPANDED)window.PA_EXPANDED={};
-    if((apL||pendL||ncL||isNoChangeDefault(it))&&!window.PA_EXPANDED[String(it.item_id)]){
+    // 🚫要修正（チェック済みでdanger）の商品は1行化しない：承認ブロックの原因が
+    // 1行の中に隠れて見つけられない問題への対応（2026-08-03）
+    const sChk=state[it.item_id];
+    const isBlocking=!!(sChk&&sChk.checked&&priceStatus(it).level==='danger');
+    if((apL||pendL||ncL||isNoChangeDefault(it))&&!window.PA_EXPANDED[String(it.item_id)]&&!isBlocking){
       const img=paGetImage(it.item_id);
       const stBadge=apL?`<span class="pab done">✅ 反映済み ${money(apL.price)}</span>`
         :(pendL?`<span class="pab pend">🕒 反映待ち ${money(pendL.price)}</span>`
         :(ncL?`<span class="pab nc">⏸ 変更なし承認</span>`
         :`<span class="pab nc">＝ 変化なし</span>`));
-      const d=document.createElement("div"); d.className="parow";
+      const d=document.createElement("div"); d.className="parow"; d.dataset.itemId=String(it.item_id);
       d.innerHTML=(img?`<a href="${ebayItmUrl(it.item_id)}" target="_blank" rel="noopener"><img src="${img}" loading="lazy" alt=""></a>`:'')+
         `<span class="pan" title="${it.title}">${it.title}</span>`+stBadge+
         `<button class="openbtn" onclick="expandPaCard('${String(it.item_id)}')">開く</button>`;
