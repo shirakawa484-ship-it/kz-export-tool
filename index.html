@@ -280,7 +280,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.45</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.46</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -461,7 +461,7 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
   <div class="toolbar">
     <button id="allOn">すべてチェック</button>
     <button id="allOff">すべて外す</button>
-    <span class="muted">初期＝全部チェック済み・各商品はツール推奨の案を選択。気になる商品だけ調整してください。</span>
+    <span class="muted">初期＝全部チェック済み。承認は「表示中のページ」の分だけ飛びます（他ページは開いて確認してから）。チェックボタンもこのページのみに効きます。</span>
   </div>
   <div id="paPagerTop" class="pager"></div>
   <div id="list"></div>
@@ -1655,6 +1655,14 @@ function paSorted(items){
   return a;
 }
 window.paPage=window.paPage||1; var PA_PAGE_SIZE=100;
+// 現在表示中のページの商品ID集合（承認・一括チェック・カウンタのページ限定化に使用。
+// 2026-08-04：ページを覗いただけで全件チェック扱いになり、まとめて承認が全ページ分飛ぶ事故への対応。
+// 承認＝「このページを確認した」という宣言に限定する）
+function paPageSet(){
+  const sorted=paSorted(DATA.items);
+  const slice=sorted.slice((window.paPage-1)*PA_PAGE_SIZE,window.paPage*PA_PAGE_SIZE);
+  const set={};slice.forEach(it=>{set[String(it.item_id)]=1;});return set;
+}
 // 🚫要修正の商品へジャンプ（表示順で最初の1件。ページ跨ぎ対応・赤枠ハイライト。
 // 直した後もう一度クリックすれば次の要修正へ移動できる）
 // 大きな価格変更の明示承認：打ち間違いでないことを人間が確認した記録（このセッション限り）
@@ -1906,8 +1914,12 @@ function render(){
   updateCount();
 }
 function updateCount(){
-  let sel=0,warns=0,blocked=0;
+  // ページ限定：承認・⚠️・🚫のカウントは表示中ページのみ。全体状況は右側の二段目に表示
+  const pgSet=paPageSet();
+  let sel=0,warns=0,blocked=0,selAll=0;
   DATA.items.forEach(it=>{ const s=state[it.item_id]; if(!s||!s.checked) return;
+    selAll++;
+    if(!pgSet[String(it.item_id)]) return;
     sel++; if(it.market_deviation_flag) warns++; if(priceStatus(it).level==='danger') blocked++; });
   document.getElementById("selCount").textContent=sel;
   // 🚫要修正はクリックで該当商品へジャンプできるリンクにする（2026-08-03：
@@ -1918,7 +1930,8 @@ function updateCount(){
   document.getElementById("warnCount").innerHTML=note;
   const ab=document.getElementById("approveBtn");
   ab.disabled=(sel===0||blocked>0);
-  ab.title=blocked?('要修正が'+blocked+'件あるため承認できません（手入力/ライバル指定の価格が現在価格の2倍超または半額以下＝打ち間違いブロック）。左の赤い「🚫要修正」をクリックすると該当商品へ移動します'):(sel===0?'チェック済みの商品がありません':'');
+  ab.textContent='このページの '+sel+'件をまとめて承認';
+  ab.title=blocked?('このページに要修正が'+blocked+'件あるため承認できません（手入力/ライバル指定の価格が現在価格の2倍超または半額以下）。左の赤い「🚫要修正」をクリックすると該当商品へ移動します'):(sel===0?'このページにチェック済みの商品がありません':'');
   (function(){var AP=appliedMap();var NCA2=paNochange();var PD=paPendingMap();var done=0,nc=0,pend=0,tot=0;
     DATA.items.forEach(function(it){tot++;var id=String(it.item_id);
       if(AP[id]){done++;return;}
@@ -1926,22 +1939,24 @@ function updateCount(){
       if(PD[id]&&!(s2&&s2.checked)){pend++;return;}
       if(NCA2[id]&&!(s2&&s2.checked))nc++;});
     var pc=document.getElementById('progCount');
-    if(pc)pc.textContent='　｜　反映済み '+done+(pend?'／反映待ち '+pend:'')+(nc?'／変更なし '+nc:'')+'／未処理 '+(tot-done-pend-nc-sel)+'（全'+tot+'件）';})();
+    if(pc)pc.textContent='　｜　全体：反映済み '+done+(pend?'／反映待ち '+pend:'')+(nc?'／変更なし '+nc:'')+'／未処理 '+(tot-done-pend-nc-selAll)+'（全'+tot+'件）';})();
 }
-document.getElementById("allOn").onclick=()=>{DATA.items.forEach(it=>{if(!it.excluded&&state[it.item_id]&&priceStatus(it).level!=='danger')state[it.item_id].checked=true;});render();}; // 要注意（極端値）とdanger（打ち間違いブロック）は一括チェックの対象外＝個別チェックのみ
-document.getElementById("allOff").onclick=()=>{DATA.items.forEach(it=>{if(state[it.item_id])state[it.item_id].checked=false;});render();};
+document.getElementById("allOn").onclick=()=>{const pgSet=paPageSet();DATA.items.forEach(it=>{if(pgSet[String(it.item_id)]&&!it.excluded&&state[it.item_id]&&priceStatus(it).level!=='danger')state[it.item_id].checked=true;});render();}; // このページのみ。要注意・dangerは対象外
+document.getElementById("allOff").onclick=()=>{const pgSet=paPageSet();DATA.items.forEach(it=>{if(pgSet[String(it.item_id)]&&state[it.item_id])state[it.item_id].checked=false;});render();};
 document.getElementById("approveBtn").onclick=()=>{
-  const checkedAll=DATA.items.filter(it=>state[it.item_id]&&state[it.item_id].checked);
+  const pgSet=paPageSet();
+  const checkedAll=DATA.items.filter(it=>state[it.item_id]&&state[it.item_id].checked&&pgSet[String(it.item_id)]);
+  if(checkedAll.length===0){alert('このページにチェック済みの商品がありません。他のページの承認は、そのページを開いてから行ってください。');return;}
   const keeps=checkedAll.filter(it=>state[it.item_id].choice==='n');   // 変更なし＝eBayに送らない
   const approved=checkedAll.filter(it=>state[it.item_id].choice!=='n'); // 価格変更あり＝従来どおり送信
   const warns=approved.filter(it=>it.market_deviation_flag);
   const manuals=approved.filter(it=>state[it.item_id].choice==='m');
   const extremes=approved.filter(it=>it.excluded);
   const ncNow=paNochange();
-  const notChecked=DATA.items.filter(it=>state[it.item_id]&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])&&!ncNow[String(it.item_id)]).length;
-  let msg=`チェック済みの ${checkedAll.length}件を承認します。`;
+  const notChecked=DATA.items.filter(it=>pgSet[String(it.item_id)]&&state[it.item_id]&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])&&!ncNow[String(it.item_id)]).length;
+  let msg=`${window.paPage}ページ目のチェック済み ${checkedAll.length}件を承認します（他のページには影響しません）。`;
   if(keeps.length) msg+=`\nうち変更なし ${keeps.length}件は価格を変えず処理済みにします（eBayへの反映なし）。`;
-  if(notChecked>0) msg+=`\nチェックしていない ${notChecked}件は今回の対象外（未処理のまま残ります）。`;
+  if(notChecked>0) msg+=`\nこのページでチェックしていない ${notChecked}件は今回の対象外（未処理のまま残ります）。`;
   if(extremes.length) msg+=`\n\n⚠️ 要注意（極端値）${extremes.length}件が含まれます：\n`+extremes.map(it=>`・${it.title.slice(0,30)}… ${money(it.current_price_usd)} → ${money(chosenPrice(it))}`).join('\n')+`\n大きな価格変更です。本当に反映しますか？`;
   if(warns.length) msg+=`\n\n⚠️ 注意商品 ${warns.length}件（根拠ライバルは確認しましたか？）`;
   if(manuals.length) msg+=`\n\n手入力 ${manuals.length}件は、反映前にPython側で正確に利益・赤字チェックします。`;
