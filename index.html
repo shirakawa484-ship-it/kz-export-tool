@@ -261,6 +261,17 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa details.reb summary{cursor:pointer;color:var(--accent);font-size:.84rem;}
 #tabPa .rival{display:grid;grid-template-columns:auto 44px 1fr auto;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:5px;font-size:.82rem;cursor:pointer;}
 #tabPa .rival.picked{border-color:var(--accent);background:#eef3ff;}
+#tabPa .rival.banded{opacity:.55;background:#f7f7f8;}
+#tabPa .rival.banded.picked{opacity:1;border-color:var(--accent);background:#eef3ff;}
+#tabPa .rival .bandtag{font-size:.68rem;color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:1px 5px;margin-left:4px;white-space:nowrap;}
+#tabPa .bandallnote{margin:6px 0;padding:7px 10px;border:1px solid #ecd9ae;background:#fdf6e6;border-radius:7px;font-size:.8rem;color:#7a5200;}
+#tabPa .rkwrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;padding:7px 9px;border:1px dashed var(--line);border-radius:7px;background:#fafbfc;font-size:.82rem;}
+#tabPa .rkwrow input{flex:1;min-width:180px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.82rem;}
+#tabPa .rkwrow .rkwbadge{font-size:.68rem;border-radius:5px;padding:1px 6px;white-space:nowrap;}
+#tabPa .rkwrow .rkwbadge.man{color:#1d5c2f;background:#e8f5ec;border:1px solid #bfe0c9;}
+#tabPa .rkwrow .rkwbadge.auto{color:#555;background:#f0f1f3;border:1px solid #dcdee2;}
+#tabPa .rkwrow .rkwbadge.dirty{color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;}
+#tabPa .rkwrow .rkwnote{width:100%;font-size:.72rem;color:var(--sub);}
 #tabPa .rival img{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);background:#f2f3f5;}
 #tabPa .rival .noimg{width:44px;height:44px;border-radius:5px;border:1px dashed var(--line);background:#f7f8fa;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--sub);}
 #tabPa .rival .rt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -280,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.46</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.47</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1343,6 +1354,12 @@ function exportCosts(){
     return;
   }
   var out={exported_at:new Date().toISOString(),source:'inventory_tool_v2',items:{}};
+  // ▼ ライバル検索KWの編集を同乗（v1.9.47）：承認タブで編集した分のみ。
+  //   items[id].rival_query（既存エントリに同乗）＋ トップレベル rival_queries（仕入れ候補なし商品もカバーする上位互換）
+  //   q="" は「明示クリア＝自動生成に戻す」。Python(step8_1)は rival_queries を優先して読む
+  var _rkw=(typeof rkwMap==='function')?rkwMap():{};
+  var _rkwIds=Object.keys(_rkw);
+  if(_rkwIds.length){out.rival_queries={};_rkwIds.forEach(function(id){out.rival_queries[id]=_rkw[id].q;});}
   var n=0, skipped=[];
   ITEMS.forEach(function(it,i){
     var arr=supplies[i]||[];
@@ -1351,7 +1368,8 @@ function exportCosts(){
     var w=resolveWeight(it);
     out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
       weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
-      ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined)};
+      ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined),
+      rival_query:(_rkw[String(it.id)]!==undefined?_rkw[String(it.id)].q:undefined)};
     if(stockType(it)!=='out')markTouchedId(it.id); // 保存＝候補ありは全部メンテ済み扱い。ただし在庫切れは個別に編集した時だけ（古い候補だけで自動的に沈むと補充漏れを隠すため）
     n++;
   });
@@ -1596,6 +1614,12 @@ window.paSortMode=(function(){try{return localStorage.getItem('pa_sort_v1')||'re
 function expandPaCard(id){window.PA_EXPANDED=window.PA_EXPANDED||{};window.PA_EXPANDED[id]=1;render();}
 // ▼ 承認の送信箱（outbox）：未反映の承認を溜め、保存のたびに全部まとめて書き出す（上書きで過去の承認が消える問題の根治）
 // {item_id:{at,price,payload}}。反映済み→自動削除／却下→pa_rejected_v1へ移動／72時間で失効（最終安全網）
+// ▼ ライバル検索KWの編集（v1.9.47）：承認タブで編集→ここに保持→在庫メンテの「仕入れ値書き出し」に同乗してM列へ（step8_1一方向同期）
+//   値が空文字("")のレコード＝「明示クリア」（自動生成に戻す指示）。レコード無し＝未編集（シートに触らない）
+function rkwMap(){try{return JSON.parse(localStorage.getItem('ss_rivalkw_v1')||'{}');}catch(e){return {};}}
+function rkwSave(m){return (window.ssSafeSet||function(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}})('ss_rivalkw_v1',JSON.stringify(m));}
+function rkwSet(id,q){var m=rkwMap();m[String(id)]={q:String(q),at:new Date().toISOString()};rkwSave(m);}
+function rkwDel(id){var m=rkwMap();if(m[String(id)]){delete m[String(id)];rkwSave(m);}}
 function paOutbox(){try{return JSON.parse(localStorage.getItem('pa_outbox_v1')||'{}');}catch(e){return {};}}
 function paSaveOutbox(m){try{localStorage.setItem('pa_outbox_v1',JSON.stringify(m));}catch(e){}}
 function paRejected(){try{return JSON.parse(localStorage.getItem('pa_rejected_v1')||'{}');}catch(e){return {};}}
@@ -1858,6 +1882,22 @@ function render(){
         <div class="row-actions">${it.reference_listing_url?`<a href="${it.reference_listing_url}" target="_blank" rel="noopener">根拠にしたライバルを見る ↗</a>`:""}<a href="https://www.ebay.com/sh/research?marketplace=EBAY-US&keywords=${encodeURIComponent(it.title||"")}&dayRange=90&tabName=SOLD" target="_blank" rel="noopener" style="margin-left:12px">テラピークで確認 ↗</a></div>
         <details class="reb" ${s.choice==='r'||s.rivalGone?'open':''}><summary>ライバルを選び直す${s.choice==='r'?'（指定中）':''}${isExtreme?'（要注意商品：ライバルの実物確認はここから）':''}</summary>
           <div class="ph">「この商品と同じ」ライバルを選ぶと、その総額の $${UNDERCUT.toFixed(2)} 下を価格候補にします。利益は反映前にPython側で正確に計算します。選んだ基準は記録され次回に活かされます。</div>
+          ${(function(){
+            const rk=rkwMap()[String(it.item_id)]||null;
+            const src=it.rival_query_source||'auto';
+            const used=it.rival_query_used||'';
+            const val=rk?rk.q:(src==='manual'?used:'');
+            const ph=(src==='auto'&&used)?('自動生成中：'+used):'空欄＝タイトルから自動生成';
+            const badge=rk?'<span class="rkwbadge dirty">編集済み・未保存</span>':(src==='manual'?'<span class="rkwbadge man">手動（シート）</span>':'<span class="rkwbadge auto">自動生成</span>');
+            return `<div class="rkwrow"><span>ライバル検索KW</span><input type="text" value="${esc(val)}" placeholder="${esc(ph)}" data-rkw="${it.item_id}">${badge}
+              <span class="rkwnote">変更は在庫メンテタブの「仕入れ値・重量を書き出し」で保存され、次回の計画生成から使われます。空欄に戻して保存すると自動生成に戻ります。</span></div>`;
+          })()}
+          ${(function(){
+            if(!it.band_all_excluded)return '';
+            const n=(it.rivals||[]).length;
+            if(n===0)return `<div class="bandallnote">ℹ️ ライバルが見つかりませんでした（検索0件）。検索KWを変えると見つかる場合があります。</div>`;
+            return `<div class="bandallnote">⚠️ 価格帯フィルタで全${n}件が範囲外だったため、フィルタ無効で全件表示しています。基準額自体がズレている可能性があります（正しいライバルを選ぶと次回から改善されます）。</div>`;
+          })()}
           <label class="rauto ${s.choice!=='r'?'picked':''}">
             <input type="radio" name="rv-${it.item_id}" data-rauto="${it.item_id}" ${s.choice!=='r'?'checked':''}>
             自動（ツールのロジックに任せる：A/B/C案・手入力）
@@ -1865,11 +1905,13 @@ function render(){
           ${(it.rivals||[]).map(r=>{
             const canPick=!!r.rival_item_id;
             const on=(s.choice==='r'&&s.rival===r.rival_item_id);
-            return `<label class="rival ${on?'picked':''}">
+            const bx=!!r.band_excluded;
+            const bandTip=bx&&it.band_center_usd!=null?`基準${money(it.band_center_usd)}の${it.band_low_ratio!=null?it.band_low_ratio:0.5}〜${it.band_high_ratio!=null?it.band_high_ratio:2.0}倍（${money(it.band_low_usd)}〜${money(it.band_high_usd)}）の範囲外のため、別商品の可能性が高く候補・統計から除外中。選ぶと基準として復活します`:(bx?'価格帯の範囲外のため候補・統計から除外中。選ぶと基準として復活します':'');
+            return `<label class="rival ${on?'picked':''} ${bx?'banded':''}" ${bandTip?`title="${esc(bandTip)}"`:''}>
               <input type="radio" name="rv-${it.item_id}" data-rpick="${it.item_id}" data-rid="${r.rival_item_id||''}" ${on?'checked':''} ${canPick?'':'disabled'}>
               ${r.image_url?`<img src="${r.image_url}" loading="lazy" alt="">`:`<div class="noimg">画像なし</div>`}
-              <span class="rt">${r.title}<small>${r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外')}${canPick?'':'／ID無しのため指定不可'}</small></span>
-              <span><a href="${r.url}" target="_blank" rel="noopener" data-stop="1">${money(r.total_usd)}</a></span>
+              <span class="rt">${r.title}<small>${bx?'⛔ 価格帯の範囲外（別商品の可能性）':(r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外'))}${canPick?'':'／ID無しのため指定不可'}</small></span>
+              <span>${bx?'<span class="bandtag">範囲外</span>':''}<a href="${r.url}" target="_blank" rel="noopener" data-stop="1">${money(r.total_usd)}</a></span>
             </label>`;}).join("")}
           ${s.rivalGone?`<div class="rgone">⚠️ 前回の基準ライバルは今回見つかりませんでした（売り切れ・出品終了の可能性）。通常ロジックに戻しています。</div>`:""}
         </details>
@@ -1899,6 +1941,18 @@ function render(){
       const v=parseFloat(e.target.value); state[id].manual=isNaN(v)?null:v; render();
       const again=document.querySelector(`input[data-manual="${id}"]`);
       if(again){again.focus(); const val=again.value; again.value=''; again.value=val;}
+    };
+  });
+  document.querySelectorAll('input[data-rkw]').forEach(inp=>{
+    // 入力のたびにrender()すると入力欄が作り直されフォーカスが飛ぶため、保存とバッジ更新のみ行う
+    inp.oninput=e=>{ const id=e.target.dataset.rkw; const it=DATA.items.find(x=>String(x.item_id)===String(id));
+      const v=e.target.value;
+      const src=(it&&it.rival_query_source)||'auto'; const used=(it&&it.rival_query_used)||'';
+      const baseline=(src==='manual')?used:'';
+      if(v===baseline){ rkwDel(id); } else { rkwSet(id,v.trim()); }
+      const badge=e.target.parentElement.querySelector('.rkwbadge');
+      if(badge){ if(v===baseline){ badge.className='rkwbadge '+(src==='manual'?'man':'auto'); badge.textContent=(src==='manual'?'手動（シート）':'自動生成'); }
+        else { badge.className='rkwbadge dirty'; badge.textContent='編集済み・未保存'; } }
     };
   });
   document.querySelectorAll('input[data-rpick]').forEach(rd=>{
@@ -2022,6 +2076,13 @@ function paGetImage(id){
 }
 function paApply(obj,fname,loadedAt){
   DATA=obj; for(const k in state) delete state[k];
+  // ▼ KW編集の自動クリーンアップ（v1.9.47）：新しい計画に編集内容が反映済みなら記録を消す
+  //   （消さないと次のcosts書き出しで毎回同送され続け、シート側の手修正を上書きする恐れがある）
+  try{var _m=rkwMap();var _ch=false;
+    (obj.items||[]).forEach(function(pit){var r=_m[String(pit.item_id)];if(!r)return;
+      var src=pit.rival_query_source||'auto', used=pit.rival_query_used||'';
+      if((r.q===''&&src==='auto')||(r.q!==''&&src==='manual'&&used===r.q)){delete _m[String(pit.item_id)];_ch=true;}});
+    if(_ch)rkwSave(_m);}catch(e){}
   var age=(Date.now()-new Date(loadedAt).getTime())/3600000;
   var note="計画ファイル："+(fname||"")+"（"+new Date(loadedAt).toLocaleString("ja-JP")+" 読み込み）";
   if(age>24) note+=" ⚠️ 24時間以上前の計画です。作り直しを推奨";
