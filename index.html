@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.48</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.49</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1928,12 +1928,18 @@ function render(){
             const canPick=!!r.rival_item_id;
             const on=(s.choice==='r'&&s.rival===r.rival_item_id);
             const bx=!!r.band_excluded;
-            const bandTip=bx&&it.band_center_usd!=null?`基準${money(it.band_center_usd)}の${it.band_low_ratio!=null?it.band_low_ratio:0.5}〜${it.band_high_ratio!=null?it.band_high_ratio:2.0}倍（${money(it.band_low_usd)}〜${money(it.band_high_usd)}）の範囲外のため、別商品の可能性が高く候補・統計から除外中。選ぶと基準として復活します`:(bx?'価格帯の範囲外のため候補・統計から除外中。選ぶと基準として復活します':'');
-            return `<label class="rival ${on?'picked':''} ${bx?'banded':''}" ${bandTip?`title="${esc(bandTip)}"`:''}>
+            const dx=(r.same_item==='different');
+            const sm=(r.same_item==='same');
+            const srcName={partnum:'型番判定',cache_human:'過去のあなたの選択',cache_partnum:'判定キャッシュ'}[r.same_item_source]||'自動判定';
+            const bandTip=bx&&it.band_center_usd!=null?`基準${money(it.band_center_usd)}の${it.band_low_ratio!=null?it.band_low_ratio:0.5}〜${it.band_high_ratio!=null?it.band_high_ratio:2.0}倍（${money(it.band_low_usd)}〜${money(it.band_high_usd)}）の範囲外`:(bx?'価格帯の範囲外':'');
+            const diffTip=dx?`${srcName}で別商品（型番・グレード不一致）と判定`:'';
+            const tip=(dx||bx)?[diffTip,bandTip].filter(Boolean).join('、かつ')+'のため候補・統計から除外中。選ぶと同一品として復活し、以後の自動判定に学習されます':(sm?`${srcName}で同一品と確認済み`:'');
+            const small=dx?('⛔ 別商品（'+srcName+'）'+(bx?'／価格帯も範囲外':'')):(bx?'⛔ 価格帯の範囲外（別商品の可能性）':(r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外')));
+            return `<label class="rival ${on?'picked':''} ${(bx||dx)?'banded':''}" ${tip?`title="${esc(tip)}"`:''}>
               <input type="radio" name="rv-${it.item_id}" data-rpick="${it.item_id}" data-rid="${r.rival_item_id||''}" ${on?'checked':''} ${canPick?'':'disabled'}>
               ${r.image_url?`<img src="${r.image_url}" loading="lazy" alt="">`:`<div class="noimg">画像なし</div>`}
-              <span class="rt">${r.title}<small>${bx?'⛔ 価格帯の範囲外（別商品の可能性）':(r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外'))}${canPick?'':'／ID無しのため指定不可'}</small></span>
-              <span>${bx?'<span class="bandtag">範囲外</span>':''}<a href="${r.url}" target="_blank" rel="noopener" data-stop="1">${money(r.total_usd)}</a></span>
+              <span class="rt">${r.title}<small>${sm?'🔗同一品確認済み ':''}${small}${canPick?'':'／ID無しのため指定不可'}</small></span>
+              <span>${dx?'<span class="bandtag">別商品</span>':''}${bx?'<span class="bandtag">範囲外</span>':''}<a href="${r.url}" target="_blank" rel="noopener" data-stop="1">${money(r.total_usd)}</a></span>
             </label>`;}).join("")}
           ${s.rivalGone?`<div class="rgone">⚠️ 前回の基準ライバルは今回見つかりませんでした（売り切れ・出品終了の可能性）。通常ロジックに戻しています。</div>`:""}
         </details>
