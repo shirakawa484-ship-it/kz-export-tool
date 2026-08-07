@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.47</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.48</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -470,9 +470,10 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
     </select>
   </div>
   <div class="toolbar">
+    <input type="text" id="paSearch" placeholder="🔍 商品名・eBay IDで絞り込み" style="flex:1;min-width:200px;max-width:360px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:.85rem;">
     <button id="allOn">すべてチェック</button>
     <button id="allOff">すべて外す</button>
-    <span class="muted">初期＝全部チェック済み。承認は「表示中のページ」の分だけ飛びます（他ページは開いて確認してから）。チェックボタンもこのページのみに効きます。</span>
+    <span class="muted">初期＝全部チェック済み。承認は「表示中のページ」の分だけ飛びます（他ページは開いて確認してから）。チェックボタンもこのページのみに効きます。絞り込み中は絞り込み結果が対象です。</span>
   </div>
   <div id="paPagerTop" class="pager"></div>
   <div id="list"></div>
@@ -1679,11 +1680,21 @@ function paSorted(items){
   return a;
 }
 window.paPage=window.paPage||1; var PA_PAGE_SIZE=100;
+// ▼ 承認タブの絞り込み検索（v1.9.48）：商品名・eBay IDの部分一致。
+//   ページ限定承認との整合：絞り込み中は「絞り込み結果の表示ページ」が承認・一括チェックの対象範囲になる
+//   （＝画面に見えているものだけが対象、という不変条件はそのまま）
+window.paQuery=window.paQuery||'';
+function paFiltered(items){
+  const sorted=paSorted(items);
+  if(!window.paQuery)return sorted;
+  const q=window.paQuery.toLowerCase();
+  return sorted.filter(it=>String(it.item_id).indexOf(q)>=0||String(it.title||'').toLowerCase().indexOf(q)>=0);
+}
 // 現在表示中のページの商品ID集合（承認・一括チェック・カウンタのページ限定化に使用。
 // 2026-08-04：ページを覗いただけで全件チェック扱いになり、まとめて承認が全ページ分飛ぶ事故への対応。
 // 承認＝「このページを確認した」という宣言に限定する）
 function paPageSet(){
-  const sorted=paSorted(DATA.items);
+  const sorted=paFiltered(DATA.items);
   const slice=sorted.slice((window.paPage-1)*PA_PAGE_SIZE,window.paPage*PA_PAGE_SIZE);
   const set={};slice.forEach(it=>{set[String(it.item_id)]=1;});return set;
 }
@@ -1693,10 +1704,18 @@ function paPageSet(){
 window.paAckBig=function(id){if(state[id]){state[id].bigAck=true;render();}};
 window.paJumpBlocked=function(){
   try{
-    const sorted=paSorted(DATA.items);
+    let sorted=paFiltered(DATA.items);
     let idx=-1,target=null;
     for(let i=0;i<sorted.length;i++){const it=sorted[i];const st=state[it.item_id];
       if(st&&st.checked&&priceStatus(it).level==='danger'){idx=i;target=it;break;}}
+    // 絞り込みで隠れている可能性：全体から探し直し、見つかれば絞り込みを解除してジャンプ
+    if(!target&&window.paQuery){
+      const all=paSorted(DATA.items);
+      for(let i=0;i<all.length;i++){const it=all[i];const st=state[it.item_id];
+        if(st&&st.checked&&priceStatus(it).level==='danger'){
+          window.paQuery='';const si=document.getElementById('paSearch');if(si)si.value='';
+          sorted=all;idx=i;target=it;break;}}
+    }
     if(!target){alert('要修正の商品は見つかりませんでした（解消済みの可能性）。');updateCount();return;}
     if(!window.PA_EXPANDED)window.PA_EXPANDED={};
     window.PA_EXPANDED[String(target.item_id)]=true; // 1行化されていてもフルカードで開く
@@ -1735,10 +1754,13 @@ function renderPager(total,pages){
 }
 function render(){
   const list=document.getElementById("list"); list.innerHTML="";
-  const sorted=paSorted(DATA.items);
+  const sorted=paFiltered(DATA.items);
   const pages=Math.max(1,Math.ceil(sorted.length/PA_PAGE_SIZE));
   if(window.paPage>pages)window.paPage=pages;
   renderPager(sorted.length,pages);
+  if(window.paQuery&&sorted.length===0){
+    list.innerHTML='<div class="muted" style="padding:16px">「'+String(window.paQuery).replace(/</g,'&lt;')+'」に一致する商品がありません。</div>';
+  }
   const AP=appliedMap();
   const NCA=paNochange();
   const PEND=paPendingMap();
@@ -1886,11 +1908,11 @@ function render(){
             const rk=rkwMap()[String(it.item_id)]||null;
             const src=it.rival_query_source||'auto';
             const used=it.rival_query_used||'';
-            const val=rk?rk.q:(src==='manual'?used:'');
-            const ph=(src==='auto'&&used)?('自動生成中：'+used):'空欄＝タイトルから自動生成';
+            const val=rk?rk.q:used; // 自動生成値も実テキストで表示＝そのまま編集できる
+            const ph=used?'':'検索キーワードを入力（空欄＝タイトルから自動生成）';
             const badge=rk?'<span class="rkwbadge dirty">編集済み・未保存</span>':(src==='manual'?'<span class="rkwbadge man">手動（シート）</span>':'<span class="rkwbadge auto">自動生成</span>');
             return `<div class="rkwrow"><span>ライバル検索KW</span><input type="text" value="${esc(val)}" placeholder="${esc(ph)}" data-rkw="${it.item_id}">${badge}
-              <span class="rkwnote">変更は在庫メンテタブの「仕入れ値・重量を書き出し」で保存され、次回の計画生成から使われます。空欄に戻して保存すると自動生成に戻ります。</span></div>`;
+              <span class="rkwnote">自動生成の値（現状＝商品タイトル）をそのまま直せます。編集すると手動KWとして扱われ、在庫メンテタブの「仕入れ値・重量を書き出し」で保存→次回の計画生成から使われます。全部消して保存すると自動生成に戻ります。</span></div>`;
           })()}
           ${(function(){
             if(!it.band_all_excluded)return '';
@@ -1948,10 +1970,11 @@ function render(){
     inp.oninput=e=>{ const id=e.target.dataset.rkw; const it=DATA.items.find(x=>String(x.item_id)===String(id));
       const v=e.target.value;
       const src=(it&&it.rival_query_source)||'auto'; const used=(it&&it.rival_query_used)||'';
-      const baseline=(src==='manual')?used:'';
-      if(v===baseline){ rkwDel(id); } else { rkwSet(id,v.trim()); }
+      // 未編集とみなす値：手動→シート値そのもの／自動→自動生成値そのもの or 空（どちらもM列空＝自動のまま）
+      const isBaseline=(src==='manual')?(v===used):(v===used||v==='');
+      if(isBaseline){ rkwDel(id); } else { rkwSet(id,v.trim()); }
       const badge=e.target.parentElement.querySelector('.rkwbadge');
-      if(badge){ if(v===baseline){ badge.className='rkwbadge '+(src==='manual'?'man':'auto'); badge.textContent=(src==='manual'?'手動（シート）':'自動生成'); }
+      if(badge){ if(isBaseline){ badge.className='rkwbadge '+(src==='manual'?'man':'auto'); badge.textContent=(src==='manual'?'手動（シート）':'自動生成'); }
         else { badge.className='rkwbadge dirty'; badge.textContent='編集済み・未保存'; } }
     };
   });
@@ -1995,6 +2018,9 @@ function updateCount(){
     var pc=document.getElementById('progCount');
     if(pc)pc.textContent='　｜　全体：反映済み '+done+(pend?'／反映待ち '+pend:'')+(nc?'／変更なし '+nc:'')+'／未処理 '+(tot-done-pend-nc-selAll)+'（全'+tot+'件）';})();
 }
+(function(){var si=document.getElementById('paSearch');if(!si)return;
+  si.oninput=function(){clearTimeout(window.__paQT);var v=(si.value||'').trim();
+    window.__paQT=setTimeout(function(){window.paQuery=v;window.paPage=1;if(DATA&&DATA.items)render();},200);};})();
 document.getElementById("allOn").onclick=()=>{const pgSet=paPageSet();DATA.items.forEach(it=>{if(pgSet[String(it.item_id)]&&!it.excluded&&state[it.item_id]&&priceStatus(it).level!=='danger')state[it.item_id].checked=true;});render();}; // このページのみ。要注意・dangerは対象外
 document.getElementById("allOff").onclick=()=>{const pgSet=paPageSet();DATA.items.forEach(it=>{if(pgSet[String(it.item_id)]&&state[it.item_id])state[it.item_id].checked=false;});render();};
 document.getElementById("approveBtn").onclick=()=>{
@@ -2008,7 +2034,7 @@ document.getElementById("approveBtn").onclick=()=>{
   const extremes=approved.filter(it=>it.excluded);
   const ncNow=paNochange();
   const notChecked=DATA.items.filter(it=>pgSet[String(it.item_id)]&&state[it.item_id]&&!state[it.item_id].checked&&!(appliedMap()[String(it.item_id)])&&!ncNow[String(it.item_id)]).length;
-  let msg=`${window.paPage}ページ目のチェック済み ${checkedAll.length}件を承認します（他のページには影響しません）。`;
+  let msg=(window.paQuery?`絞り込み「${window.paQuery}」の表示中ページのチェック済み ${checkedAll.length}件を承認します（絞り込み外・他ページには影響しません）。`:`${window.paPage}ページ目のチェック済み ${checkedAll.length}件を承認します（他のページには影響しません）。`);
   if(keeps.length) msg+=`\nうち変更なし ${keeps.length}件は価格を変えず処理済みにします（eBayへの反映なし）。`;
   if(notChecked>0) msg+=`\nこのページでチェックしていない ${notChecked}件は今回の対象外（未処理のまま残ります）。`;
   if(extremes.length) msg+=`\n\n⚠️ 要注意（極端値）${extremes.length}件が含まれます：\n`+extremes.map(it=>`・${it.title.slice(0,30)}… ${money(it.current_price_usd)} → ${money(chosenPrice(it))}`).join('\n')+`\n大きな価格変更です。本当に反映しますか？`;
