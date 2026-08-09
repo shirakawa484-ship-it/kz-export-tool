@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.50</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.51</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1377,7 +1377,12 @@ function exportCosts(){
     out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
       weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
       ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined),
-      rival_query:(_rkw[String(it.id)]!==undefined?_rkw[String(it.id)].q:undefined)};
+      rival_query:(_rkw[String(it.id)]!==undefined?_rkw[String(it.id)].q:undefined),
+      // ▼ 補充意思フラグ（v1.9.51）：eBay数量が0の商品を人間がこのツールで在庫メンテ（仕入れ候補を編集）した
+      //   ＝補充完了の宣言。Python側はこれを見てeBay数量を0→1に自動復帰させる。
+      //   古い仕入れ候補が残っているだけの商品を誤復活させないため、編集済みフラグ（isTouchedId）を必須条件にする。
+      //   数量が取れない旧データ（null）の場合のみシートH列の在庫なし判定で代用。eBay残ありの商品には立てない
+      restock_intent:(((it.ebay_quantity_available===0)||(it.ebay_quantity_available==null&&String(it.stock||'').indexOf('なし')>=0))&&isTouchedId(it.id)&&mn!=null)?true:undefined};
     if(stockType(it)!=='out')markTouchedId(it.id); // 保存＝候補ありは全部メンテ済み扱い。ただし在庫切れは個別に編集した時だけ（古い候補だけで自動的に沈むと補充漏れを隠すため）
     n++;
   });
