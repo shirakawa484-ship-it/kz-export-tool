@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.49</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.50</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -947,7 +947,14 @@ function stockType(it){
   // 価格メンテはPython側で継続中なのに在庫切れセクションに残り続ける表示ギャップの解消。
   // 生のit.stockは温存しているので、手入力原価を消せば元の判定に戻る）
   if(it.manual_cost_override)return 'in';
+  // eBayに実在庫があれば「在庫切れ（補充が必要）」から外す（2026-08-09 A案：
+  // シートH列は仕入れ元の在庫しか見ておらず、eBayへの手動補充が検知されない構造だった。
+  // eBay実在庫はGetMyeBaySellingのQuantityAvailable由来。H列は温存し、表示側で「仕入れ元切れ」バッジを出す）
+  if(it.ebay_quantity_available!=null&&it.ebay_quantity_available>0)return 'in';
   var s=it.stock||'';if(s.indexOf('なし')>=0)return 'out';if(s.indexOf('エラー')>=0||s.indexOf('ｴﾗｰ')>=0)return 'err';if(s.indexOf('あり')>=0)return 'in';return 'err';}
+// 「eBayには在庫があるが仕入れ元が切れている」商品の判定（バッジ表示用）
+function isSourceDead(it){
+  return !it.manual_cost_override&&it.ebay_quantity_available!=null&&it.ebay_quantity_available>0&&String(it.stock||'').indexOf('なし')>=0;}
 
 function loadJSON(k){try{return JSON.parse(localStorage.getItem(k)||'{}');}catch(e){return {};}}
 var DIRTY=false;
@@ -1020,7 +1027,7 @@ function cardHtml(it,idx){
       return '<span class="mbadge" title="ライバルの'+(m.pct||'?')+'%が損益分岐点を下回っています。仕入れ相場下落の可能性">⚠️売価メンテ'+d+'</span>';
     })()+(sortMode==='mainte'&&mainteInfo(it).suspect
       ?(isPMainted(it)?'<span class="maintedbadge" title="この計画の警告後に仕入れ値を編集済み。次回の計画再生成に反映されます（警告が残れば再浮上します）">売価メンテ済み</span>':'')
-      :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':(isTouchedId(it.id)?'<span class="maintedbadge" title="編集済み。保存ボタンで確定されます">メンテ済み（保存待ち）</span>':'')))+(it.manual_cost_override?'<span class="maintedbadge" title="仕入れ元URLの在庫判定は「なし」ですが、手入力原価で価格メンテを継続中のため在庫あり扱いにしています">手入力原価</span>':'')+'</div>'+
+      :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':(isTouchedId(it.id)?'<span class="maintedbadge" title="編集済み。保存ボタンで確定されます">メンテ済み（保存待ち）</span>':'')))+(it.manual_cost_override?'<span class="maintedbadge" title="仕入れ元URLの在庫判定は「なし」ですが、手入力原価で価格メンテを継続中のため在庫あり扱いにしています">手入力原価</span>':'')+(isSourceDead(it)?'<span class="maintedbadge" style="background:#fdf3e0;color:#8a5b00;border-color:#ecd9ae" title="eBayには実在庫（残'+it.ebay_quantity_available+'個）があるため在庫あり扱いですが、登録済みの仕入れ元は在庫切れです。売れたら次の補充先がない状態なので、余裕のある時に仕入れ元の追加を検討してください">仕入れ元切れ（eBay残'+it.ebay_quantity_available+'）</span>':'')+'</div>'+
     '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
     (isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':(stockType(it)==='out'?'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>':'<button class="endbtn subtle" onclick="endListing('+idx+')" title="この商品の扱いをやめる：eBayの出品を終了し、スプシの行も削除します（取り消し不可）">終了…</button>'))+'</div>'+
@@ -1499,7 +1506,7 @@ function invImportCosts(data){
   return '仕入れ候補を取り込みました（'+hit+'商品）'+(miss?'。在庫一覧に無い'+miss+'商品分は未反映':'');
 }
 function invLoadInventory(data){
-  var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, current_price_usd:(r.current_price_usd!=null?r.current_price_usd:null), days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null, manual_cost_override:!!r.manual_cost_override};});
+  var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, current_price_usd:(r.current_price_usd!=null?r.current_price_usd:null), days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null, manual_cost_override:!!r.manual_cost_override, ebay_quantity_available:(r.ebay_quantity_available!=null?Number(r.ebay_quantity_available):null)};});
   if(!ni.length){alert('在庫データが空です');return;}
   ITEMS=ni;supplies={};dests={};duties={};keywords={};addUrls={};
   // メンテ中の商品は同期を跨いで維持する（2026-07-29：同期のたびにactiveIdxが消え、
