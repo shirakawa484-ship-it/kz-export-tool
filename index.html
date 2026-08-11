@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.53</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.54</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -481,6 +481,14 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
   <div id="paPagerBottom" class="pager"></div>
 </div>
 
+<div class="footer"><div class="footer-inner">
+  <div class="count">チェック済み <b id="selCount">0</b> 件<span class="muted" id="warnCount"></span><span class="muted" id="progCount"></span></div>
+  <button class="approve" id="approveBtn">選んだ商品をまとめて承認</button>
+</div></div>
+
+
+</div>
+
 <div id="tabRe" style="display:none">
   <div class="note" style="background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.85rem">
     リサーチ：監視セラーを登録すると毎日自動で巡回し、$100以上の出品を候補として蓄積します（新規出品・消えた出品を検出）。候補の検証→仕入れ→出品は次の段階で追加予定。
@@ -513,13 +521,7 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
   <div style="text-align:center;margin:10px 0"><button class="btn" id="reMoreBtn" onclick="reShowMore()" style="display:none">さらに表示</button></div>
 </div>
 
-<div class="footer"><div class="footer-inner">
-  <div class="count">チェック済み <b id="selCount">0</b> 件<span class="muted" id="warnCount"></span><span class="muted" id="progCount"></span></div>
-  <button class="approve" id="approveBtn">選んだ商品をまとめて承認</button>
-</div></div>
 
-
-</div>
 <script>
 
 var ITEMS = [{"name": "ZEHAHAHAHAHA TEACH R Parallel OP16-116 ONE PIECE The Time of Battle Japanese", "id": "358713488131", "urls": ["https://jp.mercari.com/item/m23915787484", "https://jp.mercari.com/item/m52270915722", "https://jp.mercari.com/item/m28425300480", "https://jp.mercari.com/item/m79994546683", "https://jp.mercari.com/item/m58831867045"], "stock": "在庫あり", "method": "OR"}, {"name": "Portgas D Ace ST15-005 SP SR The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358713510134", "urls": ["https://jp.mercari.com/item/m59728095255"], "stock": "在庫なし", "method": "OR"}, {"name": "Tashigi R-SPC OP14-029 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358713546726", "urls": ["https://jp.mercari.com/item/m54366159059", "https://jp.mercari.com/item/m48588187869"], "stock": "在庫なし", "method": "OR"}, {"name": "Boa Hancock SR-P OP16-032 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358716076492", "urls": [], "stock": "エラー：フリマサイトURLが1つも入力されていません", "method": "OR"}, {"name": "ONE PIECE Card Game Monkey D Luffy leader The Time of Battle OP16 japanese", "id": "358716089832", "urls": ["https://jp.mercari.com/item/m36550973387", "https://jp.mercari.com/item/m73810046382", "https://jp.mercari.com/item/m91737221694"], "stock": "在庫あり", "method": "OR"}, {"name": "Monkey D Luffy SR-P OP16-015 The Time Of Battle ONE PIECE Card Japanese 2026", "id": "358716115938", "urls": ["https://jp.mercari.com/item/m66154102657", "https://jp.mercari.com/item/m20067251799", "https://jp.mercari.com/item/m94168091379"], "stock": "在庫あり", "method": "OR"}, {"name": "Prisoner of Impel Down OP16-042 TR R The Time Of Battle ONE PIECE Card Japanese", "id": "358716120651", "urls": [], "stock": "エラー：フリマサイトURLが1つも入力されていません", "method": "OR"}, {"name": "One Piece Card Vinsmoke Reiju OP06-042 L Parallel Japanese Leader EB02 Gold", "id": "358716125423", "urls": ["https://jp.mercari.com/item/m90303982651", "https://jp.mercari.com/item/m31054169190"], "stock": "在庫あり", "method": "OR"}];
