@@ -291,10 +291,11 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.52</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.53</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
+    <button class="tabbtn" id="btnRe" onclick="showMainTab('re')">リサーチ <span id="reBadge" style="display:none">0</span></button>
   </div>
   <div class="loadwrap">
     <button class="tabbtn" id="autoConnBtn" onclick="connectAuto()" style="font-weight:400">📁 autoフォルダに接続</button>
@@ -478,6 +479,38 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
   <div id="paPagerTop" class="pager"></div>
   <div id="list"></div>
   <div id="paPagerBottom" class="pager"></div>
+</div>
+
+<div id="tabRe" style="display:none">
+  <div class="note" style="background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.85rem">
+    リサーチ：監視セラーを登録すると毎日自動で巡回し、$100以上の出品を候補として蓄積します（新規出品・消えた出品を検出）。候補の検証→仕入れ→出品は次の段階で追加予定。
+  </div>
+  <details class="box" style="border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin:8px 0" open>
+    <summary style="cursor:pointer;font-weight:700">監視セラー <span id="reSellerCount" class="muted"></span></summary>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
+      <input type="text" id="reNewSeller" placeholder="eBayユーザー名（/usr/ の後ろ）" style="padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:.85rem;min-width:220px">
+      <input type="text" id="reNewMemo" placeholder="メモ（任意：得意ジャンルなど）" style="padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:.85rem;min-width:200px">
+      <button class="btn" onclick="reAddSeller()">追加</button>
+      <span class="muted" style="font-size:.75rem">※ストア表示名ではなくユーザー名。セラーページURLの https://www.ebay.com/usr/ の後ろの文字列です</span>
+    </div>
+    <div id="reSellerList"></div>
+    <div style="margin-top:8px"><button class="btn" onclick="reSaveSellers()" id="reSaveBtn">セラー登録を保存（次回巡回から反映）</button><span id="reSaveMsg" class="muted" style="margin-left:8px;font-size:.8rem"></span></div>
+  </details>
+  <div class="toolbar" style="margin:10px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input type="text" id="reSearch" placeholder="🔍 候補を絞り込み" style="padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:.85rem;min-width:200px">
+    <label style="font-size:.8rem"><input type="checkbox" id="reHideListed" checked> 出品済みを隠す</label>
+    <label style="font-size:.8rem"><input type="checkbox" id="reHideDismissed" checked> 見送りを隠す</label>
+    <select id="reSourceFilter" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:.82rem">
+      <option value="">出典すべて</option>
+      <option value="new_listing">新規出品</option>
+      <option value="possible_sold">売れた可能性</option>
+      <option value="sold_confirmed">Sold確定</option>
+      <option value="seller_scan">巡回ベース</option>
+    </select>
+    <span id="reCandInfo" class="muted" style="font-size:.8rem"></span>
+  </div>
+  <div id="reCandList"></div>
+  <div style="text-align:center;margin:10px 0"><button class="btn" id="reMoreBtn" onclick="reShowMore()" style="display:none">さらに表示</button></div>
 </div>
 
 <div class="footer"><div class="footer-inner">
@@ -2330,11 +2363,113 @@ async function autoSaveApproved(obj){
   }catch(e){ return false; }
 }
 restoreAuto();
+// ══════ リサーチタブ（v1.9.53 R1a）══════
+// データ源: auto/research_candidates.json（Python巡回が生成・読み取り専用）
+//           auto/research_sellers.json（このUIが書き出し・Pythonが読む登録簿）
+// 見送り（dismiss）はローカル保持（ss_re_dismiss_v1・軽量: idの配列のみ。localStorageクォータ教訓に従う）
+var RE_SELLERS=null, RE_CANDS=null, RE_SHOWN=100;
+function reDismissSet(){try{return JSON.parse(localStorage.getItem('ss_re_dismiss_v1')||'[]');}catch(e){return [];}}
+function reDismiss(id,on){var a=reDismissSet();var i=a.indexOf(String(id));
+  if(on&&i<0)a.push(String(id)); if(!on&&i>=0)a.splice(i,1);
+  (window.ssSafeSet||function(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}})('ss_re_dismiss_v1',JSON.stringify(a));
+  reRenderCands();}
+async function reInit(){
+  if(!AUTO_DIR){document.getElementById('reCandList').innerHTML='<div class="muted" style="padding:14px">先に右上の「📁 autoフォルダに接続」をしてください。</div>';return;}
+  if(RE_SELLERS===null){var s=await autoReadJSON('research_sellers.json');RE_SELLERS=(s&&s.sellers)||[];}
+  var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||[];
+  var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
+  document.getElementById('reCandInfo').textContent=info;
+  reRenderSellers(); reRenderCands();
+}
+function reRenderSellers(){
+  var el=document.getElementById('reSellerList');
+  document.getElementById('reSellerCount').textContent='（'+RE_SELLERS.length+'件）';
+  if(!RE_SELLERS.length){el.innerHTML='<div class="muted" style="font-size:.82rem">まだ登録がありません。上の欄からeBayユーザー名を追加してください。</div>';return;}
+  el.innerHTML=RE_SELLERS.map(function(s,i){
+    var sold='https://www.ebay.com/sch/i.html?_ssn='+encodeURIComponent(s.seller_id)+'&LH_Sold=1&LH_Complete=1&_sop=13';
+    var live='https://www.ebay.com/sch/i.html?_ssn='+encodeURIComponent(s.seller_id)+'&_sop=10';
+    return '<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line);font-size:.85rem'+(s.active===false?';opacity:.5':'')+'">'
+      +'<b style="min-width:180px">'+esc(s.seller_id)+'</b>'
+      +'<span class="muted" style="flex:1">'+esc(s.memo||'')+'</span>'
+      +'<a href="'+sold+'" target="_blank" rel="noopener" style="font-size:.78rem">Soldを開く</a>'
+      +'<a href="'+live+'" target="_blank" rel="noopener" style="font-size:.78rem">出品中</a>'
+      +'<button class="btn" style="font-size:.72rem;padding:2px 8px" onclick="reToggleSeller('+i+')">'+(s.active===false?'再開':'停止')+'</button>'
+      +'<button class="btn" style="font-size:.72rem;padding:2px 8px" onclick="reDelSeller('+i+')">削除</button></div>';
+  }).join('');
+}
+function reAddSeller(){
+  var id=(document.getElementById('reNewSeller').value||'').trim();
+  var memo=(document.getElementById('reNewMemo').value||'').trim();
+  if(!id){alert('eBayユーザー名を入力してください。');return;}
+  if(/\s/.test(id)){alert('ユーザー名に空白は含まれません。ストア表示名ではなく、セラーページURL（https://www.ebay.com/usr/○○○）の○○○部分を入力してください。');return;}
+  if(RE_SELLERS.some(function(s){return s.seller_id.toLowerCase()===id.toLowerCase();})){alert('既に登録済みです。');return;}
+  RE_SELLERS.push({seller_id:id,memo:memo,active:true,added_at:new Date().toISOString()});
+  document.getElementById('reNewSeller').value='';document.getElementById('reNewMemo').value='';
+  reRenderSellers();
+}
+function reToggleSeller(i){RE_SELLERS[i].active=(RE_SELLERS[i].active===false);reRenderSellers();}
+function reDelSeller(i){if(!confirm(RE_SELLERS[i].seller_id+' を削除しますか？（巡回対象から外れます。蓄積済み候補は残ります）'))return;RE_SELLERS.splice(i,1);reRenderSellers();}
+async function reSaveSellers(){
+  if(!AUTO_DIR){alert('autoフォルダ未接続です。');return;}
+  try{
+    var fh=await AUTO_DIR.getFileHandle('research_sellers.json',{create:true});
+    var w=await fh.createWritable();
+    await w.write(JSON.stringify({updated_at:new Date().toISOString(),sellers:RE_SELLERS},null,2));
+    await w.close();
+    document.getElementById('reSaveMsg').textContent='保存しました（次回の巡回から反映されます）';
+    setTimeout(function(){document.getElementById('reSaveMsg').textContent='';},4000);
+  }catch(e){alert('保存に失敗しました: '+e);}
+}
+function reRenderCands(){
+  var el=document.getElementById('reCandList');
+  if(!RE_CANDS||!RE_CANDS.length){el.innerHTML='<div class="muted" style="padding:14px">候補はまだありません。</div>';document.getElementById('reMoreBtn').style.display='none';return;}
+  var q=(document.getElementById('reSearch').value||'').trim().toLowerCase();
+  var hideL=document.getElementById('reHideListed').checked;
+  var hideD=document.getElementById('reHideDismissed').checked;
+  var src=document.getElementById('reSourceFilter').value;
+  var dis=reDismissSet();
+  var list=RE_CANDS.filter(function(c){
+    if(hideL&&c.already_listed)return false;
+    if(src&&c.source!==src)return false;
+    if(c.price_below_min)return false;
+    var isDis=dis.indexOf(String(c.item_id))>=0;
+    if(hideD&&isDis)return false;
+    if(q&&String(c.title||'').toLowerCase().indexOf(q)<0&&String(c.item_id||'').indexOf(q)<0&&String(c.seller_id||'').toLowerCase().indexOf(q)<0)return false;
+    return true;
+  }).sort(function(a,b){return String(b.first_seen||'').localeCompare(String(a.first_seen||''));});
+  var srcLabel={new_listing:['新規出品','#e8f5ec;color:#1d5c2f'],possible_sold:['売れた可能性','#fdf3e0;color:#8a5b00'],sold_confirmed:['Sold確定','#fde8e8;color:#8a1f1f'],seller_scan:['巡回','#f0f1f3;color:#555']};
+  document.getElementById('reCandInfo').textContent='候補 '+list.length+'件（全'+RE_CANDS.length+'件・出品済み'+RE_CANDS.filter(function(c){return c.already_listed;}).length+'件）';
+  var shown=list.slice(0,RE_SHOWN);
+  el.innerHTML=shown.map(function(c){
+    var sl=srcLabel[c.source]||[c.source,'#f0f1f3;color:#555'];
+    var isDis=dis.indexOf(String(c.item_id))>=0;
+    return '<div style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
+      +(c.image_url?'<img src="'+esc(c.image_url)+'" loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">':'<div style="width:64px;height:64px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
+      +'<div style="flex:1;min-width:0"><a href="'+esc(c.url||'#')+'" target="_blank" rel="noopener" style="font-size:.88rem">'+esc(c.title||'')+'</a>'
+      +'<div class="muted" style="font-size:.75rem;margin-top:2px">'+esc(c.seller_id||'')+' ・ 初検出 '+String(c.first_seen||'').slice(0,10)
+      +(c.part_numbers&&c.part_numbers.length?' ・ 型番 '+esc(c.part_numbers.join(', ')):'')
+      +(c.already_listed?' ・ <b style="color:#1d5c2f">出品済み</b>':'')+'</div></div>'
+      +'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:'+sl[1]+';white-space:nowrap">'+sl[0]+'</span>'
+      +'<b style="min-width:80px;text-align:right">'+money(c.total_usd!=null?c.total_usd:c.price_usd)+'</b>'
+      +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="reDismiss(\''+esc(String(c.item_id))+'\','+(isDis?'false':'true')+')">'+(isDis?'戻す':'見送り')+'</button></div>';
+  }).join('');
+  document.getElementById('reMoreBtn').style.display=(list.length>RE_SHOWN)?'inline-block':'none';
+}
+function reShowMore(){RE_SHOWN+=100;reRenderCands();}
+(function(){
+  ['reSearch','reHideListed','reHideDismissed','reSourceFilter'].forEach(function(id){
+    var e=document.getElementById(id);if(!e)return;
+    e.addEventListener(id==='reSearch'?'input':'change',function(){RE_SHOWN=100;clearTimeout(window.__reQT);window.__reQT=setTimeout(reRenderCands,200);});
+  });
+})();
 function showMainTab(t){
   document.getElementById('tabInv').style.display=(t==='inv')?'block':'none';
   document.getElementById('tabPa').style.display=(t==='pa')?'block':'none';
+  var re=document.getElementById('tabRe');if(re)re.style.display=(t==='re')?'block':'none';
   document.getElementById('btnInv').classList.toggle('on',t==='inv');
   document.getElementById('btnPa').classList.toggle('on',t==='pa');
+  var rb=document.getElementById('btnRe');if(rb)rb.classList.toggle('on',t==='re');
+  if(t==='re'&&typeof reInit==='function')reInit();
 }
 document.getElementById('unifiedFile').addEventListener('change',function(e){
   var files=Array.prototype.slice.call(e.target.files);
