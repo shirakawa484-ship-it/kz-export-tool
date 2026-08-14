@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.55</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.56</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -504,6 +504,29 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
     <div id="reSellerList"></div>
     <div style="margin-top:8px"><button class="btn" onclick="reSaveSellers()" id="reSaveBtn">セラー登録を保存（次回巡回から反映）</button><span id="reSaveMsg" class="muted" style="margin-left:8px;font-size:.8rem"></span></div>
   </details>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:.82rem">
+    <a class="bm alt2" href="javascript:(function(){if(window.__kzSoldBusy){return;}window.__kzSoldBusy=1;
+var out=[],seen={};
+function push(u,t,p,d,i){var m=u.match(/\/itm\/(\d+)/);if(!m)return;var id=m[1];if(seen[id]||!p)return;seen[id]=1;out.push({u:&#x27;https://www.ebay.com/itm/&#x27;+id,t:(t||&#x27;&#x27;).slice(0,80),p:p,d:d||&#x27;&#x27;,i:i||&#x27;&#x27;});}
+function collect(){var before=out.length;document.querySelectorAll(&#x27;a[href*=&quot;/itm/&quot;]&#x27;).forEach(function(a){if(out.length&gt;=100)return;var root=a;for(var k=0;k&lt;6&amp;&amp;root.parentElement;k++){root=root.parentElement;if(root.querySelector(&#x27;img&#x27;)&amp;&amp;/\$\s*[\d,]+/.test(root.textContent||&#x27;&#x27;))break;}var txt=(root.textContent||&#x27;&#x27;);var pm=txt.match(/\$\s*([\d,]+(?:\.\d{2})?)/);var price=pm?parseFloat(pm[1].replace(/,/g,&#x27;&#x27;)):null;var dm=txt.match(/Sold\s+([A-Z][a-z]{2})\s+(\d{1,2}),\s*(\d{4})/);var mon={Jan:&#x27;01&#x27;,Feb:&#x27;02&#x27;,Mar:&#x27;03&#x27;,Apr:&#x27;04&#x27;,May:&#x27;05&#x27;,Jun:&#x27;06&#x27;,Jul:&#x27;07&#x27;,Aug:&#x27;08&#x27;,Sep:&#x27;09&#x27;,Oct:&#x27;10&#x27;,Nov:&#x27;11&#x27;,Dec:&#x27;12&#x27;};var iso=dm&amp;&amp;mon[dm[1]]?(dm[3]+&#x27;-&#x27;+mon[dm[1]]+&#x27;-&#x27;+(&#x27;0&#x27;+dm[2]).slice(-2)):&#x27;&#x27;;var img=root.querySelector(&#x27;img&#x27;);var isrc=(img&amp;&amp;(img.currentSrc||img.src))||&#x27;&#x27;;if(isrc.indexOf(&#x27;data:&#x27;)===0||isrc.length&gt;300)isrc=&#x27;&#x27;;var title=(img&amp;&amp;img.alt)||&#x27;&#x27;;if(!title){var h=root.querySelector(&#x27;.s-item__title,h3&#x27;);title=h?h.textContent:&#x27;&#x27;}push(a.href,title,price,iso,isrc);});return out.length-before;}
+var hud=document.createElement(&#x27;div&#x27;);hud.style.cssText=&#x27;position:fixed;top:12px;right:12px;z-index:2147483647;background:#7a3b8f;color:#fff;padding:10px 16px;border-radius:10px;font:bold 14px/1.4 sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3)&#x27;;hud.textContent=&#x27;Sold\u53d6\u308a\u8fbc\u307f\u4e2d\u2026 0\u4ef6&#x27;;document.body.appendChild(hud);
+var y0=window.scrollY,noNew=0;
+function finish(){window.scrollTo(0,y0);hud.remove();window.__kzSoldBusy=0;
+if(!out.length){alert(&#x27;Sold\u5546\u54c1\u3092\u53d6\u308a\u8fbc\u3081\u307e\u305b\u3093\u3067\u3057\u305f\u3002eBay\u306eSold\u691c\u7d22\u7d50\u679c\u30da\u30fc\u30b8\u3067\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002&#x27;);return;}
+var q=new URLSearchParams(location.search);var kw=q.get(&#x27;_nkw&#x27;)||&#x27;&#x27;;
+var items=out.slice(0,100);var payload=JSON.stringify({q:kw.slice(0,60),items:items});
+while(payload.length&gt;60000&amp;&amp;items.length){var tr=false;for(var z=items.length-1;z&gt;=0;z--){if(items[z].i){items[z].i=&#x27;&#x27;;tr=true;break;}}if(!tr)items.pop();payload=JSON.stringify({q:kw.slice(0,60),items:items});}
+var w=window.open(&#x27;https://shirakawa484-ship-it.github.io/kz-export-tool/#soldv=&#x27;+encodeURIComponent(payload),&#x27;_blank&#x27;);
+if(!w)alert(&#x27;\u30dd\u30c3\u30d7\u30a2\u30c3\u30d7\u304c\u30d6\u30ed\u30c3\u30af\u3055\u308c\u307e\u3057\u305f\u3002\u8a31\u53ef\u3057\u3066\u3082\u3046\u4e00\u5ea6\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002&#x27;);}
+function loop(){var gained=collect();hud.textContent=&#x27;Sold\u53d6\u308a\u8fbc\u307f\u4e2d\u2026 &#x27;+out.length+&#x27;\u4ef6&#x27;;
+if(out.length&gt;=100){finish();return;}
+noNew=gained&gt;0?0:noNew+1;
+if(noNew&gt;=3||(window.innerHeight+window.scrollY)&gt;=document.body.scrollHeight-50){finish();return;}
+window.scrollBy(0,window.innerHeight*0.9);setTimeout(loop,700);}
+loop();})();" onclick="return false" title="ブックマークバーにドラッグして登録">📊 Soldまとめ取り（eBay）</a>
+    <span class="muted">← 初回のみブックマークバーへドラッグ。候補の「検証」→開いたSoldページで押すと、市場の売れた明細を取り込みます</span>
+  </div>
+  <div id="reVerifyPanel"></div>
   <div class="toolbar" style="margin:10px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <input type="text" id="reSearch" placeholder="🔍 候補を絞り込み" style="padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:.85rem;min-width:200px">
     <label style="font-size:.8rem"><input type="checkbox" id="reHideListed" checked> 出品済みを隠す</label>
@@ -1483,7 +1506,8 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     window.ITEM_IMAGES=window.ITEM_IMAGES||{};ITEMS.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});}
 }catch(e){}})();
 (function(){try{
-  if(location.hash&&location.hash.indexOf('#batch2=')===0){
+  if(location.hash&&location.hash.indexOf('#soldv=')===0){reHandleSoldHash();}
+  else if(location.hash&&location.hash.indexOf('#batch2=')===0){
     // ▼ 受信計器（2026-07-29）：受信の結果を必ず「消えないバナー」で表示し、直近5回をログに残す。
     //   「メッセージが出ない・取り込まれない」の切り分けを次の1回で確定させるため。
     var showBanner=function(color,text){
@@ -2381,12 +2405,14 @@ function reDismiss(id,on){var a=reDismissSet();var i=a.indexOf(String(id));
   (window.ssSafeSet||function(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}})('ss_re_dismiss_v1',JSON.stringify(a));
   reRenderCands();}
 async function reInit(){
-  if(!AUTO_DIR){document.getElementById('reCandList').innerHTML='<div class="muted" style="padding:14px">先に右上の「📁 autoフォルダに接続」をしてください。</div>';return;}
+  if(!AUTO_DIR){document.getElementById('reCandList').innerHTML='<div class="muted" style="padding:14px">先に右上の「📁 autoフォルダに接続」をしてください。</div>';reRenderVerify();return;}
   if(RE_SELLERS===null){var s=await autoReadJSON('research_sellers.json');RE_SELLERS=(s&&s.sellers)||[];}
+  await reFlushPendingReviews();
+  if(!window.RE_REVIEWS){var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||{};}
   var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||[];
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
-  reRenderSellers(); reRenderCands();
+  reRenderSellers(); reRenderCands(); reRenderVerify();
 }
 function reRenderSellers(){
   var el=document.getElementById('reSellerList');
@@ -2450,19 +2476,149 @@ function reRenderCands(){
   el.innerHTML=shown.map(function(c){
     var sl=srcLabel[c.source]||[c.source,'#f0f1f3;color:#555'];
     var isDis=dis.indexOf(String(c.item_id))>=0;
+    var rv=(window.RE_REVIEWS||{})[String(c.item_id)];
+    var rvBadge=rv?(rv.status==='pass'?'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#e8f5ec;color:#1d5c2f;white-space:nowrap" title="直近60日'+(rv.sold_count_60d||0)+'点・'+String(rv.verified_at||'').slice(0,10)+'検証">✅合格</span>':'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#fde8e8;color:#8a1f1f;white-space:nowrap">✖不合格</span>'):'';
     return '<div style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
       +(c.image_url?'<img src="'+esc(c.image_url)+'" loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">':'<div style="width:64px;height:64px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
       +'<div style="flex:1;min-width:0"><a href="'+esc(c.url||'#')+'" target="_blank" rel="noopener" style="font-size:.88rem">'+esc(c.title||'')+'</a>'
       +'<div class="muted" style="font-size:.75rem;margin-top:2px">'+esc(c.seller_id||'')+' ・ 初検出 '+String(c.first_seen||'').slice(0,10)
       +(c.part_numbers&&c.part_numbers.length?' ・ 型番 '+esc(c.part_numbers.join(', ')):'')
       +(c.already_listed?' ・ <b style="color:#1d5c2f">出品済み</b>':'')+'</div></div>'
+      +rvBadge
       +'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:'+sl[1]+';white-space:nowrap">'+sl[0]+'</span>'
       +'<b style="min-width:80px;text-align:right">'+money(c.total_usd!=null?c.total_usd:c.price_usd)+'</b>'
+      +'<button class="btn" style="font-size:.72rem;padding:3px 9px;background:#4a5d8f;color:#fff" onclick="reStartVerify(\''+esc(String(c.item_id))+'\')" title="市場のSold検索を開きます。ページでSoldまとめ取りブックマークレットを押してください">検証</button>'
       +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="reDismiss(\''+esc(String(c.item_id))+'\','+(isDis?'false':'true')+')">'+(isDis?'戻す':'見送り')+'</button></div>';
   }).join('');
   document.getElementById('reMoreBtn').style.display=(list.length>RE_SHOWN)?'inline-block':'none';
 }
 function reShowMore(){RE_SHOWN+=100;reRenderCands();}
+// ══════ R1b: Sold検証フロー ══════
+// 流れ: 候補の「検証」→Sold検索ページが開く→Soldまとめ取りブックマークレット→#soldv=でこのツールが開く
+//       →受信データをlocalStorageに保持→検証パネルで型番/価格帯/期間の自動絞り込み＋画像目視→合否→research_review.jsonへ保存
+function reVerifyTarget(){try{return JSON.parse(localStorage.getItem('ss_re_verify_v1')||'null');}catch(e){return null;}}
+function reSoldInbox(){try{return JSON.parse(localStorage.getItem('ss_soldv_inbox_v1')||'null');}catch(e){return null;}}
+function rePartNums(t){
+  // Python part_number.pyの簡易JS版（接頭辞に数字必須の原則を踏襲）。厳密一致でなくてよい：検証の自動チェック補助用
+  var m=String(t||'').toUpperCase().match(/\b[A-Z]{1,6}\d{1,3}-[A-Z0-9]{2,6}\b/g)||[];
+  return m.filter(function(x,i){return m.indexOf(x)===i;});
+}
+function reGrade(t){var g=String(t||'').toUpperCase().match(/\b(PSA|BGS|CGC)\s*(10|9\.5|9)\b/);return g?(g[1]+g[2]):null;}
+function reStartVerify(itemId){
+  var c=(RE_CANDS||[]).find(function(x){return String(x.item_id)===String(itemId);});
+  if(!c)return;
+  var kw=(c.part_numbers&&c.part_numbers.length)?c.part_numbers.join(' '):String(c.title||'').split(/\s+/).slice(0,8).join(' ');
+  (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_verify_v1',JSON.stringify({item_id:c.item_id,title:c.title,part_numbers:c.part_numbers||[],total_usd:(c.total_usd!=null?c.total_usd:c.price_usd),kw:kw,at:new Date().toISOString()}));
+  var url='https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(kw)+'&LH_Sold=1&LH_Complete=1&_sop=13';
+  window.open(url,'_blank');
+  reRenderVerify();
+}
+function reHandleSoldHash(){
+  try{
+    if(location.hash.indexOf('#soldv=')!==0)return;
+    var payload=JSON.parse(decodeURIComponent(location.hash.slice(7)));
+    history.replaceState(null,'',location.pathname+location.search);
+    if(!payload||!payload.items||!payload.items.length)return;
+    // 軽量化して保持（localStorageクォータ教訓: 100件・画像は自動でトリム済み・単発上書き）
+    (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_soldv_inbox_v1',JSON.stringify({at:new Date().toISOString(),q:payload.q||'',items:payload.items.slice(0,100)}));
+    showMainTab('re');
+  }catch(e){}
+}
+function reVerifyRows(){
+  var tgt=reVerifyTarget(),inbox=reSoldInbox();
+  if(!tgt||!inbox)return null;
+  var now=Date.now(),cut=now-60*24*3600*1000;
+  var basePn=(tgt.part_numbers||[]).map(function(x){return String(x).toUpperCase();});
+  var baseGrade=reGrade(tgt.title);
+  var base=Number(tgt.total_usd)||null;
+  var checkedMap;try{checkedMap=JSON.parse(localStorage.getItem('ss_re_vchk_v1')||'{}');}catch(e){checkedMap={};}
+  var rows=inbox.items.map(function(it,ix){
+    var pn=rePartNums(it.t), g=reGrade(it.t);
+    var inDays=it.d?(new Date(it.d+'T00:00:00Z').getTime()>=cut):false;
+    var pnState=basePn.length?(pn.length?(pn.some(function(p){return basePn.indexOf(p)>=0;})?'match':'mismatch'):'unknown'):'unknown';
+    var gradeMismatch=(baseGrade||g)?(baseGrade!==g):false;
+    var inBand=base?(it.p>=base*0.5&&it.p<=base*2.0):true;
+    var auto=inDays&&!gradeMismatch&&(pnState==='match'||(pnState==='unknown'&&inBand));
+    var key=String(tgt.item_id)+':'+ix;
+    var checked=(key in checkedMap)?!!checkedMap[key]:auto;
+    return {ix:ix,it:it,pn:pn,pnState:pnState,gradeMismatch:gradeMismatch,inBand:inBand,inDays:inDays,auto:auto,checked:checked,key:key};
+  });
+  return {tgt:tgt,inbox:inbox,rows:rows};
+}
+function reToggleVerifyRow(key,on){
+  var m;try{m=JSON.parse(localStorage.getItem('ss_re_vchk_v1')||'{}');}catch(e){m={};}
+  m[key]=!!on;
+  (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_vchk_v1',JSON.stringify(m));
+  reRenderVerify();
+}
+function reRenderVerify(){
+  var el=document.getElementById('reVerifyPanel');if(!el)return;
+  var v=reVerifyRows();
+  if(!v){el.innerHTML='';return;}
+  var okCount=v.rows.filter(function(r){return r.checked&&r.inDays;}).length;
+  var pass=okCount>=2;
+  el.innerHTML='<div style="border:2px solid '+(pass?'#2e7d4f':'#c9a227')+';border-radius:10px;padding:12px;margin:8px 0;background:#fff">'
+    +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>検証中:</b> <span style="flex:1">'+esc(v.tgt.title||'')+'</span>'
+    +'<b style="font-size:1.05rem;color:'+(pass?'#2e7d4f':'#8a6d00')+'">直近60日 '+okCount+'点 '+(pass?'→ 基準クリア（2点以上）':'→ 基準未達')+'</b></div>'
+    +'<div class="muted" style="font-size:.75rem;margin:4px 0 8px">自動チェック条件: 60日以内＋型番一致（型番なしは価格帯$'+(v.tgt.total_usd?(Number(v.tgt.total_usd)*0.5).toFixed(0)+'〜$'+(Number(v.tgt.total_usd)*2).toFixed(0):'—')+'内）＋グレード一致。画像を見て違うものは外し、同じものは追加してください。チェック＝同一品として数える</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">'
+    +v.rows.map(function(r){
+      var reason=r.gradeMismatch?'グレード違い':(r.pnState==='mismatch'?'型番不一致':(!r.inBand&&r.pnState==='unknown'?'価格帯外':(!r.inDays?'60日より前':'')));
+      return '<label style="border:1px solid var(--line);border-radius:8px;padding:6px;font-size:.72rem;cursor:pointer;'+(r.checked?'background:#eef7f0;border-color:#9fd0b0':'opacity:.6')+'">'
+        +'<input type="checkbox" '+(r.checked?'checked':'')+' onchange="reToggleVerifyRow(\''+r.key+'\',this.checked)"> '
+        +(r.it.d?('<b>'+esc(r.it.d)+'</b>'):'<span class="muted">日付不明</span>')+' <b style="float:right">$'+Number(r.it.p).toFixed(0)+'</b><br>'
+        +(r.it.i?'<img src="'+esc(r.it.i)+'" loading="lazy" style="width:100%;height:90px;object-fit:cover;border-radius:6px;margin:3px 0">':'')
+        +'<a href="'+esc(r.it.u)+'" target="_blank" rel="noopener">'+esc((r.it.t||'').slice(0,50))+'</a>'
+        +(reason?'<div style="color:#8a5b00">⚠ '+reason+'</div>':'')
+        +'</label>';
+    }).join('')
+    +'</div>'
+    +'<div style="display:flex;gap:10px;margin-top:10px;align-items:center">'
+    +'<button class="btn" style="background:#2e7d4f;color:#fff" onclick="reSaveVerdict(\'pass\','+okCount+')">✅ 合格として記録</button>'
+    +'<button class="btn" onclick="reSaveVerdict(\'fail\','+okCount+')">✖ 不合格として記録</button>'
+    +'<button class="btn" onclick="reCloseVerify()">閉じる（保留）</button>'
+    +'<span class="muted" style="font-size:.75rem">合否はauto/research_review.jsonに保存され、候補一覧にバッジ表示されます</span></div></div>';
+}
+async function reSaveVerdict(status,cnt){
+  var tgt=reVerifyTarget();if(!tgt)return;
+  var rec={status:status,sold_count_60d:cnt,verified_at:new Date().toISOString(),title:tgt.title};
+  if(AUTO_DIR){
+    try{
+      var cur=await autoReadJSON('research_review.json')||{reviews:{}};
+      if(!cur.reviews)cur.reviews={};
+      cur.reviews[String(tgt.item_id)]=rec;cur.updated_at=new Date().toISOString();
+      var fh=await AUTO_DIR.getFileHandle('research_review.json',{create:true});
+      var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
+      window.RE_REVIEWS=cur.reviews;
+    }catch(e){alert('保存に失敗: '+e);return;}
+  }else{
+    // 未接続タブ: 保留キューに積み、接続済みタブのreInitで自動フラッシュ
+    var pend;try{pend=JSON.parse(localStorage.getItem('ss_re_review_pending_v1')||'{}');}catch(e){pend={};}
+    pend[String(tgt.item_id)]=rec;
+    (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_review_pending_v1',JSON.stringify(pend));
+    alert('autoフォルダ未接続のため一時保存しました。接続済みのツール画面でリサーチタブを開くと本保存されます。');
+  }
+  reCloseVerify();
+}
+function reCloseVerify(){
+  localStorage.removeItem('ss_re_verify_v1');localStorage.removeItem('ss_soldv_inbox_v1');localStorage.removeItem('ss_re_vchk_v1');
+  reRenderVerify();reRenderCands();
+}
+async function reFlushPendingReviews(){
+  if(!AUTO_DIR)return;
+  var pend;try{pend=JSON.parse(localStorage.getItem('ss_re_review_pending_v1')||'{}');}catch(e){pend={};}
+  var ids=Object.keys(pend);if(!ids.length)return;
+  try{
+    var cur=await autoReadJSON('research_review.json')||{reviews:{}};
+    if(!cur.reviews)cur.reviews={};
+    ids.forEach(function(id){cur.reviews[id]=pend[id];});
+    cur.updated_at=new Date().toISOString();
+    var fh=await AUTO_DIR.getFileHandle('research_review.json',{create:true});
+    var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
+    localStorage.removeItem('ss_re_review_pending_v1');
+    window.RE_REVIEWS=cur.reviews;
+  }catch(e){}
+}
 (function(){
   ['reSearch','reHideListed','reHideDismissed','reSourceFilter'].forEach(function(id){
     var e=document.getElementById(id);if(!e)return;
