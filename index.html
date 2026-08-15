@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.57</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.59</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -507,8 +507,8 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:.82rem">
     <a class="bm alt2" href="javascript:(function(){if(window.__kzSoldBusy){return;}window.__kzSoldBusy=1;
 var out=[],seen={};
-function push(u,t,p,d,i){var m=u.match(/\/itm\/(\d+)/);if(!m)return;var id=m[1];if(seen[id]||!p)return;seen[id]=1;out.push({u:&#x27;https://www.ebay.com/itm/&#x27;+id,t:(t||&#x27;&#x27;).slice(0,80),p:p,d:d||&#x27;&#x27;,i:i||&#x27;&#x27;});}
-function collect(){var before=out.length;document.querySelectorAll(&#x27;a[href*=&quot;/itm/&quot;]&#x27;).forEach(function(a){if(out.length&gt;=100)return;var root=a;for(var k=0;k&lt;6&amp;&amp;root.parentElement;k++){root=root.parentElement;if(root.querySelector(&#x27;img&#x27;)&amp;&amp;/\$\s*[\d,]+/.test(root.textContent||&#x27;&#x27;))break;}var txt=(root.textContent||&#x27;&#x27;);var pm=txt.match(/\$\s*([\d,]+(?:\.\d{2})?)/);var price=pm?parseFloat(pm[1].replace(/,/g,&#x27;&#x27;)):null;var dm=txt.match(/Sold\s+([A-Z][a-z]{2})\s+(\d{1,2}),\s*(\d{4})/);var mon={Jan:&#x27;01&#x27;,Feb:&#x27;02&#x27;,Mar:&#x27;03&#x27;,Apr:&#x27;04&#x27;,May:&#x27;05&#x27;,Jun:&#x27;06&#x27;,Jul:&#x27;07&#x27;,Aug:&#x27;08&#x27;,Sep:&#x27;09&#x27;,Oct:&#x27;10&#x27;,Nov:&#x27;11&#x27;,Dec:&#x27;12&#x27;};var iso=dm&amp;&amp;mon[dm[1]]?(dm[3]+&#x27;-&#x27;+mon[dm[1]]+&#x27;-&#x27;+(&#x27;0&#x27;+dm[2]).slice(-2)):&#x27;&#x27;;var img=root.querySelector(&#x27;img&#x27;);var isrc=(img&amp;&amp;(img.currentSrc||img.src))||&#x27;&#x27;;if(isrc.indexOf(&#x27;data:&#x27;)===0||isrc.length&gt;300)isrc=&#x27;&#x27;;var title=(img&amp;&amp;img.alt)||&#x27;&#x27;;if(!title){var h=root.querySelector(&#x27;.s-item__title,h3&#x27;);title=h?h.textContent:&#x27;&#x27;}push(a.href,title,price,iso,isrc);});return out.length-before;}
+function push(u,t,p,c,d,i){var m=u.match(/\/itm\/(\d+)/);if(!m)return;var id=m[1];if(seen[id]||!p)return;if(!t||/shop on ebay/i.test(t))return;seen[id]=1;out.push({u:&#x27;https://www.ebay.com/itm/&#x27;+id,t:(t||&#x27;&#x27;).slice(0,80),p:p,c:c,d:d||&#x27;&#x27;,i:i||&#x27;&#x27;});}
+function collect(){var before=out.length;document.querySelectorAll(&#x27;a[href*=&quot;/itm/&quot;]&#x27;).forEach(function(a){if(out.length&gt;=100)return;var root=a;for(var k=0;k&lt;6&amp;&amp;root.parentElement;k++){root=root.parentElement;if(root.querySelector(&#x27;img&#x27;)&amp;&amp;/(JPY|US\s?\$|\$)\s*[\d,]+/.test(root.textContent||&#x27;&#x27;))break;}var txt=(root.textContent||&#x27;&#x27;);var price=null,cur=null;var jm=txt.match(/JPY\s*([\d,]+)/);var pm=txt.match(/(?:US\s?)?\$\s*([\d,]+(?:\.\d{2})?)/);if(jm){price=parseInt(jm[1].replace(/,/g,&#x27;&#x27;),10);cur=&#x27;JPY&#x27;;}else if(pm){price=parseFloat(pm[1].replace(/,/g,&#x27;&#x27;));cur=&#x27;USD&#x27;;}var dm=txt.match(/Sold\s+([A-Z][a-z]{2})\s+(\d{1,2}),\s*(\d{4})/);var mon={Jan:&#x27;01&#x27;,Feb:&#x27;02&#x27;,Mar:&#x27;03&#x27;,Apr:&#x27;04&#x27;,May:&#x27;05&#x27;,Jun:&#x27;06&#x27;,Jul:&#x27;07&#x27;,Aug:&#x27;08&#x27;,Sep:&#x27;09&#x27;,Oct:&#x27;10&#x27;,Nov:&#x27;11&#x27;,Dec:&#x27;12&#x27;};var iso=dm&amp;&amp;mon[dm[1]]?(dm[3]+&#x27;-&#x27;+mon[dm[1]]+&#x27;-&#x27;+(&#x27;0&#x27;+dm[2]).slice(-2)):&#x27;&#x27;;var img=root.querySelector(&#x27;img&#x27;);var isrc=(img&amp;&amp;(img.currentSrc||img.src))||&#x27;&#x27;;if(isrc.indexOf(&#x27;data:&#x27;)===0||isrc.length&gt;300)isrc=&#x27;&#x27;;var title=(img&amp;&amp;img.alt)||&#x27;&#x27;;if(!title){var h=root.querySelector(&#x27;.s-item__title,h3&#x27;);title=h?h.textContent:&#x27;&#x27;}push(a.href,title,price,cur,iso,isrc);});return out.length-before;}
 var hud=document.createElement(&#x27;div&#x27;);hud.style.cssText=&#x27;position:fixed;top:12px;right:12px;z-index:2147483647;background:#7a3b8f;color:#fff;padding:10px 16px;border-radius:10px;font:bold 14px/1.4 sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3)&#x27;;hud.textContent=&#x27;Sold\u53d6\u308a\u8fbc\u307f\u4e2d\u2026 0\u4ef6&#x27;;document.body.appendChild(hud);
 var y0=window.scrollY,noNew=0;
 function finish(){window.scrollTo(0,y0);hud.remove();window.__kzSoldBusy=0;
@@ -2341,6 +2341,20 @@ async function autoLoadAll(verbose){
   var plan=await autoReadJSON('plan_latest.json');
   if(plan&&plan.items){ window.paLoadPlan(plan,'plan_latest.json（自動）'); msgs.push('計画 '+(plan.items||[]).length+'件'); }
   window.APPLIED=await autoReadJSON('applied_latest.json');
+  // ▼ 取得健全性の警告（v1.9.59）: 急減サニティガードが旧計画を保持した場合、承認タブに警告バナーを出す
+  //   （eBay Browseの一時劣化で新計画が痩せていた→今見ている計画は前回の健全版、という状態の可視化）
+  try{
+    var fh=await autoReadJSON('fetch_health.json');
+    var bn=document.getElementById('paFetchHealth');
+    if(!bn){bn=document.createElement('div');bn.id='paFetchHealth';
+      var pa=document.getElementById('tabPa');if(pa)pa.insertBefore(bn,pa.firstChild);}
+    if(fh&&fh.degraded_fetch_suspected){
+      bn.innerHTML='<div style="margin:8px 0;padding:9px 12px;border:2px solid #c9a227;background:#fdf6e0;border-radius:9px;font-size:.85rem;color:#6b5200">'
+        +'⚠️ <b>ライバル取得の異常を検知したため、前回の健全な計画を表示しています</b>（新計画はライバル数が'
+        +(fh.prev_total_rivals&&fh.new_total_rivals?Math.round((1-fh.new_total_rivals/fh.prev_total_rivals)*100)+'%減':'急減')
+        +'のため差し替えを見送り）。eBay側の一時的な問題の可能性が高く、次回の正常なフル生成で自動解消します。この画面の価格承認は通常どおり使えます。</div>';
+    } else { bn.innerHTML=''; }
+  }catch(e){}
   var st=await autoReadJSON('status.json');
   if(st){ var t=st.generated_at? new Date(st.generated_at).toLocaleString('ja-JP'):'不明';
     if(st.error){ setAutoStatus('⚠️ 今朝の計画生成に失敗（'+t+'）',false); }
@@ -2524,6 +2538,13 @@ function reHandleSoldHash(){
     showMainTab('re');
   }catch(e){}
 }
+function reSoldUsd(it){
+  // ブックマークレットは通貨コード付きで送る（c:'JPY'/'USD'）。JPYはツールの為替レートでUSD換算。
+  // 旧payload（cなし）はUSDとして扱う（後方互換）
+  var fx=155;try{var e=document.getElementById('fx');if(e&&Number(e.value)>50)fx=Number(e.value);}catch(x){}
+  if(it.c==='JPY')return Number(it.p)/fx;
+  return Number(it.p);
+}
 function reVerifyRows(){
   var tgt=reVerifyTarget(),inbox=reSoldInbox();
   if(!tgt||!inbox)return null;
@@ -2534,14 +2555,15 @@ function reVerifyRows(){
   var checkedMap;try{checkedMap=JSON.parse(localStorage.getItem('ss_re_vchk_v1')||'{}');}catch(e){checkedMap={};}
   var rows=inbox.items.map(function(it,ix){
     var pn=rePartNums(it.t), g=reGrade(it.t);
+    var usd=reSoldUsd(it);
     var inDays=it.d?(new Date(it.d+'T00:00:00Z').getTime()>=cut):false;
     var pnState=basePn.length?(pn.length?(pn.some(function(p){return basePn.indexOf(p)>=0;})?'match':'mismatch'):'unknown'):'unknown';
     var gradeMismatch=(baseGrade||g)?(baseGrade!==g):false;
-    var inBand=base?(it.p>=base*0.5&&it.p<=base*2.0):true;
+    var inBand=base?(usd>=base*0.5&&usd<=base*2.0):true;
     var auto=inDays&&!gradeMismatch&&(pnState==='match'||(pnState==='unknown'&&inBand));
     var key=String(tgt.item_id)+':'+ix;
     var checked=(key in checkedMap)?!!checkedMap[key]:auto;
-    return {ix:ix,it:it,pn:pn,pnState:pnState,gradeMismatch:gradeMismatch,inBand:inBand,inDays:inDays,auto:auto,checked:checked,key:key};
+    return {ix:ix,it:it,usd:usd,pn:pn,pnState:pnState,gradeMismatch:gradeMismatch,inBand:inBand,inDays:inDays,auto:auto,checked:checked,key:key};
   });
   return {tgt:tgt,inbox:inbox,rows:rows};
 }
@@ -2566,7 +2588,7 @@ function reRenderVerify(){
       var reason=r.gradeMismatch?'グレード違い':(r.pnState==='mismatch'?'型番不一致':(!r.inBand&&r.pnState==='unknown'?'価格帯外':(!r.inDays?'60日より前':'')));
       return '<label style="border:1px solid var(--line);border-radius:8px;padding:6px;font-size:.72rem;cursor:pointer;'+(r.checked?'background:#eef7f0;border-color:#9fd0b0':'opacity:.6')+'">'
         +'<input type="checkbox" '+(r.checked?'checked':'')+' onchange="reToggleVerifyRow(\''+r.key+'\',this.checked)"> '
-        +(r.it.d?('<b>'+esc(r.it.d)+'</b>'):'<span class="muted">日付不明</span>')+' <b style="float:right">$'+Number(r.it.p).toFixed(0)+'</b><br>'
+        +(r.it.d?('<b>'+esc(r.it.d)+'</b>'):'<span class="muted">日付不明</span>')+' <b style="float:right">$'+Number(r.usd).toFixed(0)+(r.it.c==='JPY'?'<span style="font-weight:400;font-size:.62rem">（円換算）</span>':'')+'</b><br>'
         +(r.it.i?'<img src="'+esc(r.it.i)+'" loading="lazy" style="width:100%;height:90px;object-fit:cover;border-radius:6px;margin:3px 0">':'')
         +'<a href="'+esc(r.it.u)+'" target="_blank" rel="noopener">'+esc((r.it.t||'').slice(0,50))+'</a>'
         +(reason?'<div style="color:#8a5b00">⚠ '+reason+'</div>':'')
