@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.59</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.60</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2412,7 +2412,8 @@ restoreAuto();
 // データ源: auto/research_candidates.json（Python巡回が生成・読み取り専用）
 //           auto/research_sellers.json（このUIが書き出し・Pythonが読む登録簿）
 // 見送り（dismiss）はローカル保持（ss_re_dismiss_v1・軽量: idの配列のみ。localStorageクォータ教訓に従う）
-var RE_SELLERS=null, RE_CANDS=null, RE_SHOWN=100;
+var RE_SELLERS=[], RE_CANDS=[], RE_SHOWN=100;
+// RE_SELLERS_DIRTY: セラー編集中（未保存）はreInitの再読込で上書きしない
 function reDismissSet(){try{return JSON.parse(localStorage.getItem('ss_re_dismiss_v1')||'[]');}catch(e){return [];}}
 function reDismiss(id,on){var a=reDismissSet();var i=a.indexOf(String(id));
   if(on&&i<0)a.push(String(id)); if(!on&&i>=0)a.splice(i,1);
@@ -2420,10 +2421,12 @@ function reDismiss(id,on){var a=reDismissSet();var i=a.indexOf(String(id));
   reRenderCands();}
 async function reInit(){
   if(!AUTO_DIR){document.getElementById('reCandList').innerHTML='<div class="muted" style="padding:14px">先に右上の「📁 autoフォルダに接続」をしてください。</div>';reRenderVerify();return;}
-  if(RE_SELLERS===null){var s=await autoReadJSON('research_sellers.json');RE_SELLERS=(s&&s.sellers)||[];}
+  // セラー・候補とも毎回読み直す（v1.9.60: ブックマークレット起点の新タブで、フォルダ再接続前に
+  // 初期化が走ると空リストがキャッシュに固着するバグの修正。未保存の編集がある場合のみ保持）
+  if(!window.RE_SELLERS_DIRTY){var s=await autoReadJSON('research_sellers.json');RE_SELLERS=(s&&s.sellers)||RE_SELLERS||[];}
   await reFlushPendingReviews();
-  if(!window.RE_REVIEWS){var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||{};}
-  var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||[];
+  var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||window.RE_REVIEWS||{};
+  var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||RE_CANDS||[];
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
   reRenderSellers(); reRenderCands(); reRenderVerify();
@@ -2450,12 +2453,13 @@ function reAddSeller(){
   if(!id){alert('eBayユーザー名を入力してください。');return;}
   if(/\s/.test(id)){alert('ユーザー名に空白は含まれません。ストア表示名ではなく、セラーページURL（https://www.ebay.com/usr/○○○）の○○○部分を入力してください。');return;}
   if(RE_SELLERS.some(function(s){return s.seller_id.toLowerCase()===id.toLowerCase();})){alert('既に登録済みです。');return;}
+  window.RE_SELLERS_DIRTY=true;
   RE_SELLERS.push({seller_id:id,memo:memo,active:true,added_at:new Date().toISOString()});
   document.getElementById('reNewSeller').value='';document.getElementById('reNewMemo').value='';
   reRenderSellers();
 }
-function reToggleSeller(i){RE_SELLERS[i].active=(RE_SELLERS[i].active===false);reRenderSellers();}
-function reDelSeller(i){if(!confirm(RE_SELLERS[i].seller_id+' を削除しますか？（巡回対象から外れます。蓄積済み候補は残ります）'))return;RE_SELLERS.splice(i,1);reRenderSellers();}
+function reToggleSeller(i){window.RE_SELLERS_DIRTY=true;RE_SELLERS[i].active=(RE_SELLERS[i].active===false);reRenderSellers();}
+function reDelSeller(i){if(!confirm(RE_SELLERS[i].seller_id+' を削除しますか？（巡回対象から外れます。蓄積済み候補は残ります）'))return;window.RE_SELLERS_DIRTY=true;RE_SELLERS.splice(i,1);reRenderSellers();}
 async function reSaveSellers(){
   if(!AUTO_DIR){alert('autoフォルダ未接続です。');return;}
   try{
@@ -2463,6 +2467,7 @@ async function reSaveSellers(){
     var w=await fh.createWritable();
     await w.write(JSON.stringify({updated_at:new Date().toISOString(),sellers:RE_SELLERS},null,2));
     await w.close();
+    window.RE_SELLERS_DIRTY=false;
     document.getElementById('reSaveMsg').textContent='保存しました（次回の巡回から反映されます）';
     setTimeout(function(){document.getElementById('reSaveMsg').textContent='';},4000);
   }catch(e){alert('保存に失敗しました: '+e);}
@@ -2624,7 +2629,8 @@ async function reSaveVerdict(status,cnt){
 }
 function reCloseVerify(){
   localStorage.removeItem('ss_re_verify_v1');localStorage.removeItem('ss_soldv_inbox_v1');localStorage.removeItem('ss_re_vchk_v1');
-  reRenderVerify();reRenderCands();
+  reRenderVerify();
+  if(typeof reInit==='function')reInit();else reRenderCands();
 }
 async function reFlushPendingReviews(){
   if(!AUTO_DIR)return;
