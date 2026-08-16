@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.62</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.63</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2649,7 +2649,7 @@ function reQueueUi(){
   if(!st||!btn)return;
   if(q&&q.active){
     btn.textContent='■ 連続検証を停止';btn.onclick=reQueueStop;
-    st.innerHTML='進行 <b>'+(q.pos)+'/'+q.ids.length+'</b>（自動合格'+q.stats.pass+'・自動不合格'+q.stats.fail+'・目視'+q.stats.manual+'）— eBayタブでブックマークレットを押してください';
+    st.innerHTML='進行 <b>'+(q.pos)+'/'+q.ids.length+'</b>（自動合格'+q.stats.pass+'・自動不合格'+q.stats.fail+'・目視'+q.stats.manual+'）— eBayタブでブックマークレットを押してください'+(q.last?'<br><span style="color:#2e7d4f">直前: '+q.last+'</span>':'');
   }else{
     var n=(RE_CANDS||[]).filter(function(c){return !(window.RE_REVIEWS||{})[String(c.item_id)]&&!c.already_listed&&!c.price_below_min&&reDismissSet().indexOf(String(c.item_id))<0;}).length;
     btn.textContent='▶ 連続検証を開始（未検証'+n+'件）';btn.onclick=reQueueStart;
@@ -2759,7 +2759,9 @@ window.addEventListener('message',function(e){
       var av=v?reAutoVerdict(v):null;
       if(av){
         var rec={status:av.status,sold_count_60d:av.count,verified_at:new Date().toISOString(),title:(v.tgt.title||''),source:'auto_queue'};
-        q.stats[av.status==='pass'?'pass':'fail']++;reQueueSave(q);
+        q.stats[av.status==='pass'?'pass':'fail']++;
+        q.last=(av.status==='pass'?'✅自動合格':'✖自動不合格')+'（60日'+av.count+'点）: '+String(v.tgt.title||'').slice(0,40);
+        reQueueSave(q);
         reSaveVerdictRecord(String(v.tgt.item_id),rec).then(function(){
           localStorage.removeItem('ss_soldv_inbox_v1');localStorage.removeItem('ss_re_verify_v1');
           reQueueAdvance();
@@ -2773,13 +2775,28 @@ window.addEventListener('message',function(e){
         vs[String(tgt.item_id)]={tgt:tgt,q:payload.q||'',items:payload.items.slice(0,30)};
         (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_vstore_v1',JSON.stringify(vs));
       }
-      q.stats.manual++;reQueueSave(q);
+      q.stats.manual++;
+      q.last='👁目視へ保存: '+String((tgt&&tgt.title)||'').slice(0,40);
+      reQueueSave(q);
       localStorage.removeItem('ss_soldv_inbox_v1');localStorage.removeItem('ss_re_verify_v1');
       reQueueAdvance();
       return;
     }
     // 単発モード: 従来どおりパネル表示
     showMainTab('re');
+  }catch(err){}
+});
+// ▼ タブ間同期（v1.9.63）: 連続検証は「開始したタブ」が受信・処理するが、
+//   進捗・結果はlocalStorage経由で全ツールタブにstorageイベントが飛ぶので、どのタブでも表示を追従させる
+//   （ツールタブを複数開いていると「何も起きていない」ように見える問題の解消）
+window.addEventListener('storage',function(e){
+  try{
+    if(!e.key)return;
+    if(['ss_re_vq_v1','ss_re_vstore_v1','ss_re_vreview_v1','ss_re_review_pending_v1'].indexOf(e.key)<0)return;
+    var tabRe=document.getElementById('tabRe');
+    if(!tabRe||tabRe.style.display==='none')return;
+    if(typeof reQueueUi==='function')reQueueUi();
+    if(e.key==='ss_re_vq_v1'&&!e.newValue){ if(typeof reInit==='function')reInit(); } // キュー完了→一覧更新
   }catch(err){}
 });
 // 合否レコードの保存を関数化（手動・自動の共通経路）
