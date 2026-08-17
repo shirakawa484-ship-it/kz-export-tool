@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.66</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.67</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -546,6 +546,13 @@ loop();})();" onclick="return false" title="ブックマークバーにドラッ
       <option value="sold_confirmed">Sold確定</option>
       <option value="seller_scan">巡回ベース</option>
     </select>
+    <select id="reVerdictFilter" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:.82rem">
+      <option value="">検証すべて</option>
+      <option value="pass">✅合格のみ</option>
+      <option value="fail">✖不合格のみ</option>
+      <option value="none">未検証のみ</option>
+    </select>
+    <span id="reListCount" style="font-size:.8rem;font-weight:700;color:#4a5d8f"></span>
     <span id="reCandInfo" class="muted" style="font-size:.8rem"></span>
   </div>
   <div id="reCandList"></div>
@@ -2487,11 +2494,16 @@ function reRenderCands(){
   var hideL=document.getElementById('reHideListed').checked;
   var hideD=document.getElementById('reHideDismissed').checked;
   var src=document.getElementById('reSourceFilter').value;
+  var vf=(document.getElementById('reVerdictFilter')||{}).value||'';
   var dis=reDismissSet();
   var list=RE_CANDS.filter(function(c){
     if(hideL&&c.already_listed)return false;
     if(src&&c.source!==src)return false;
     if(c.price_below_min)return false;
+    var rvf=(window.RE_REVIEWS||{})[String(c.item_id)];
+    if(vf==='pass'&&(!rvf||rvf.status!=='pass'))return false;
+    if(vf==='fail'&&(!rvf||rvf.status!=='fail'))return false;
+    if(vf==='none'&&rvf)return false;
     var isDis=dis.indexOf(String(c.item_id))>=0;
     if(hideD&&isDis)return false;
     if(q&&String(c.title||'').toLowerCase().indexOf(q)<0&&String(c.item_id||'').indexOf(q)<0&&String(c.seller_id||'').toLowerCase().indexOf(q)<0)return false;
@@ -2515,11 +2527,79 @@ function reRenderCands(){
       +'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:'+sl[1]+';white-space:nowrap">'+sl[0]+'</span>'
       +'<b style="min-width:80px;text-align:right">'+money(c.total_usd!=null?c.total_usd:c.price_usd)+'</b>'
       +'<button class="btn" style="font-size:.72rem;padding:3px 9px;background:#4a5d8f;color:#fff" onclick="reStartVerify(\''+esc(String(c.item_id))+'\')" title="市場のSold検索を開きます。ページでSoldまとめ取りブックマークレットを押してください">検証</button>'
-      +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="reDismiss(\''+esc(String(c.item_id))+'\','+(isDis?'false':'true')+')">'+(isDis?'戻す':'見送り')+'</button></div>';
+      +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="reDismiss(\''+esc(String(c.item_id))+'\','+(isDis?'false':'true')+')">'+(isDis?'戻す':'見送り')+'</button></div>'
+      +(rv&&rv.status==='pass'?reSourcingBlock(c,rv):'');
   }).join('');
+  var listedN=Object.keys(window.RE_REVIEWS||{}).filter(function(k){return (window.RE_REVIEWS[k]||{}).decision==='list';}).length;
+  var lc=document.getElementById('reListCount');if(lc)lc.textContent=listedN?('📦 出品予定 '+listedN+'件'):'';
   document.getElementById('reMoreBtn').style.display=(list.length>RE_SHOWN)?'inline-block':'none';
 }
 function reShowMore(){RE_SHOWN+=100;reRenderCands();}
+// ══════ R2a: 合格候補の仕入れ探索・利益計算（v1.9.67）══════
+// 合格候補の下に展開: 仕入れKW（日本語に手直し）→メルカリ等検索→仕入れ値を手入力→
+// 実売中央値ベースの利益計算→「出品する」で今日の5品へ。編集はresearch_review.jsonにマージ保存
+function reSourcingBlock(c,rv){
+  var id=String(c.item_id);
+  var kw=rv.sourcing_kw!=null?rv.sourcing_kw:((c.part_numbers&&c.part_numbers.length)?c.part_numbers.join(' '):String(c.title||'').split(/\s+/).slice(0,6).join(' '));
+  var cost=rv.cost_yen!=null?rv.cost_yen:'';
+  var sellUsd=(rv.median_sold_usd!=null?rv.median_sold_usd:(c.total_usd!=null?c.total_usd:c.price_usd));
+  var calcHtml='';
+  if(rv.cost_yen>0&&sellUsd>0&&typeof calcProfit==='function'){
+    try{
+      var ship=(typeof n==='function')?n('shipUS'):2115;
+      var r=calcProfit(sellUsd,Number(rv.cost_yen),ship,12.5);
+      var col=r.profit<0?'#a33':'#1d5c2f';
+      calcHtml='<span>実売中央値 <b>$'+Number(sellUsd).toFixed(0)+'</b>'+(rv.median_sold_usd!=null?'':'<small>（中央値なし→ライバル価格で仮計算）</small>')+'</span>'
+        +'<span>利益 <b style="color:'+col+'">¥'+Math.round(r.profit).toLocaleString()+'</b></span>'
+        +'<span>利益率 <b style="color:'+col+'">'+r.margin.toFixed(1)+'%</b></span>';
+    }catch(e){calcHtml='<span class="muted">計算エラー</span>';}
+  }else{
+    calcHtml='<span class="muted">仕入れ値を入れると利益を計算します（売価基準: '+(rv.median_sold_usd!=null?('実売中央値$'+Number(rv.median_sold_usd).toFixed(0)):'ライバル価格')+'）</span>';
+  }
+  var listed=rv.decision==='list';
+  return '<div style="margin:-2px 0 8px 74px;padding:8px 10px;border:1px dashed #9fb3d8;border-radius:0 0 9px 9px;background:#f8fafd;font-size:.8rem;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+    +'<span style="font-weight:700;color:#4a5d8f">仕入れ探索</span>'
+    +'<input type="text" value="'+esc(kw)+'" data-rskw="'+esc(id)+'" placeholder="仕入れ検索KW（日本語に直すと精度UP）" style="min-width:200px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">'
+    +'<button class="btn" style="font-size:.72rem;padding:3px 8px;background:#2e7d4f;color:#fff" onclick="reSourceSearch(\''+esc(id)+'\',\'mercari\')">メルカリ</button>'
+    +'<button class="btn" style="font-size:.72rem;padding:3px 8px" onclick="reSourceSearch(\''+esc(id)+'\',\'paypay\')">Y!フリマ</button>'
+    +'<button class="btn" style="font-size:.72rem;padding:3px 8px" onclick="reSourceSearch(\''+esc(id)+'\',\'suruga\')">駿河屋</button>'
+    +'<span>仕入れ値 <input type="number" value="'+esc(String(cost))+'" data-rscost="'+esc(id)+'" placeholder="円" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">円</span>'
+    +calcHtml
+    +'<button class="btn" style="font-size:.75rem;padding:4px 10px;'+(listed?'background:#2e7d4f;color:#fff':'background:#fff;border:2px solid #2e7d4f;color:#2e7d4f')+'" onclick="reToggleList(\''+esc(id)+'\')">'+(listed?'📦 出品予定（解除）':'📦 出品する')+'</button>'
+    +'</div>';
+}
+async function reReviewUpdate(id,patch){
+  var rec=(window.RE_REVIEWS||{})[String(id)]||{};
+  Object.keys(patch).forEach(function(k){rec[k]=patch[k];});
+  await reSaveVerdictRecord(String(id),rec);
+}
+function reSourceSearch(id,site){
+  var inp=document.querySelector('input[data-rskw="'+id+'"]');
+  var kw=(inp&&inp.value.trim())||'';
+  if(!kw){alert('仕入れ検索KWを入力してください。');return;}
+  reReviewUpdate(id,{sourcing_kw:kw});
+  var enc=encodeURIComponent(kw);var url;
+  if(site==='paypay')url='https://paypayfleamarket.yahoo.co.jp/search/'+enc;
+  else if(site==='suruga')url='https://www.suruga-ya.jp/search?search_word='+enc;
+  else url='https://jp.mercari.com/search?keyword='+enc;
+  window.open(url,'_blank','noopener');
+}
+function reToggleList(id){
+  var rec=(window.RE_REVIEWS||{})[String(id)]||{};
+  reReviewUpdate(id,{decision:(rec.decision==='list'?null:'list')}).then(function(){reRenderCands();});
+}
+// 仕入れKW・仕入れ値の編集を遅延保存（renderを呼ばずフォーカス維持、値だけ更新）
+document.addEventListener('input',function(e){
+  var t=e.target;
+  if(t&&t.dataset&&t.dataset.rskw!==undefined){
+    clearTimeout(window.__rskwT);var id=t.dataset.rskw,v=t.value.trim();
+    window.__rskwT=setTimeout(function(){reReviewUpdate(id,{sourcing_kw:v});},600);
+  }
+  if(t&&t.dataset&&t.dataset.rscost!==undefined){
+    clearTimeout(window.__rscostT);var id2=t.dataset.rscost,v2=Number(t.value)||null;
+    window.__rscostT=setTimeout(function(){reReviewUpdate(id2,{cost_yen:v2}).then(function(){reRenderCands();});},800);
+  }
+});
 // ══════ R1b: Sold検証フロー ══════
 // 流れ: 候補の「検証」→Sold検索ページが開く→Soldまとめ取りブックマークレット→#soldv=でこのツールが開く
 //       →受信データをlocalStorageに保持→検証パネルで型番/価格帯/期間の自動絞り込み＋画像目視→合否→research_review.jsonへ保存
@@ -2620,9 +2700,12 @@ function reRenderVerify(){
     +'<button class="btn" onclick="reReviewPause()">中断（残りは保存されます）</button>'
     +'<span class="muted" style="font-size:.75rem">合否はauto/research_review.jsonに保存され、候補一覧にバッジ表示されます</span></div></div>';
 }
+function reMedian(a){if(!a||!a.length)return null;var s=a.slice().sort(function(x,y){return x-y;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
 async function reSaveVerdict(status,cnt){
   var tgt=reVerifyTarget();if(!tgt)return;
-  var rec={status:status,sold_count_60d:cnt,verified_at:new Date().toISOString(),title:tgt.title,source:'manual'};
+  var med=null;
+  try{var vv=reVerifyRows();if(vv)med=reMedian(vv.rows.filter(function(r){return r.checked&&r.inDays;}).map(function(r){return r.usd;}));}catch(e){}
+  var rec={status:status,sold_count_60d:cnt,median_sold_usd:(med!=null?Math.round(med*100)/100:null),verified_at:new Date().toISOString(),title:tgt.title,source:'manual'};
   var saved=await reSaveVerdictRecord(String(tgt.item_id),rec);
   if(!saved)alert('autoフォルダ未接続のため一時保存しました。接続済みのツール画面でリサーチタブを開くと本保存されます。');
   localStorage.removeItem('ss_re_verify_v1');localStorage.removeItem('ss_soldv_inbox_v1');localStorage.removeItem('ss_re_vchk_v1');
@@ -2791,7 +2874,8 @@ window.addEventListener('message',function(e){
       var v=reVerifyRows();
       var av=v?reAutoVerdict(v):null;
       if(av){
-        var rec={status:av.status,sold_count_60d:av.count,verified_at:new Date().toISOString(),title:(v.tgt.title||''),source:'auto_queue'};
+        var med=reMedian(v.rows.filter(function(r){return r.inDays&&r.pnState==='match'&&!r.gradeMismatch;}).map(function(r){return r.usd;}));
+        var rec={status:av.status,sold_count_60d:av.count,median_sold_usd:(med!=null?Math.round(med*100)/100:null),verified_at:new Date().toISOString(),title:(v.tgt.title||''),source:'auto_queue'};
         q.stats[av.status==='pass'?'pass':'fail']++;
         q.last=(av.status==='pass'?'✅自動合格':'✖自動不合格')+'（60日'+av.count+'点）: '+String(v.tgt.title||'').slice(0,40);
         reQueueSave(q);
@@ -2865,7 +2949,7 @@ async function reFlushPendingReviews(){
   }catch(e){}
 }
 (function(){
-  ['reSearch','reHideListed','reHideDismissed','reSourceFilter'].forEach(function(id){
+  ['reSearch','reHideListed','reHideDismissed','reSourceFilter','reVerdictFilter'].forEach(function(id){
     var e=document.getElementById(id);if(!e)return;
     e.addEventListener(id==='reSearch'?'input':'change',function(){RE_SHOWN=100;clearTimeout(window.__reQT);window.__reQT=setTimeout(reRenderCands,200);});
   });
