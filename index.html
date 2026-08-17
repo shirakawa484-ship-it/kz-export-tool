@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.69</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.71</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1584,6 +1584,19 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
   }
   else if(location.hash&&location.hash.indexOf('#batch=')===0){
     var arr=JSON.parse(decodeURIComponent(location.hash.slice(7)));
+    // ▼ リサーチ振り分け（v1.9.71）: 仕入れ値取得（単品）もまとめ取りと同じルール（最後に押した検索ボタンが宛先）
+    var reActive1=null;try{reActive1=JSON.parse(localStorage.getItem('ss_re_active_v1')||'null');}catch(rae1){}
+    if(reActive1&&reActive1.id&&arr&&arr.length){
+      arr.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
+      try{
+        // 既存の受信分（未処理マーカー）があればマージして最安順に統合
+        var prevB=null;try{prevB=JSON.parse(localStorage.getItem('ss_re_batch_v1')||'null');}catch(pbe){}
+        var merged=(prevB&&String(prevB.id)===String(reActive1.id))?(prevB.items||[]).concat(arr):arr;
+        merged.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
+        localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reActive1.id),at:new Date().toISOString(),kw:'',items:merged.slice(0,30)}));
+      }catch(se1){}
+      history.replaceState(null,'',location.pathname+location.search);
+    }else{
     var act=localStorage.getItem(LS_ACTIVE);
     if(act&&arr&&arr.length){
       arr.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
@@ -1591,6 +1604,7 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     }
     history.replaceState(null,'',location.pathname+location.search);
     window.__scrollToActive=true;
+    }
   }
 }catch(e){}})();
 restoreAll();
@@ -2605,6 +2619,7 @@ function reSupDel(id,i){
 async function reProcessBatchIntake(){
   var b=null;try{b=JSON.parse(localStorage.getItem('ss_re_batch_v1')||'null');}catch(e){}
   if(!b||!b.id||!b.items)return;
+  if(!AUTO_DIR)return; // 未接続タブでは処理しない（マーカーを残し、接続済みタブのreInitが処理する）
   localStorage.removeItem('ss_re_batch_v1');
   var sp=b.items.filter(function(it){return it&&it.p>0;}).slice(0,5).map(function(it){return {price:it.p,url:it.u||''};});
   if(!sp.length)return;
@@ -2979,18 +2994,24 @@ window.addEventListener('storage',function(e){
 });
 // 合否レコードの保存を関数化（手動・自動の共通経路）
 async function reSaveVerdictRecord(itemId,rec){
+  // ▼ 常にマージ保存（v1.9.70）: ファイル上の既存レコードのフィールドを保持したまま差分を上書きする。
+  //   全置換だと「未接続タブの仕入れ取り込みが合格statusを消す」事故が起きる（2026-08-15発生・修正）
   if(AUTO_DIR){
     try{
       var cur=await autoReadJSON('research_review.json')||{reviews:{}};
       if(!cur.reviews)cur.reviews={};
-      cur.reviews[itemId]=rec;cur.updated_at=new Date().toISOString();
+      var merged=cur.reviews[itemId]||{};
+      Object.keys(rec).forEach(function(k){merged[k]=rec[k];});
+      cur.reviews[itemId]=merged;cur.updated_at=new Date().toISOString();
       var fh=await AUTO_DIR.getFileHandle('research_review.json',{create:true});
       var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
       window.RE_REVIEWS=cur.reviews;return true;
     }catch(e){}
   }
   var pend;try{pend=JSON.parse(localStorage.getItem('ss_re_review_pending_v1')||'{}');}catch(e){pend={};}
-  pend[itemId]=rec;
+  var pm=pend[itemId]||{};
+  Object.keys(rec).forEach(function(k){pm[k]=rec[k];});
+  pend[itemId]=pm;
   (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_review_pending_v1',JSON.stringify(pend));
   return false;
 }
@@ -3001,7 +3022,11 @@ async function reFlushPendingReviews(){
   try{
     var cur=await autoReadJSON('research_review.json')||{reviews:{}};
     if(!cur.reviews)cur.reviews={};
-    ids.forEach(function(id){cur.reviews[id]=pend[id];});
+    ids.forEach(function(id){
+      var merged=cur.reviews[id]||{};
+      Object.keys(pend[id]).forEach(function(k){merged[k]=pend[id][k];});
+      cur.reviews[id]=merged;
+    });
     cur.updated_at=new Date().toISOString();
     var fh=await AUTO_DIR.getFileHandle('research_review.json',{create:true});
     var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
