@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.68</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.69</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2530,7 +2530,9 @@ function reRenderCands(){
     var rv=(window.RE_REVIEWS||{})[String(c.item_id)];
     var rvBadge=rv?(rv.status==='pass'?'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#e8f5ec;color:#1d5c2f;white-space:nowrap" title="直近60日'+(rv.sold_count_60d||0)+'点・'+String(rv.verified_at||'').slice(0,10)+'検証">✅合格</span>':'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#fde8e8;color:#8a1f1f;white-space:nowrap">✖不合格</span>'):'';
     return '<div style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
-      +(c.image_url?'<img src="'+esc(c.image_url)+'" loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">':'<div style="width:64px;height:64px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
+      +(c.image_url?('<div style="width:64px"><img src="'+esc(c.image_url)+'" loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">'
+        +'<button class="lensbtn" style="width:64px" onclick="openLens(event,\''+esc(c.image_url)+'\')" title="この画像でGoogleレンズ検索。商品名やキーワードが分からない時に">🔍レンズ</button></div>')
+        :'<div style="width:64px;height:64px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
       +'<div style="flex:1;min-width:0"><a href="'+esc(c.url||'#')+'" target="_blank" rel="noopener" style="font-size:.88rem">'+esc(c.title||'')+'</a>'
       +'<div class="muted" style="font-size:.75rem;margin-top:2px">'+esc(c.seller_id||'')+' ・ 初検出 '+String(c.first_seen||'').slice(0,10)
       +(c.part_numbers&&c.part_numbers.length?' ・ 型番 '+esc(c.part_numbers.join(', ')):'')
@@ -2735,7 +2737,8 @@ function reRenderVerify(){
   el.innerHTML='<div style="border:2px solid '+(pass?'#2e7d4f':'#c9a227')+';border-radius:10px;padding:12px;margin:8px 0;background:#fff">'
     +(rvw?'<div style="background:#f3eefc;border-radius:7px;padding:5px 9px;margin-bottom:7px;font-size:.78rem">👁 目視まとめ判定（'+(rvw.pos+1)+'/'+rvw.ids.length+'）— 下のSold明細と見比べて、同一品にチェック→合否を押すと次へ進みます</div>':(qn&&qn.active?'<div style="background:#eef3ff;border-radius:7px;padding:5px 9px;margin-bottom:7px;font-size:.78rem">🔁 連続検証中（'+(qn.pos+1)+'/'+qn.ids.length+'）</div>':''))
     +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:6px">'
-    +(v.tgt.image_url?'<img src="'+esc(v.tgt.image_url)+'" style="width:110px;height:110px;object-fit:cover;border-radius:9px;border:2px solid #4a5d8f" title="検証中の候補商品">':'')
+    +(v.tgt.image_url?('<div style="width:110px"><img src="'+esc(v.tgt.image_url)+'" style="width:110px;height:110px;object-fit:cover;border-radius:9px;border:2px solid #4a5d8f" title="検証中の候補商品">'
+      +'<button class="lensbtn" style="width:110px" onclick="openLens(event,\''+esc(v.tgt.image_url)+'\')">🔍レンズ</button></div>'):'')
     +'<div style="flex:1;min-width:200px"><div class="muted" style="font-size:.72rem">この商品が市場で2ヶ月に2点以上売れているかを検証中</div><b style="font-size:.95rem">'+esc(v.tgt.title||'')+'</b>'
     +'<div style="font-size:.82rem;margin-top:2px">ライバル価格 <b>'+(v.tgt.total_usd!=null?('$'+Number(v.tgt.total_usd).toFixed(0)):'—')+'</b>'+(v.tgt.part_numbers&&v.tgt.part_numbers.length?' ・ 型番 '+esc(v.tgt.part_numbers.join(', ')):' ・ 型番なし（画像での見比べが頼りです）')+'</div></div>'
     +'<b style="font-size:1.05rem;color:'+(pass?'#2e7d4f':'#8a6d00')+'">直近60日 '+okCount+'点 '+(pass?'→ 基準クリア（2点以上）':'→ 基準未達')+'</b></div>'
