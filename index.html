@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.65</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.66</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2641,11 +2641,9 @@ function reCloseVerify(){
 // 自動合否: 型番あり候補で判定が明確な場合のみ（型番一致2点以上=合格 / 十分な取得数で一致0=不合格）。
 // それ以外（型番なし・際どい）は目視パネルに回して一時停止（最終判断者は人間の原則）。
 var RE_SOLD_WIN=null;
-// ▼ ペース制御（v1.9.65）: 1セッションの取り込み上限＋次ページを開くまでのランダム間隔。
-//   10連打でeBay側に弾かれた教訓のコード化。人間の操作ペースを人間らしい速度に律速する。
-//   待ち時間中は目視まとめ判定を消化できる（時間を無駄にしない）
+// ▼ ペース制御（v1.9.66）: 1セッション5件上限（10連打でeBay側に弾かれた教訓）。
+//   セッション間はユーザーが自然に間隔を空ける運用。待機タイマーは撤去（ユーザー判断 2026-08-15）
 var RE_Q_SESSION_LIMIT=5;      // 1セッションの取り込み件数上限
-var RE_Q_WAIT_MIN=20, RE_Q_WAIT_MAX=60; // 次ページまでのランダム待機（秒）
 var RE_Q_TIMER=null;
 function reQueue(){try{return JSON.parse(localStorage.getItem('ss_re_vq_v1')||'null');}catch(e){return null;}}
 function reQueueSave(q){(window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_vq_v1',JSON.stringify(q));}
@@ -2766,29 +2764,7 @@ function reReviewAdvance(){
 function reQueueAdvance(){
   var q=reQueue();if(!q||!q.active)return false;
   q.pos=q.pos+1;reQueueSave(q);
-  if(q.pos>=q.ids.length){reQueueOpen(q.pos);return true;} // 完了処理へ
-  // ランダム待機してから次ページを開く（eBayへのアクセス間隔を人間らしく保つ）
-  var wait=Math.round(RE_Q_WAIT_MIN+Math.random()*(RE_Q_WAIT_MAX-RE_Q_WAIT_MIN));
-  var until=Date.now()+wait*1000;
-  if(RE_Q_TIMER)clearInterval(RE_Q_TIMER);
-  RE_Q_TIMER=setInterval(function(){
-    var q2=reQueue();
-    if(!q2||!q2.active){clearInterval(RE_Q_TIMER);RE_Q_TIMER=null;return;}
-    var left=Math.max(0,Math.ceil((until-Date.now())/1000));
-    var st=document.getElementById('reQueueStatus');
-    if(st&&left>0){
-      var vs;try{vs=JSON.parse(localStorage.getItem('ss_re_vstore_v1')||'{}');}catch(e){vs={};}
-      var vn=Object.keys(vs).length;
-      st.innerHTML='進行 <b>'+q2.pos+'/'+q2.ids.length+'</b>（自動合格'+q2.stats.pass+'・自動不合格'+q2.stats.fail+'・目視'+q2.stats.manual+'）— ⏳ 次のページまで <b>'+left+'秒</b>'
-        +(q2.last?'<br><span style="color:#2e7d4f">直前: '+q2.last+'</span>':'')
-        +(vn>0?'<br><button class="btn" style="background:#7a3b8f;color:#fff;font-size:.75rem;padding:3px 9px" onclick="reReviewStart(Object.keys(JSON.parse(localStorage.getItem(\'ss_re_vstore_v1\')||\'{}\')))">待ち時間に目視'+vn+'件を判定する</button>':'');
-    }
-    if(Date.now()>=until){
-      clearInterval(RE_Q_TIMER);RE_Q_TIMER=null;
-      var q3=reQueue();
-      if(q3&&q3.active)reQueueOpen(q3.pos);
-    }
-  },500);
+  reQueueOpen(q.pos);
   return true;
 }
 // 自動合否の判定: 明確な場合のみ verdictを返す。それ以外はnull（目視へ）
