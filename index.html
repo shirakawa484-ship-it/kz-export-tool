@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.67</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.68</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1417,7 +1417,7 @@ function renderAll(){
 function renderSlots(idx){var el=document.getElementById('slots'+idx);if(!el)return;var arr=supplies[idx]||[];var mn=minCost(idx);el.innerHTML=arr.map(function(s,i){var isMin=(s.price===mn);return '<div class="slot '+(isMin?'min':'')+'">'+(isMin?'<span class="tag">最安</span>':'')+'<input class="pr" type="number" value="'+s.price+'" onchange="editPrice('+idx+','+i+',this.value)">'+'<span style="font-size:11px">円</span>'+'<span class="u">'+(s.url?esc(s.url):'<b style="color:#8a5b00">手入力原価（URL候補より優先）</b>')+'</span>'+'<button class="del" onclick="delSupply('+idx+','+i+')">×</button></div>';}).join('');}
 
 function onKw(idx,v){keywords[idx]=v;saveMeta();}
-function doSearch(idx,site){activeIdx=idx;localStorage.setItem(LS_ACTIVE,String(ITEMS[idx].id));var kw=keywords[idx]||'';var enc=encodeURIComponent(kw);var url;if(site==='paypay')url='https://paypayfleamarket.yahoo.co.jp/search/'+enc;else if(site==='suruga')url='https://www.suruga-ya.jp/search?search_word='+enc;else url='https://jp.mercari.com/search?keyword='+enc;window.open(url,'_blank','noopener');renderAll();var sn=site==='paypay'?'Yahoo!フリマ':(site==='suruga'?'駿河屋':'メルカリ');showToast('「'+ITEMS[idx].name.slice(0,14)+'…」をメンテ中に。'+sn+'でブックマークレットを押すと追加されます');}
+function doSearch(idx,site){activeIdx=idx;localStorage.setItem(LS_ACTIVE,String(ITEMS[idx].id));try{localStorage.removeItem('ss_re_active_v1');}catch(e){}var kw=keywords[idx]||'';var enc=encodeURIComponent(kw);var url;if(site==='paypay')url='https://paypayfleamarket.yahoo.co.jp/search/'+enc;else if(site==='suruga')url='https://www.suruga-ya.jp/search?search_word='+enc;else url='https://jp.mercari.com/search?keyword='+enc;window.open(url,'_blank','noopener');renderAll();var sn=site==='paypay'?'Yahoo!フリマ':(site==='suruga'?'駿河屋':'メルカリ');showToast('「'+ITEMS[idx].name.slice(0,14)+'…」をメンテ中に。'+sn+'でブックマークレットを押すと追加されます');}
 function onDest(idx,v){dests[idx]=v;saveMeta();recalc(idx);}
 function onDuty(idx,v){duties[idx]=parseFloat(v)||0;saveMeta();recalc(idx);}
 function addManual(idx){var el=document.getElementById('mp'+idx);var p=parseInt(el.value,10);if(!p||p<=0)return;if(!supplies[idx])supplies[idx]=[];if(supplies[idx].length>=5){alert('最大5件です');return;}supplies[idx].push({price:p,url:''});el.value='';markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
@@ -1543,6 +1543,17 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     };
     var pl=null,parseErr=null;
     try{pl=JSON.parse(decodeURIComponent(location.hash.slice(8)));}catch(pe){parseErr=String(pe&&pe.message||pe);}
+    // ▼ リサーチ振り分け（v1.9.68）: 最後に押した検索ボタンがリサーチ由来なら、在庫のITEMSには触れず
+    //   リサーチ側の受け皿（ss_re_batch_v1）に保存する。処理は全関数定義後（最終ブロック）で行う
+    var reActive=null;try{reActive=JSON.parse(localStorage.getItem('ss_re_active_v1')||'null');}catch(rae){}
+    if(reActive&&reActive.id&&!parseErr&&pl&&pl.items&&pl.items.length){
+      pl.items.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
+      try{localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reActive.id),at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,30)}));}catch(se){}
+      showBanner('#0a7d55','📥 まとめ取り '+pl.items.length+'件をリサーチ候補の仕入れ候補として受信しました（最安5件を自動採用・リサーチタブで確認できます）');
+      logRecv('research_ok',pl.items.length,String(reActive.id),null);
+      history.replaceState(null,'',location.pathname+location.search);
+      return;
+    }
     var act2=localStorage.getItem(LS_ACTIVE);
     var t2=new Date().toLocaleTimeString('ja-JP');
     if(parseErr){
@@ -2440,6 +2451,7 @@ async function reInit(){
   // 初期化が走ると空リストがキャッシュに固着するバグの修正。未保存の編集がある場合のみ保持）
   if(!window.RE_SELLERS_DIRTY){var s=await autoReadJSON('research_sellers.json');RE_SELLERS=(s&&s.sellers)||RE_SELLERS||[];}
   await reFlushPendingReviews();
+  try{await reProcessBatchIntake();}catch(e){}
   var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||window.RE_REVIEWS||{};
   var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||RE_CANDS||[];
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
@@ -2538,35 +2550,64 @@ function reShowMore(){RE_SHOWN+=100;reRenderCands();}
 // ══════ R2a: 合格候補の仕入れ探索・利益計算（v1.9.67）══════
 // 合格候補の下に展開: 仕入れKW（日本語に手直し）→メルカリ等検索→仕入れ値を手入力→
 // 実売中央値ベースの利益計算→「出品する」で今日の5品へ。編集はresearch_review.jsonにマージ保存
+function reMinSupply(rv){
+  var sp=rv.supplies||[];var mn=null;
+  sp.forEach(function(s){if(s&&s.price>0&&(mn===null||s.price<mn))mn=s.price;});
+  return mn;
+}
 function reSourcingBlock(c,rv){
   var id=String(c.item_id);
   var kw=rv.sourcing_kw!=null?rv.sourcing_kw:((c.part_numbers&&c.part_numbers.length)?c.part_numbers.join(' '):String(c.title||'').split(/\s+/).slice(0,6).join(' '));
-  var cost=rv.cost_yen!=null?rv.cost_yen:'';
+  var sp=rv.supplies||[];
+  var mn=reMinSupply(rv);
   var sellUsd=(rv.median_sold_usd!=null?rv.median_sold_usd:(c.total_usd!=null?c.total_usd:c.price_usd));
+  var slots=sp.map(function(s,i){
+    return '<span style="display:inline-flex;gap:3px;align-items:center;border:1px solid '+(s.price===mn?'#2e7d4f':'var(--line)')+';border-radius:6px;padding:2px 5px;background:'+(s.price===mn?'#eef7f0':'#fff')+'">'
+      +(s.price===mn?'<b style="font-size:.62rem;color:#2e7d4f">最安</b>':'')
+      +'<input type="number" value="'+s.price+'" data-rsedit="'+esc(id)+':'+i+'" style="width:72px;padding:2px 5px;border:1px solid var(--line);border-radius:5px;font-size:.78rem">円'
+      +(s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener" style="font-size:.68rem">開く</a>':'')
+      +'<button class="btn" style="font-size:.65rem;padding:1px 5px" onclick="reSupDel(\''+esc(id)+'\','+i+')">×</button></span>';
+  }).join(' ');
   var calcHtml='';
-  if(rv.cost_yen>0&&sellUsd>0&&typeof calcProfit==='function'){
+  if(mn>0&&sellUsd>0&&typeof calcProfit==='function'){
     try{
       var ship=(typeof n==='function')?n('shipUS'):2115;
-      var r=calcProfit(sellUsd,Number(rv.cost_yen),ship,12.5);
+      var r=calcProfit(sellUsd,Number(mn),ship,12.5);
       var col=r.profit<0?'#a33':'#1d5c2f';
-      calcHtml='<span>実売中央値 <b>$'+Number(sellUsd).toFixed(0)+'</b>'+(rv.median_sold_usd!=null?'':'<small>（中央値なし→ライバル価格で仮計算）</small>')+'</span>'
+      calcHtml='<span>最安仕入れ <b>'+mn.toLocaleString()+'円</b></span>'
+        +'<span>実売中央値 <b>$'+Number(sellUsd).toFixed(0)+'</b>'+(rv.median_sold_usd!=null?'':'<small>（中央値なし→ライバル価格で仮計算）</small>')+'</span>'
         +'<span>利益 <b style="color:'+col+'">¥'+Math.round(r.profit).toLocaleString()+'</b></span>'
         +'<span>利益率 <b style="color:'+col+'">'+r.margin.toFixed(1)+'%</b></span>';
     }catch(e){calcHtml='<span class="muted">計算エラー</span>';}
   }else{
-    calcHtml='<span class="muted">仕入れ値を入れると利益を計算します（売価基準: '+(rv.median_sold_usd!=null?('実売中央値$'+Number(rv.median_sold_usd).toFixed(0)):'ライバル価格')+'）</span>';
+    calcHtml='<span class="muted">検索→いつものまとめ取り(v6)で仕入れ候補が入ります（売価基準: '+(rv.median_sold_usd!=null?('実売中央値$'+Number(rv.median_sold_usd).toFixed(0)):'ライバル価格')+'）</span>';
   }
   var listed=rv.decision==='list';
-  return '<div style="margin:-2px 0 8px 74px;padding:8px 10px;border:1px dashed #9fb3d8;border-radius:0 0 9px 9px;background:#f8fafd;font-size:.8rem;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+  return '<div style="margin:-2px 0 8px 74px;padding:8px 10px;border:1px dashed #9fb3d8;border-radius:0 0 9px 9px;background:#f8fafd;font-size:.8rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
     +'<span style="font-weight:700;color:#4a5d8f">仕入れ探索</span>'
     +'<input type="text" value="'+esc(kw)+'" data-rskw="'+esc(id)+'" placeholder="仕入れ検索KW（日本語に直すと精度UP）" style="min-width:200px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">'
     +'<button class="btn" style="font-size:.72rem;padding:3px 8px;background:#2e7d4f;color:#fff" onclick="reSourceSearch(\''+esc(id)+'\',\'mercari\')">メルカリ</button>'
     +'<button class="btn" style="font-size:.72rem;padding:3px 8px" onclick="reSourceSearch(\''+esc(id)+'\',\'paypay\')">Y!フリマ</button>'
     +'<button class="btn" style="font-size:.72rem;padding:3px 8px" onclick="reSourceSearch(\''+esc(id)+'\',\'suruga\')">駿河屋</button>'
-    +'<span>仕入れ値 <input type="number" value="'+esc(String(cost))+'" data-rscost="'+esc(id)+'" placeholder="円" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">円</span>'
+    +(slots?('<span style="flex-basis:100%;display:flex;gap:5px;flex-wrap:wrap;align-items:center"><span class="muted" style="font-size:.7rem">仕入れ候補:</span>'+slots+'</span>'):'')
+    +'<span>手入力追加 <input type="number" data-rscost="'+esc(id)+'" placeholder="円" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">円</span>'
     +calcHtml
     +'<button class="btn" style="font-size:.75rem;padding:4px 10px;'+(listed?'background:#2e7d4f;color:#fff':'background:#fff;border:2px solid #2e7d4f;color:#2e7d4f')+'" onclick="reToggleList(\''+esc(id)+'\')">'+(listed?'📦 出品予定（解除）':'📦 出品する')+'</button>'
     +'</div>';
+}
+function reSupDel(id,i){
+  var rec=(window.RE_REVIEWS||{})[String(id)]||{};var sp=(rec.supplies||[]).slice();sp.splice(i,1);
+  reReviewUpdate(id,{supplies:sp,cost_yen:reMinSupply({supplies:sp})}).then(function(){reRenderCands();});
+}
+// batch2で届いたリサーチ宛てまとめ取りの取り込み（最終ブロックで実行）
+async function reProcessBatchIntake(){
+  var b=null;try{b=JSON.parse(localStorage.getItem('ss_re_batch_v1')||'null');}catch(e){}
+  if(!b||!b.id||!b.items)return;
+  localStorage.removeItem('ss_re_batch_v1');
+  var sp=b.items.filter(function(it){return it&&it.p>0;}).slice(0,5).map(function(it){return {price:it.p,url:it.u||''};});
+  if(!sp.length)return;
+  await reReviewUpdate(b.id,{supplies:sp,cost_yen:reMinSupply({supplies:sp}),sourcing_kw:(window.RE_REVIEWS&&window.RE_REVIEWS[b.id]&&window.RE_REVIEWS[b.id].sourcing_kw)||b.kw||undefined});
+  showMainTab('re');
 }
 async function reReviewUpdate(id,patch){
   var rec=(window.RE_REVIEWS||{})[String(id)]||{};
@@ -2578,6 +2619,8 @@ function reSourceSearch(id,site){
   var kw=(inp&&inp.value.trim())||'';
   if(!kw){alert('仕入れ検索KWを入力してください。');return;}
   reReviewUpdate(id,{sourcing_kw:kw});
+  // 在庫メンテのまとめ取り(v6)がこの候補に届くように宛先マーカーを設定（最後に押した方が勝つ）
+  (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_active_v1',JSON.stringify({id:String(id),at:new Date().toISOString()}));
   var enc=encodeURIComponent(kw);var url;
   if(site==='paypay')url='https://paypayfleamarket.yahoo.co.jp/search/'+enc;
   else if(site==='suruga')url='https://www.suruga-ya.jp/search?search_word='+enc;
@@ -2597,7 +2640,22 @@ document.addEventListener('input',function(e){
   }
   if(t&&t.dataset&&t.dataset.rscost!==undefined){
     clearTimeout(window.__rscostT);var id2=t.dataset.rscost,v2=Number(t.value)||null;
-    window.__rscostT=setTimeout(function(){reReviewUpdate(id2,{cost_yen:v2}).then(function(){reRenderCands();});},800);
+    window.__rscostT=setTimeout(function(){
+      if(!v2||v2<=0)return;
+      var rec=(window.RE_REVIEWS||{})[String(id2)]||{};var sp=(rec.supplies||[]).slice();
+      if(sp.length>=5){alert('仕入れ候補は最大5件です');return;}
+      sp.push({price:v2,url:''});
+      reReviewUpdate(id2,{supplies:sp,cost_yen:reMinSupply({supplies:sp})}).then(function(){reRenderCands();});
+    },800);
+  }
+  if(t&&t.dataset&&t.dataset.rsedit!==undefined){
+    clearTimeout(window.__rseditT);var pair=t.dataset.rsedit.split(':'),id3=pair[0],ix=Number(pair[1]),v3=Number(t.value)||null;
+    window.__rseditT=setTimeout(function(){
+      if(!v3||v3<=0)return;
+      var rec=(window.RE_REVIEWS||{})[String(id3)]||{};var sp=(rec.supplies||[]).slice();
+      if(!sp[ix])return;sp[ix].price=v3;
+      reReviewUpdate(id3,{supplies:sp,cost_yen:reMinSupply({supplies:sp})}).then(function(){reRenderCands();});
+    },800);
   }
 });
 // ══════ R1b: Sold検証フロー ══════
@@ -3022,6 +3080,7 @@ showMainTab('inv');
 // ▼ Sold検証データの受信起動（v1.9.57）: 全関数定義後に実行する必要がある
 //   （v1.9.56では先頭ブロックから呼んで未定義エラー→通常起動に流れるバグ）
 try{if(location.hash&&location.hash.indexOf('#soldv=')===0){reHandleSoldHash();}}catch(e){}
+try{reProcessBatchIntake();}catch(e){}
 </script>
 </body>
 </html>
