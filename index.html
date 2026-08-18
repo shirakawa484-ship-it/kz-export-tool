@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.76</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.77</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2684,7 +2684,7 @@ function rePendBlock(id,pd){
   }).join('');
   return '<div style="flex-basis:100%;border:1px solid #c9d6ec;border-radius:8px;padding:7px 9px;background:#fbfcff">'
     +'<div style="font-size:.76rem;margin-bottom:5px">'+head+'</div>'
-    +'<div style="display:flex;flex-direction:column;gap:3px;max-height:260px;overflow:auto">'+list+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:3px">'+list+'</div>'
     +'<div style="display:flex;gap:8px;margin-top:6px"><button class="btn" style="background:#2e7d4f;color:#fff;font-size:.75rem" onclick="rePendConfirm(\''+esc(id)+'\')">この内容で仕入れ候補に反映</button>'
     +'<button class="btn" style="font-size:.75rem" onclick="rePendDiscard(\''+esc(id)+'\')">破棄</button></div></div>';
 }
@@ -3113,7 +3113,17 @@ window.addEventListener('storage',function(e){
     if(['ss_re_vq_v1','ss_re_vstore_v1','ss_re_vreview_v1','ss_re_review_pending_v1','ss_re_batch_v1','ss_re_pend_v1'].indexOf(e.key)<0)return;
     if(e.key==='ss_re_pend_v1'){var tr2=document.getElementById('tabRe');if(tr2&&tr2.style.display!=='none'&&typeof reRenderCands==='function')reRenderCands();return;}
     // 仕入れ候補の受信は表示中タブに関わらず即取り込み（接続済みタブが処理する）
-    if(e.key==='ss_re_batch_v1'&&e.newValue){ if(typeof reProcessBatchIntake==='function'&&AUTO_DIR){reProcessBatchIntake().then(function(){var tr=document.getElementById('tabRe');if(tr&&tr.style.display!=='none'&&typeof reInit==='function')reInit();});} return; }
+    if(e.key==='ss_re_batch_v1'&&e.newValue){
+      if(typeof reProcessBatchIntake==='function'&&AUTO_DIR){
+        var bid=null;try{bid=String((JSON.parse(e.newValue)||{}).id||'');}catch(be){}
+        reProcessBatchIntake().then(function(){
+          var tr=document.getElementById('tabRe');
+          if(tr&&tr.style.display!=='none'){
+            if(typeof reInit==='function')reInit();
+            if(bid&&typeof reScrollToCand==='function')setTimeout(function(){reScrollToCand(bid);},350);
+          }
+        });
+      } return; }
     var tabRe=document.getElementById('tabRe');
     if(!tabRe||tabRe.style.display==='none')return;
     if(typeof reQueueUi==='function')reQueueUi();
