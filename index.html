@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.75</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.76</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2483,6 +2483,7 @@ async function reInit(){
   try{await reProcessBatchIntake();}catch(e){}
   var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||window.RE_REVIEWS||{};
   var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||RE_CANDS||[];
+  if(!window.__reFiltersRestored){window.__reFiltersRestored=true;if(typeof reRestoreFilters==='function')reRestoreFilters();}
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
   reRenderSellers(); reRenderCands(); reRenderVerify(); if(typeof reQueueUi==='function')reQueueUi();
@@ -2558,7 +2559,7 @@ function reRenderCands(){
     var isDis=dis.indexOf(String(c.item_id))>=0;
     var rv=(window.RE_REVIEWS||{})[String(c.item_id)];
     var rvBadge=rv?(rv.status==='pass'?'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#e8f5ec;color:#1d5c2f;white-space:nowrap" title="直近60日'+(rv.sold_count_60d||0)+'点・'+String(rv.verified_at||'').slice(0,10)+'検証">✅合格</span>':'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#fde8e8;color:#8a1f1f;white-space:nowrap">✖不合格</span>'):'';
-    return '<div style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
+    return '<div data-cid="'+esc(String(c.item_id))+'" style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
       +(c.image_url?('<div style="width:64px"><img src="'+esc(c.image_url)+'" loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">'
         +'<button class="lensbtn" style="width:64px" onclick="openLens(event,\''+esc(c.image_url)+'\')" title="この画像でGoogleレンズ検索。商品名やキーワードが分からない時に">🔍レンズ</button></div>')
         :'<div style="width:64px;height:64px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
@@ -2674,6 +2675,7 @@ function rePendBlock(id,pd){
     var op=(r.st==='below'||r.st==='off')?'opacity:.55;':'';
     return '<div style="display:flex;gap:6px;align-items:center;padding:3px 6px;border:1px solid '+(r.st==='on'?'#9fd0b0':'var(--line)')+';border-radius:6px;background:'+bg+';'+op+'cursor:pointer;font-size:.76rem" onclick="rePendToggle(\''+esc(id)+'\',\''+esc(r.key)+'\')">'
       +'<button class="btn" style="font-size:.7rem;padding:1px 6px'+(pd.anchor===r.d.p?';background:#4a5d8f;color:#fff':'')+'" title="この商品を基準（最安の本物）にする" onclick="event.stopPropagation();rePendAnchor(\''+esc(id)+'\','+r.d.p+')">⚓</button>'
+      +(r.d.i?'<img src="'+esc(r.d.i)+'" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">':'<span style="width:56px;height:56px;display:inline-flex;align-items:center;justify-content:center;background:#f4f2ec;border-radius:6px;font-size:.62rem;color:#999">画像なし</span>')
       +'<b>'+Number(r.d.p).toLocaleString()+'円</b>'
       +(r.st==='on'?'<span style="color:#1d5c2f;font-size:.68rem">✓採用</span>':'')
       +'<span class="muted" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.d.t||'')+'</span>'
@@ -2714,9 +2716,10 @@ async function reProcessBatchIntake(){
   if(raw.length>1){
     var pend;try{pend=JSON.parse(localStorage.getItem('ss_re_pend_v1')||'{}');}catch(pe){pend={};}
     pend[String(b.id)]={at:new Date().toISOString(),kw:b.kw||'',anchor:null,mult:1.3,ovr:{},
-      items:raw.slice(0,30).map(function(it){return {p:it.p,u:it.u||'',t:String(it.t||'').slice(0,40)};})};
+      items:raw.slice(0,30).map(function(it){var im=String(it.i||'');if(im.indexOf('data:')===0||im.length>300)im='';return {p:it.p,u:it.u||'',t:String(it.t||'').slice(0,40),i:im};})};
     (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_pend_v1',JSON.stringify(pend));
     showMainTab('re');reRenderCands();
+    reScrollToCand(String(b.id));
     return;
   }
   var incoming=raw.map(function(it){return {price:it.p,url:it.u||''};});
@@ -2734,7 +2737,19 @@ async function reProcessBatchIntake(){
   });
   out=out.slice(0,5);
   await reReviewUpdate(b.id,{supplies:out,cost_yen:reMinSupply({supplies:out}),sourcing_kw:rec.sourcing_kw||b.kw||undefined});
-  showMainTab('re');
+  showMainTab('re');reRenderCands();reScrollToCand(String(b.id));
+}
+// 取り込み先の候補へスクロールして一時ハイライト（迷子防止）
+function reScrollToCand(id){
+  setTimeout(function(){
+    try{
+      var el=document.querySelector('[data-cid="'+id+'"]');
+      if(!el)return;
+      el.scrollIntoView({behavior:'smooth',block:'center'});
+      el.style.transition='box-shadow .3s';el.style.boxShadow='0 0 0 3px #4a5d8f';
+      setTimeout(function(){el.style.boxShadow='';},2500);
+    }catch(e){}
+  },150);
 }
 async function reReviewUpdate(id,patch){
   var rec=(window.RE_REVIEWS||{})[String(id)]||{};
@@ -3148,9 +3163,18 @@ async function reFlushPendingReviews(){
   }catch(e){}
 }
 (function(){
+  // ▼ フィルタ状態の保存・復元（v1.9.76）: 別タブ・再読込・仕入れ探索から戻っても「合格のみ」等が維持される
+  function saveF(){try{var f={q:document.getElementById('reSearch').value,hl:document.getElementById('reHideListed').checked,hd:document.getElementById('reHideDismissed').checked,src:document.getElementById('reSourceFilter').value,vf:document.getElementById('reVerdictFilter').value};(window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_filters_v1',JSON.stringify(f));}catch(e){}}
+  window.reRestoreFilters=function(){try{var f=JSON.parse(localStorage.getItem('ss_re_filters_v1')||'null');if(!f)return;
+    document.getElementById('reSearch').value=f.q||'';
+    document.getElementById('reHideListed').checked=(f.hl!==false);
+    document.getElementById('reHideDismissed').checked=(f.hd!==false);
+    document.getElementById('reSourceFilter').value=f.src||'';
+    document.getElementById('reVerdictFilter').value=f.vf||'';
+  }catch(e){}};
   ['reSearch','reHideListed','reHideDismissed','reSourceFilter','reVerdictFilter'].forEach(function(id){
     var e=document.getElementById(id);if(!e)return;
-    e.addEventListener(id==='reSearch'?'input':'change',function(){RE_SHOWN=100;clearTimeout(window.__reQT);window.__reQT=setTimeout(reRenderCands,200);});
+    e.addEventListener(id==='reSearch'?'input':'change',function(){RE_SHOWN=100;saveF();clearTimeout(window.__reQT);window.__reQT=setTimeout(reRenderCands,200);});
   });
 })();
 function showMainTab(t){
