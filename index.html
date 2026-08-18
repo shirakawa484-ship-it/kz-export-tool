@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.74</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.75</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2365,10 +2365,10 @@ async function connectAuto(){
     var saved=await idbGet('autoDir');
     if(saved){
       var p=await saved.requestPermission({mode:'readwrite'});
-      if(p==='granted'){ AUTO_DIR=saved; setAutoStatus('接続中：'+saved.name,true); await autoLoadAll(true); return; }
+      if(p==='granted'){ AUTO_DIR=saved; setAutoStatus('接続中：'+saved.name,true); await autoLoadAll(true); reAfterConnect(); return; }
     }
     var dir=await window.showDirectoryPicker({mode:'readwrite'});
-    AUTO_DIR=dir; await idbSet('autoDir',dir);
+    AUTO_DIR=dir; await idbSet('autoDir',dir); setTimeout(function(){reAfterConnect();},0);
     setAutoStatus('接続中：'+dir.name,true);
     await autoLoadAll(true);
   }catch(e){ if(e && e.name!=='AbortError') alert('接続に失敗：'+e.message); }
@@ -2377,7 +2377,7 @@ async function restoreAuto(){
   try{
     var dir=await idbGet('autoDir'); if(!dir) return;
     var p=await dir.queryPermission({mode:'readwrite'});
-    if(p==='granted'){AUTO_DIR=dir; setAutoStatus('接続中：'+dir.name,true); await autoLoadAll(false);}
+    if(p==='granted'){AUTO_DIR=dir; setAutoStatus('接続中：'+dir.name,true); await autoLoadAll(false); reAfterConnect();}
     else{ setAutoStatus('再接続が必要（📁ボタンを押してください）',false); }
   }catch(e){}
 }
@@ -2691,6 +2691,18 @@ function reSupDel(id,i){
   reReviewUpdate(id,{supplies:sp,cost_yen:reMinSupply({supplies:sp})}).then(function(){reRenderCands();});
 }
 // batch2で届いたリサーチ宛てまとめ取りの取り込み（最終ブロックで実行）
+// autoフォルダ接続完了時のリサーチ更新フック（v1.9.75）:
+// リサーチタブの初期化が自動再接続より先に走ると「接続してください」の空画面で止まるレースの解消。
+// 受信マーカー（まとめ取り/仕入れ値取得）が待っている場合もここで取り込まれる
+function reAfterConnect(){
+  try{
+    var tr=document.getElementById('tabRe');
+    var hasMarker=!!localStorage.getItem('ss_re_batch_v1');
+    if((tr&&tr.style.display!=='none')||hasMarker){
+      if(typeof reInit==='function')reInit();
+    }
+  }catch(e){}
+}
 async function reProcessBatchIntake(){
   var b=null;try{b=JSON.parse(localStorage.getItem('ss_re_batch_v1')||'null');}catch(e){}
   if(!b||!b.id||!b.items)return;
