@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.71</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.72</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1067,7 +1067,22 @@ function showToast(msg){var t=document.getElementById('toast');t.textContent=msg
 
 function handleIncoming(){
   var p=new URLSearchParams(location.search);var price=p.get('price');var url=p.get('url');
-  if(price){var pr=parseInt(price,10);var actId=localStorage.getItem(LS_ACTIVE);var idx=null;
+  if(price){var pr=parseInt(price,10);
+    // ▼ リサーチ振り分け（v1.9.72）: 仕入れ値取得（?price=経路）もまとめ取りと同じルール
+    //   （最後に押した検索ボタンがリサーチ由来なら、在庫ITEMSに触れずリサーチの受け皿へ）
+    var reA=null;try{reA=JSON.parse(localStorage.getItem('ss_re_active_v1')||'null');}catch(rae){}
+    if(reA&&reA.id&&pr>0){
+      try{
+        var prevB=null;try{prevB=JSON.parse(localStorage.getItem('ss_re_batch_v1')||'null');}catch(pbe){}
+        var merged=(prevB&&String(prevB.id)===String(reA.id))?(prevB.items||[]):[];
+        merged=merged.concat([{p:pr,u:url||''}]);
+        merged.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
+        localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reA.id),at:new Date().toISOString(),kw:'',items:merged.slice(0,30)}));
+      }catch(se){}
+      showToast('✓ '+pr.toLocaleString()+'円 をリサーチ候補の仕入れ候補として受信（リサーチタブで確認）');
+      history.replaceState(null,'',location.pathname);return true;
+    }
+    var actId=localStorage.getItem(LS_ACTIVE);var idx=null;
     ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))idx=i;});
     if(idx!==null&&pr>0){if(!supplies[idx])supplies[idx]=[];
       if(supplies[idx].length<5){supplies[idx].push({price:pr,url:url||''});markTouched(idx);saveSupplies();showToast('✓ '+pr.toLocaleString()+'円 を「'+ITEMS[idx].name.slice(0,18)+'…」に追加');}
@@ -2985,7 +3000,9 @@ window.addEventListener('message',function(e){
 window.addEventListener('storage',function(e){
   try{
     if(!e.key)return;
-    if(['ss_re_vq_v1','ss_re_vstore_v1','ss_re_vreview_v1','ss_re_review_pending_v1'].indexOf(e.key)<0)return;
+    if(['ss_re_vq_v1','ss_re_vstore_v1','ss_re_vreview_v1','ss_re_review_pending_v1','ss_re_batch_v1'].indexOf(e.key)<0)return;
+    // 仕入れ候補の受信は表示中タブに関わらず即取り込み（接続済みタブが処理する）
+    if(e.key==='ss_re_batch_v1'&&e.newValue){ if(typeof reProcessBatchIntake==='function'&&AUTO_DIR){reProcessBatchIntake().then(function(){var tr=document.getElementById('tabRe');if(tr&&tr.style.display!=='none'&&typeof reInit==='function')reInit();});} return; }
     var tabRe=document.getElementById('tabRe');
     if(!tabRe||tabRe.style.display==='none')return;
     if(typeof reQueueUi==='function')reQueueUi();
