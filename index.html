@@ -259,11 +259,11 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa .row-actions a:hover{text-decoration:underline;}
 #tabPa details.reb{margin-top:8px;}
 #tabPa details.reb summary{cursor:pointer;color:var(--accent);font-size:.84rem;}
-#tabPa .rival{display:grid;grid-template-columns:auto 44px 1fr auto;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:5px;font-size:.82rem;cursor:pointer;}
-#tabPa .rival.picked{border-color:var(--accent);background:#eef3ff;}
-#tabPa .rival.banded{opacity:.55;background:#f7f7f8;}
-#tabPa .rival.banded.picked{opacity:1;border-color:var(--accent);background:#eef3ff;}
-#tabPa .rival .bandtag{font-size:.68rem;color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:1px 5px;margin-left:4px;white-space:nowrap;}
+#tabPa .rival,#tabRe .rival{display:grid;grid-template-columns:auto 44px 1fr auto;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:5px;font-size:.82rem;cursor:pointer;}
+#tabPa .rival.picked,#tabRe .rival.picked{border-color:var(--accent);background:#eef3ff;}
+#tabPa .rival.banded,#tabRe .rival.banded{opacity:.55;background:#f7f7f8;}
+#tabPa .rival.banded.picked,#tabRe .rival.banded.picked{opacity:1;border-color:var(--accent);background:#eef3ff;}
+#tabPa .rival .bandtag,#tabRe .rival .bandtag{font-size:.68rem;color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:1px 5px;margin-left:4px;white-space:nowrap;}
 #tabPa .bandallnote{margin:6px 0;padding:7px 10px;border:1px solid #ecd9ae;background:#fdf6e6;border-radius:7px;font-size:.8rem;color:#7a5200;}
 #tabPa .rkwrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;padding:7px 9px;border:1px dashed var(--line);border-radius:7px;background:#fafbfc;font-size:.82rem;}
 #tabPa .rkwrow input{flex:1;min-width:180px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.82rem;}
@@ -272,10 +272,10 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa .rkwrow .rkwbadge.auto{color:#555;background:#f0f1f3;border:1px solid #dcdee2;}
 #tabPa .rkwrow .rkwbadge.dirty{color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;}
 #tabPa .rkwrow .rkwnote{width:100%;font-size:.72rem;color:var(--sub);}
-#tabPa .rival img{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);background:#f2f3f5;}
-#tabPa .rival .noimg{width:44px;height:44px;border-radius:5px;border:1px dashed var(--line);background:#f7f8fa;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--sub);}
-#tabPa .rival .rt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-#tabPa .rival .rt small{display:block;color:var(--sub);}
+#tabPa .rival img,#tabRe .rival img{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);background:#f2f3f5;}
+#tabPa .rival .noimg,#tabRe .rival .noimg{width:44px;height:44px;border-radius:5px;border:1px dashed var(--line);background:#f7f8fa;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--sub);}
+#tabPa .rival .rt,#tabRe .rival .rt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#tabPa .rival .rt small,#tabRe .rival .rt small{display:block;color:var(--sub);}
 #tabPa .rival input[type=radio]{accent-color:var(--accent);}
 #tabPa .rauto{display:flex;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:6px;font-size:.82rem;cursor:pointer;}
 #tabPa .rauto.picked{border-color:var(--accent);background:#eef3ff;}
@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.79</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.80</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2486,6 +2486,8 @@ async function reInit(){
   await reFlushPendingReviews();
   var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||window.RE_REVIEWS||{};
   var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||RE_CANDS||[];
+  // ▼ v1.9.80: R2.5 ライバルスキャン結果（バックエンドが夜間生成。ブラウザはuser_excludedのみ書く）
+  try{var rrj=await autoReadJSON('research_rivals.json');window.RE_RIVALS=(rrj&&rrj.rivals)||window.RE_RIVALS||{};}catch(e){window.RE_RIVALS=window.RE_RIVALS||{};}
   if(!window.__reFiltersRestored){window.__reFiltersRestored=true;if(typeof reRestoreFilters==='function')reRestoreFilters();}
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
@@ -2593,6 +2595,95 @@ function reShowMore(){RE_SHOWN+=100;reRenderCands();}
 // ══════ R2a: 合格候補の仕入れ探索・利益計算（v1.9.67）══════
 // 合格候補の下に展開: 仕入れKW（日本語に手直し）→メルカリ等検索→仕入れ値を手入力→
 // 実売中央値ベースの利益計算→「出品する」で今日の5品へ。編集はresearch_review.jsonにマージ保存
+// ▼ v1.9.80 (R2.5): 売価は「想定売価(A案)＝適格ライバル最安−$0.10」を最優先に変更。
+//   ライバル表示は価格承認タブの部品を本家ごと移植（画像・ホバーズーム・判定バッジ・eBayリンク）。
+//   research_rivals.jsonはバックエンド生成。ブラウザが書くのは user_excluded のみ（責任分界）
+function reRivalRec(id){return (window.RE_RIVALS||{})[String(id)]||null;}
+function reRivalPrice(r){var v=(r.total_usd!=null?r.total_usd:r.price_usd);return (v!=null&&isFinite(Number(v)))?Number(v):null;}
+function reRivalUrl(r){return r.item_url||r.url||'';}
+function reRivalEligible(r){
+  if(r.user_excluded)return false;
+  if(r.qualifies_a!==undefined)return !!r.qualifies_a;      // planと同じ適格判定（バックエンド計算）
+  if(r.verdict!==undefined)return r.verdict==='match';       // 旧スキーマ互換
+  return (r.same_item!=='different')&&!r.band_excluded;      // 最終フォールバック
+}
+function reEstPrice(id){
+  var rr=reRivalRec(id);if(!rr)return null;
+  var arr=rr.rivals||[];
+  if(!arr.length)return (rr.est_price_usd!=null?Number(rr.est_price_usd):null);
+  var mn=null;
+  arr.forEach(function(r){var p=reRivalPrice(r);if(p==null)return;if(reRivalEligible(r)&&(mn===null||p<mn))mn=p;});
+  return mn!==null?Math.round((mn-0.10)*100)/100:null;      // 除外を反映してローカル再計算（A案＝最安−$0.10）
+}
+function reRivalBlock(c,rv){
+  var id=String(c.item_id);
+  var rr=reRivalRec(id);
+  var open=!!(window.__reRivOpen&&window.__reRivOpen[id]);
+  var est=reEstPrice(id);
+  var cnt=(rr&&rr.rivals)?rr.rivals.length:0;
+  var head='<b style="color:#4a5d8f">ライバル(eBay)</b> '
+    +(rr?(cnt+'件'+(est!=null?('・想定売価(A案) <b>$'+est.toFixed(2)+'</b>'):'・<span style="color:#a33">適格ライバルなし</span>')):'<span class="muted">夜間スキャン待ち（翌朝反映）</span>')
+    +((rr&&rr.guard_warning)?' <span style="color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:0 5px;font-size:.68rem" title="eBay取得結果が大きく減少したため、前回スキャンの値を維持しています">⚠️取得劣化・前回値</span>':'');
+  var inner='';
+  if(rr){
+    var kwSrc={rival_kw:'手動上書き',sourcing_kw:'仕入れKW流用',part_numbers:'型番',title:'タイトル'}[rr.kw_source]||rr.kw_source||'';
+    var rows=(rr.rivals||[]).slice().sort(function(a,b){return (reRivalPrice(a)||9e9)-(reRivalPrice(b)||9e9);}).map(function(r){
+      var i=(rr.rivals||[]).indexOf(r);
+      var p=reRivalPrice(r);
+      var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
+      var bx=!!r.band_excluded||(r.verdict==='excluded_band');
+      var sm=(r.same_item==='same')||(r.verdict==='match');
+      var ex=!!r.user_excluded;
+      var elig=reRivalEligible(r);
+      var small=ex?'🚫あなたが除外中':(dx?'⛔ 別商品判定':(bx?'⛔ 価格帯の範囲外':(elig?'✅A適格':'— 適格外')));
+      var u=reRivalUrl(r);
+      return '<div class="rival'+((dx||bx||ex)?' banded':'')+'" style="grid-template-columns:44px 1fr auto auto;cursor:default">'
+        +(r.image_url?('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">'):'<div class="noimg">画像なし</div>')
+        +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
+        +'<span>'+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag">範囲外</span>':'')
+        +(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener">$'+(p!=null?p.toFixed(2):'?')+'</a>'):('$'+(p!=null?p.toFixed(2):'?')))+'</span>'
+        +'<button class="btn" style="font-size:.68rem;padding:2px 7px" onclick="reRivalToggleEx(\''+esc(id)+'\','+i+')">'+(ex?'戻す':'×除外')+'</button>'
+        +'</div>';
+    }).join('');
+    inner='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.75rem;margin-top:4px">'
+      +'<span class="muted">検索KW: '+esc(String(rr.kw_used||''))+(kwSrc?('（'+kwSrc+'）'):'')+'</span>'
+      +'<input type="text" value="'+esc(rv.rival_kw!=null?rv.rival_kw:'')+'" data-rrkw="'+esc(id)+'" placeholder="eBay検索KW上書き（翌朝の再スキャンから反映）" style="min-width:230px;padding:3px 7px;border:1px solid var(--line);border-radius:6px;font-size:.75rem">'
+      +'</div>'+rows;
+  }
+  return '<details data-rrbox="'+esc(id)+'" '+(open?'open':'')+' style="flex-basis:100%" ontoggle="window.__reRivOpen=window.__reRivOpen||{};window.__reRivOpen[\''+esc(id)+'\']=this.open">'
+    +'<summary style="cursor:pointer;font-size:.78rem">'+head+'</summary>'+inner+'</details>';
+}
+async function reRivalToggleEx(id,idx){
+  var rr=reRivalRec(id);if(!rr||!rr.rivals||!rr.rivals[idx])return;
+  rr.rivals[idx].user_excluded=!rr.rivals[idx].user_excluded;
+  window.__reRivOpen=window.__reRivOpen||{};window.__reRivOpen[String(id)]=true;
+  reRenderCands();
+  var ok=await reSaveRivalExcl(id,idx,rr.rivals[idx].user_excluded);
+  if(!ok)showToast('⚠️ 除外の保存に失敗（autoフォルダ未接続の可能性）。画面には反映済みですが翌朝リセットされます');
+}
+async function reSaveRivalExcl(id,idx,val){
+  // user_excluded のみを書く。保存は常にread-modify-write（対象はURL＋価格で特定：
+  // 夜間更新でファイル側の並びが変わっていてもインデックスずれで別ライバルを消さない）
+  if(!AUTO_DIR)return false;
+  try{
+    var mem=((reRivalRec(id)||{}).rivals||[])[idx];if(!mem)return false;
+    var mu=reRivalUrl(mem),mp=reRivalPrice(mem);
+    var cur=await autoReadJSON('research_rivals.json')||{rivals:{}};
+    if(!cur.rivals)cur.rivals={};
+    var rec=cur.rivals[String(id)];
+    if(!rec||!rec.rivals)return false;
+    var hit=false;
+    rec.rivals.forEach(function(r){
+      if(hit)return;
+      if((mu&&reRivalUrl(r)===mu)||(!mu&&reRivalPrice(r)===mp&&String(r.title||'')===String(mem.title||''))){r.user_excluded=val;hit=true;}
+    });
+    if(!hit)return false;
+    cur.updated_at=new Date().toISOString();
+    var fh=await AUTO_DIR.getFileHandle('research_rivals.json',{create:true});
+    var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
+    return true;
+  }catch(e){return false;}
+}
 function reMinSupply(rv){
   var sp=rv.supplies||[];var mn=null;
   sp.forEach(function(s){if(s&&s.price>0&&(mn===null||s.price<mn))mn=s.price;});
@@ -2603,7 +2694,16 @@ function reSourcingBlock(c,rv){
   var kw=rv.sourcing_kw!=null?rv.sourcing_kw:((c.part_numbers&&c.part_numbers.length)?c.part_numbers.join(' '):String(c.title||'').split(/\s+/).slice(0,6).join(' '));
   var sp=rv.supplies||[];
   var mn=reMinSupply(rv);
-  var sellUsd=(rv.median_sold_usd!=null?rv.median_sold_usd:(c.total_usd!=null?c.total_usd:c.price_usd));
+  // ▼ v1.9.80 (R2.5): 売価の優先順位＝想定売価(A案・ライバル最安−$0.10) → 実売中央値 → 候補自体の価格
+  var estUsd=reEstPrice(id);
+  var sellUsd=(estUsd!=null?estUsd:(rv.median_sold_usd!=null?rv.median_sold_usd:(c.total_usd!=null?c.total_usd:c.price_usd)));
+  var sellLbl=(estUsd!=null?'想定売価(A案)':(rv.median_sold_usd!=null?'実売中央値(参考計算)':'候補価格(仮計算)'));
+  // 乖離警告: 想定売価と実売中央値が±30%超ズレている＝ライバルの言い値で実際は売れていない可能性（相場崩れ/KW不良）
+  var devHtml='';
+  if(estUsd!=null&&rv.median_sold_usd>0){
+    var dev=estUsd/rv.median_sold_usd-1;
+    if(Math.abs(dev)>0.3)devHtml='<span style="color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:0 5px;font-size:.68rem" title="想定売価(A案)$'+estUsd.toFixed(0)+'と実売中央値$'+Number(rv.median_sold_usd).toFixed(0)+'が'+Math.round(Math.abs(dev)*100)+'%乖離。ライバルの言い値では実際に売れていない可能性（実売中央値も見て判断を）">⚠️中央値と'+Math.round(Math.abs(dev)*100)+'%乖離</span>';
+  }
   var slots=sp.map(function(s,i){
     return '<span style="display:inline-flex;gap:3px;align-items:center;border:1px solid '+(s.price===mn?'#2e7d4f':'var(--line)')+';border-radius:6px;padding:2px 5px;background:'+(s.price===mn?'#eef7f0':'#fff')+'">'
       +(s.price===mn?'<b style="font-size:.62rem;color:#2e7d4f">最安</b>':'')
@@ -2618,12 +2718,14 @@ function reSourcingBlock(c,rv){
       var r=calcProfit(sellUsd,Number(mn),ship,12.5);
       var col=r.profit<0?'#a33':'#1d5c2f';
       calcHtml='<span>最安仕入れ <b>'+mn.toLocaleString()+'円</b></span>'
-        +'<span>実売中央値 <b>$'+Number(sellUsd).toFixed(0)+'</b>'+(rv.median_sold_usd!=null?'':'<small>（中央値なし→ライバル価格で仮計算）</small>')+'</span>'
+        +'<span>'+sellLbl+' <b>$'+Number(sellUsd).toFixed(0)+'</b></span>'
+        +(estUsd!=null&&rv.median_sold_usd!=null?('<span class="muted" style="font-size:.72rem">中央値$'+Number(rv.median_sold_usd).toFixed(0)+'</span>'):'')
+        +devHtml
         +'<span>利益 <b style="color:'+col+'">¥'+Math.round(r.profit).toLocaleString()+'</b></span>'
         +'<span>利益率 <b style="color:'+col+'">'+r.margin.toFixed(1)+'%</b></span>';
     }catch(e){calcHtml='<span class="muted">計算エラー</span>';}
   }else{
-    calcHtml='<span class="muted">検索→いつものまとめ取り(v6)で仕入れ候補が入ります（売価基準: '+(rv.median_sold_usd!=null?('実売中央値$'+Number(rv.median_sold_usd).toFixed(0)):'ライバル価格')+'）</span>';
+    calcHtml='<span class="muted">検索→いつものまとめ取り(v6)で仕入れ候補が入ります（売価基準: '+(estUsd!=null?('想定売価(A案)$'+estUsd.toFixed(0)):(rv.median_sold_usd!=null?('実売中央値$'+Number(rv.median_sold_usd).toFixed(0)):'ライバル価格'))+'）</span>'+devHtml;
   }
   var listed=rv.decision==='list';
   return '<div style="margin:-2px 0 8px 74px;padding:8px 10px;border:1px dashed #9fb3d8;border-radius:0 0 9px 9px;background:#f8fafd;font-size:.8rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
@@ -2637,6 +2739,7 @@ function reSourcingBlock(c,rv){
     +'<span>手入力追加 <input type="number" data-rscost="'+esc(id)+'" placeholder="円" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">円</span>'
     +calcHtml
     +'<button class="btn" style="font-size:.75rem;padding:4px 10px;'+(listed?'background:#2e7d4f;color:#fff':'background:#fff;border:2px solid #2e7d4f;color:#2e7d4f')+'" onclick="reToggleList(\''+esc(id)+'\')">'+(listed?'📦 出品予定（解除）':'📦 出品する')+'</button>'
+    +reRivalBlock(c,rv)
     +'</div>';
 }
 // ▼ リサーチ版・⚓基準選択（在庫メンテのanchor pickと同じ流儀）
@@ -2807,6 +2910,11 @@ document.addEventListener('input',function(e){
   if(t&&t.dataset&&t.dataset.rskw!==undefined){
     clearTimeout(window.__rskwT);var id=t.dataset.rskw,v=t.value.trim();
     window.__rskwT=setTimeout(function(){reReviewUpdate(id,{sourcing_kw:v});},600);
+  }
+  if(t&&t.dataset&&t.dataset.rrkw!==undefined){
+    // v1.9.80: eBayライバル検索KWの明示上書き（research_review.jsonのrival_kw。翌朝の再スキャンから反映）
+    clearTimeout(window.__rrkwT);var idr=t.dataset.rrkw,vr=t.value.trim();
+    window.__rrkwT=setTimeout(function(){reReviewUpdate(idr,{rival_kw:vr});},600);
   }
   if(t&&t.dataset&&t.dataset.rscost!==undefined){
     clearTimeout(window.__rscostT);var id2=t.dataset.rscost,v2=Number(t.value)||null;
