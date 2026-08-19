@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.77</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.78</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2480,13 +2480,17 @@ async function reInit(){
   // 初期化が走ると空リストがキャッシュに固着するバグの修正。未保存の編集がある場合のみ保持）
   if(!window.RE_SELLERS_DIRTY){var s=await autoReadJSON('research_sellers.json');RE_SELLERS=(s&&s.sellers)||RE_SELLERS||[];}
   await reFlushPendingReviews();
-  try{await reProcessBatchIntake();}catch(e){}
   var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||window.RE_REVIEWS||{};
   var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||RE_CANDS||[];
   if(!window.__reFiltersRestored){window.__reFiltersRestored=true;if(typeof reRestoreFilters==='function')reRestoreFilters();}
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
   reRenderSellers(); reRenderCands(); reRenderVerify(); if(typeof reQueueUi==='function')reQueueUi();
+  // ▼ v1.9.78: 受信取り込みは「候補・合否の読み込み完了後」に移動（従来は読み込み前に実行していた）。
+  //   旧順序の実害2件：①RE_CANDSが空のうちに描画→ジャンプ先カード不在で自動スクロールが黙って不発
+  //   （ブックマークレット→新タブ受信の典型経路）②RE_REVIEWSが空のうちに単品マージ→ファイル上の
+  //   既存仕入れ候補5件をsupplies全置換で消し得る（v1.9.73保護の抜け穴）。取り込み自体が再描画とジャンプを行う
+  try{await reProcessBatchIntake();}catch(e){}
 }
 function reRenderSellers(){
   var el=document.getElementById('reSellerList');
@@ -2740,16 +2744,32 @@ async function reProcessBatchIntake(){
   showMainTab('re');reRenderCands();reScrollToCand(String(b.id));
 }
 // 取り込み先の候補へスクロールして一時ハイライト（迷子防止）
+// v1.9.78: カードが見つからない場合の自己回復を追加——①100件ページングの外なら全件表示、
+// ②検索欄の残りテキストで非表示なら検索だけ空にする（「合格のみ」等の他フィルタ設定は維持）。
+// それでも非表示ならトーストで知らせる（黙って何も起きない挙動を廃止）
 function reScrollToCand(id){
-  setTimeout(function(){
-    try{
-      var el=document.querySelector('[data-cid="'+id+'"]');
-      if(!el)return;
-      el.scrollIntoView({behavior:'smooth',block:'center'});
-      el.style.transition='box-shadow .3s';el.style.boxShadow='0 0 0 3px #4a5d8f';
-      setTimeout(function(){el.style.boxShadow='';},2500);
+  setTimeout(function(){try{reScrollToCandTry(String(id),false);}catch(e){}},150);
+}
+function reScrollToCandTry(id,retried){
+  var el=document.querySelector('[data-cid="'+id+'"]');
+  if(el){
+    el.scrollIntoView({behavior:'smooth',block:'center'});
+    el.style.transition='box-shadow .3s';el.style.boxShadow='0 0 0 3px #4a5d8f';
+    setTimeout(function(){el.style.boxShadow='';},2500);
+    return;
+  }
+  if(retried){try{showToast('受信しました。現在のフィルタ設定（合格のみ・見送り等）で対象候補が非表示のためジャンプできません');}catch(e){}return;}
+  // 回復：全件表示＋検索欄クリア（保存済みフィルタの検索語も空に更新。他の設定には触らない）
+  RE_SHOWN=Math.max(RE_SHOWN,(RE_CANDS||[]).length||0);
+  var q=document.getElementById('reSearch');
+  if(q&&q.value){
+    q.value='';
+    try{var f=JSON.parse(localStorage.getItem('ss_re_filters_v1')||'null');
+      if(f){f.q='';(window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_filters_v1',JSON.stringify(f));}
     }catch(e){}
-  },150);
+  }
+  reRenderCands();
+  setTimeout(function(){reScrollToCandTry(id,true);},150);
 }
 async function reReviewUpdate(id,patch){
   var rec=(window.RE_REVIEWS||{})[String(id)]||{};
