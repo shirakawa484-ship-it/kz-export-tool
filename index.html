@@ -15,14 +15,14 @@ body{margin:0;background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'H
 .tabbtn.on #paBadge{background:#fff;color:#1d6f56}
 .loadwrap{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:#666}
 #tabInv .mythumb{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid #e2ded3;background:#f4f2ec;margin-right:12px;flex-shrink:0}
-#tabPa .mythumb{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e3e6ea;background:#f5f6f8;flex-shrink:0}
+#tabPa .mythumb{width:104px;height:104px;object-fit:cover;border-radius:8px;border:1px solid #e3e6ea;background:#f5f6f8;flex-shrink:0}
 .thumbwrap{position:relative;display:inline-block;vertical-align:top;margin-right:12px}
 #tabPa .thumbwrap{margin-right:0}
 .thumblink{display:inline-block;line-height:0;cursor:zoom-in}
 .thumbpop{display:none;position:absolute;left:calc(100% + 8px);top:0;z-index:60;max-width:340px;max-height:340px;object-fit:contain;border:2px solid #fff;border-radius:8px;box-shadow:0 6px 26px rgba(0,0,0,.30);background:#fff}
 .thumbwrap:hover .thumbpop{display:block}
 .lensbtn{display:block;margin-top:5px;width:96px;font-size:10.5px;padding:3px 0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;color:#3a5a8a;text-align:center}
-#tabPa .lensbtn{width:80px}
+#tabPa .lensbtn{width:104px}
 .lensbtn:hover{background:#eef2f8}
 #tabPa .pthumbs{float:left;display:flex;gap:8px;margin:0 12px 6px 0}
 #tabPa .pthumbs figure{margin:0;text-align:center}
@@ -84,8 +84,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .deferbtn.on{background:#e8e8e8;color:#555;border-color:#ccc;font-weight:700}
 /* まとめ取りv4 選別UI：行全体タップ・状態色 */
 .p2row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;user-select:none;min-height:56px;background:#fff}
-.p2row img{width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0}
-.p2row .noimg{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;background:#f2f2f2;border-radius:6px;flex-shrink:0}
+.p2row img{width:64px;height:64px;object-fit:cover;border-radius:6px;flex-shrink:0}
+.p2row .noimg{width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;background:#f2f2f2;border-radius:6px;flex-shrink:0}
 .p2row .pp{font-weight:700;font-size:14px;flex-shrink:0;min-width:76px}
 .p2row .pt{flex:1;font-size:11.5px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .p2row a{font-size:11px;flex-shrink:0}
@@ -130,8 +130,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 .pendwrap{border:1.5px dashed #c9a86a;background:#fffaf0;border-radius:9px;padding:9px 11px;margin:9px 0}
 .pendlist{display:flex;flex-direction:column;gap:5px;margin:7px 0}
 .pend{display:flex;align-items:center;gap:9px;font-size:12px;cursor:pointer;background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 9px}
-.pend img{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
-.pend .noimg{width:56px;height:56px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#999;background:#f4f2ec;border-radius:6px}
+.pend img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.pend .noimg{width:72px;height:72px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#999;background:#f4f2ec;border-radius:6px}
 .pend .pp{font-weight:700;min-width:76px}
 .pend .pt{flex:1;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pendactions{display:flex;gap:8px}
@@ -259,7 +259,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa .row-actions a:hover{text-decoration:underline;}
 #tabPa details.reb{margin-top:8px;}
 #tabPa details.reb summary{cursor:pointer;color:var(--accent);font-size:.84rem;}
-#tabPa .rival,#tabRe .rival{display:grid;grid-template-columns:auto 44px 1fr auto;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:5px;font-size:.82rem;cursor:pointer;}
+#tabPa .rival,#tabRe .rival{display:grid;grid-template-columns:auto 64px 1fr auto;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:7px;margin-top:5px;font-size:.82rem;cursor:pointer;}
 #tabPa .rival.picked,#tabRe .rival.picked{border-color:var(--accent);background:#eef3ff;}
 #tabPa .rival.banded,#tabRe .rival.banded{opacity:.55;background:#f7f7f8;}
 #tabPa .rival.banded.picked,#tabRe .rival.banded.picked{opacity:1;border-color:var(--accent);background:#eef3ff;}
@@ -272,8 +272,8 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa .rkwrow .rkwbadge.auto{color:#555;background:#f0f1f3;border:1px solid #dcdee2;}
 #tabPa .rkwrow .rkwbadge.dirty{color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;}
 #tabPa .rkwrow .rkwnote{width:100%;font-size:.72rem;color:var(--sub);}
-#tabPa .rival img,#tabRe .rival img{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);background:#f2f3f5;}
-#tabPa .rival .noimg,#tabRe .rival .noimg{width:44px;height:44px;border-radius:5px;border:1px dashed var(--line);background:#f7f8fa;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--sub);}
+#tabPa .rival img,#tabRe .rival img{width:64px;height:64px;object-fit:cover;border-radius:5px;border:1px solid var(--line);background:#f2f3f5;}
+#tabPa .rival .noimg,#tabRe .rival .noimg{width:64px;height:64px;border-radius:5px;border:1px dashed var(--line);background:#f7f8fa;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--sub);}
 #tabPa .rival .rt,#tabRe .rival .rt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 #tabPa .rival .rt small,#tabRe .rival .rt small{display:block;color:var(--sub);}
 #tabPa .rival input[type=radio]{accent-color:var(--accent);}
@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.81</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.82</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -834,7 +834,7 @@ var _inAutoOpened=false; // 在庫ありセクションを「候補あり」で�
     pv.id='ssImgPreview';
     pv.style.cssText='position:fixed;z-index:2147483646;display:none;pointer-events:none;background:#fff;border:1px solid #ccc;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:6px';
     pim=document.createElement('img');
-    pim.style.cssText='display:block;max-width:380px;max-height:380px;border-radius:6px';
+    pim.style.cssText='display:block;max-width:520px;max-height:520px;border-radius:6px';
     pv.appendChild(pim);
     document.body.appendChild(pv);
     return pv;}
@@ -2573,9 +2573,9 @@ function reRenderCands(){
     var rv=(window.RE_REVIEWS||{})[String(c.item_id)];
     var rvBadge=rv?(rv.status==='pass'?'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#e8f5ec;color:#1d5c2f;white-space:nowrap" title="直近60日'+(rv.sold_count_60d||0)+'点・'+String(rv.verified_at||'').slice(0,10)+'検証">✅合格</span>':'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#fde8e8;color:#8a1f1f;white-space:nowrap">✖不合格</span>'):'';
     return '<div data-cid="'+esc(String(c.item_id))+'" style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
-      +(c.image_url?('<div style="width:64px"><img src="'+esc(c.image_url)+'" loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">'
-        +'<button class="lensbtn" style="width:64px" onclick="openLens(event,\''+esc(c.image_url)+'\')" title="この画像でGoogleレンズ検索。商品名やキーワードが分からない時に">🔍レンズ</button></div>')
-        :'<div style="width:64px;height:64px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
+      +(c.image_url?('<div style="width:88px"><img src="'+esc(c.image_url)+'" loading="lazy" style="width:88px;height:88px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">'
+        +'<button class="lensbtn" style="width:88px" onclick="openLens(event,\''+esc(c.image_url)+'\')" title="この画像でGoogleレンズ検索。商品名やキーワードが分からない時に">🔍レンズ</button></div>')
+        :'<div style="width:88px;height:88px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
       +'<div style="flex:1;min-width:0"><a href="'+esc(c.url||'#')+'" target="_blank" rel="noopener" style="font-size:.88rem">'+esc(c.title||'')+'</a>'
       +'<div class="muted" style="font-size:.75rem;margin-top:2px">'+esc(c.seller_id||'')+' ・ 初検出 '+String(c.first_seen||'').slice(0,10)
       +(c.part_numbers&&c.part_numbers.length?' ・ 型番 '+esc(c.part_numbers.join(', ')):'')
@@ -2601,11 +2601,30 @@ function reShowMore(){RE_SHOWN+=100;reRenderCands();}
 function reRivalRec(id){return (window.RE_RIVALS||{})[String(id)]||null;}
 function reRivalPrice(r){var v=(r.total_usd!=null?r.total_usd:r.price_usd);return (v!=null&&isFinite(Number(v)))?Number(v):null;}
 function reRivalUrl(r){return r.item_url||r.url||'';}
-function reRivalEligible(r){
+function reLiveProfit(id,priceUsd){
+  // ▼ v1.9.82: 現在の最安仕入れ値でのライブ利益計算。バックエンドのqualifies_aはスキャン時点の
+  //   コスト前提なので、仕入れ値が分かっている候補は適格判定をブラウザで再計算する（表示と実態のズレ解消）
+  try{
+    var rvw=(window.RE_REVIEWS||{})[String(id)]||{};
+    var cost=reMinSupply(rvw);
+    if(!(cost>0)||!(priceUsd>0)||typeof calcProfit!=='function')return null;
+    var ship=(typeof n==='function')?n('shipUS'):2115;
+    return calcProfit(priceUsd,Number(cost),ship,12.5);
+  }catch(e){return null;}
+}
+function reRivalEligible(r,id){
   if(r.user_excluded)return false;
-  if(r.qualifies_a!==undefined)return !!r.qualifies_a;      // planと同じ適格判定（バックエンド計算）
+  var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
+  var bx=!!r.band_excluded||(r.verdict==='excluded_band');
+  if(dx||bx)return false;
+  var p=reRivalPrice(r);
+  if(p!=null&&id!=null){
+    var lp=reLiveProfit(id,Math.round((p-0.10)*100)/100);
+    if(lp)return lp.margin>=5;                              // A案定義: マッチして利益率5%以上（ライブ判定）
+  }
+  if(r.qualifies_a!==undefined)return !!r.qualifies_a;      // 仕入れ値未定ならバックエンド判定にフォールバック
   if(r.verdict!==undefined)return r.verdict==='match';       // 旧スキーマ互換
-  return (r.same_item!=='different')&&!r.band_excluded;      // 最終フォールバック
+  return true;
 }
 function reEstInfo(id){
   // ▼ v1.9.81: 基準ライバル選択（本家=価格承認タブと同じ流儀）
@@ -2626,7 +2645,7 @@ function reEstInfo(id){
   }
   if(!arr.length)return {est:(rr.est_price_usd!=null?Number(rr.est_price_usd):null),mode:'auto',rival:null,gone:gone};
   var mn=null,mr=null;
-  arr.forEach(function(r){var p=reRivalPrice(r);if(p==null)return;if(reRivalEligible(r)&&(mn===null||p<mn)){mn=p;mr=r;}});
+  arr.forEach(function(r){var p=reRivalPrice(r);if(p==null)return;if(reRivalEligible(r,id)&&(mn===null||p<mn)){mn=p;mr=r;}});
   return {est:(mn!==null?Math.round((mn-0.10)*100)/100:null),mode:'auto',rival:mr,gone:gone};
 }
 function reEstPrice(id){return reEstInfo(id).est;}
@@ -2647,7 +2666,7 @@ function reRivalBlock(c,rv){
   var cnt=(rr&&rr.rivals)?rr.rivals.length:0;
   var benchLbl=(info.mode==='bench'?'基準ライバル−$0.10':'A案・適格最安−$0.10');
   var head='<b style="color:#4a5d8f">ライバル(eBay)</b> '
-    +(rr?(cnt+'件'+(est!=null?('・想定売価 <b>$'+est.toFixed(2)+'</b> '+reBenchThumb(info.rival,26)+'<small class="muted">（'+benchLbl+'）</small>'):'・<span style="color:#a33">適格ライバルなし</span>')):'<span class="muted">夜間スキャン待ち（翌朝反映）</span>')
+    +(rr?(cnt+'件'+(est!=null?('・想定売価 <b>$'+est.toFixed(2)+'</b> '+reBenchThumb(info.rival,32)+'<small class="muted">（'+benchLbl+'）</small>'):'・<span style="color:#a33">適格ライバルなし</span>')):'<span class="muted">夜間スキャン待ち（翌朝反映）</span>')
     +((rr&&rr.guard_warning)?' <span style="color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:0 5px;font-size:.68rem" title="eBay取得結果が大きく減少したため、前回スキャンの値を維持しています">⚠️取得劣化・前回値</span>':'');
   var inner='';
   if(rr){
@@ -2659,12 +2678,18 @@ function reRivalBlock(c,rv){
       var bx=!!r.band_excluded||(r.verdict==='excluded_band');
       var sm=(r.same_item==='same')||(r.verdict==='match');
       var ex=!!r.user_excluded;
-      var elig=reRivalEligible(r);
+      var elig=reRivalEligible(r,id);
       var u=reRivalUrl(r);
       var on=(buSel!=null&&u===buSel);
-      var small=ex?'🚫あなたが除外中':(dx?'⛔ 別商品判定':(bx?'⛔ 価格帯の範囲外':(elig?'✅A適格':'— 適格外')));
+      var lp=(p!=null&&!ex&&!dx&&!bx)?reLiveProfit(id,Math.round((p-0.10)*100)/100):null;
+      var small;
+      if(ex)small='🚫あなたが除外中';
+      else if(dx)small='⛔ 別商品判定';
+      else if(bx)small='⛔ 価格帯の範囲外';
+      else if(lp)small=(lp.margin>=5?('✅A適格（この価格基準なら利益+¥'+Math.round(lp.profit).toLocaleString()+'）'):(lp.profit>0?('△利益薄（+¥'+Math.round(lp.profit).toLocaleString()+'・5%未満）'):('▲赤字（¥'+Math.round(lp.profit).toLocaleString()+'）')));
+      else small=(elig?'✅A適格':'— 適格外');
       if(on)small='📌 基準ライバル（この価格−$0.10で計算）'+(dx||bx?'／'+small:'');
-      return '<label class="rival'+(on?' picked':'')+((dx||bx||ex)&&!on?' banded':'')+'" style="grid-template-columns:auto 44px 1fr auto auto">'
+      return '<label class="rival'+(on?' picked':'')+((dx||bx||ex)&&!on?' banded':'')+'" style="grid-template-columns:auto 64px 1fr auto auto">'
         +'<input type="radio" name="rebench-'+esc(id)+'" data-rbench="'+esc(id)+'" data-rurl="'+esc(encodeURIComponent(u))+'" '+(on?'checked':'')+(ex||!u?' disabled':'')+'>'
         +(r.image_url?('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">'):'<div class="noimg">画像なし</div>')
         +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
@@ -2729,7 +2754,7 @@ function reSourcingBlock(c,rv){
   var estInfo=reEstInfo(id);
   var estUsd=estInfo.est;
   var sellUsd=(estUsd!=null?estUsd:(rv.median_sold_usd!=null?rv.median_sold_usd:(c.total_usd!=null?c.total_usd:c.price_usd)));
-  var sellLbl=(estUsd!=null?(estInfo.mode==='bench'?'想定売価(基準ライバル)':'想定売価(A案)')+(estInfo.rival&&estInfo.rival.image_url?(' '+reBenchThumb(estInfo.rival,28)):''):(rv.median_sold_usd!=null?'実売中央値(参考計算)':'候補価格(仮計算)'));
+  var sellLbl=(estUsd!=null?(estInfo.mode==='bench'?'想定売価(基準ライバル)':'想定売価(A案)')+(estInfo.rival&&estInfo.rival.image_url?(' '+reBenchThumb(estInfo.rival,34)):''):(rv.median_sold_usd!=null?'実売中央値(参考計算)':'候補価格(仮計算)'));
   // 乖離警告: 想定売価と実売中央値が±30%超ズレている＝ライバルの言い値で実際は売れていない可能性（相場崩れ/KW不良）
   var devHtml='';
   if(estUsd!=null&&rv.median_sold_usd>0){
@@ -2760,7 +2785,7 @@ function reSourcingBlock(c,rv){
     calcHtml='<span class="muted">検索→いつものまとめ取り(v6)で仕入れ候補が入ります（売価基準: '+(estUsd!=null?('想定売価(A案)$'+estUsd.toFixed(0)):(rv.median_sold_usd!=null?('実売中央値$'+Number(rv.median_sold_usd).toFixed(0)):'ライバル価格'))+'）</span>'+devHtml;
   }
   var listed=rv.decision==='list';
-  return '<div style="margin:-2px 0 8px 74px;padding:8px 10px;border:1px dashed #9fb3d8;border-radius:0 0 9px 9px;background:#f8fafd;font-size:.8rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+  return '<div style="margin:-2px 0 8px 98px;padding:8px 10px;border:1px dashed #9fb3d8;border-radius:0 0 9px 9px;background:#f8fafd;font-size:.8rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
     +'<span style="font-weight:700;color:#4a5d8f">仕入れ探索</span>'
     +'<input type="text" value="'+esc(kw)+'" data-rskw="'+esc(id)+'" placeholder="仕入れ検索KW（日本語に直すと精度UP）" style="min-width:200px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">'
     +'<button class="btn" style="font-size:.72rem;padding:3px 8px;background:#2e7d4f;color:#fff" onclick="reSourceSearch(\''+esc(id)+'\',\'mercari\')">メルカリ</button>'
@@ -2821,7 +2846,7 @@ function rePendBlock(id,pd){
     var op=(r.st==='below'||r.st==='off')?'opacity:.55;':'';
     return '<div style="display:flex;gap:6px;align-items:center;padding:3px 6px;border:1px solid '+(r.st==='on'?'#9fd0b0':'var(--line)')+';border-radius:6px;background:'+bg+';'+op+'cursor:pointer;font-size:.76rem" onclick="rePendToggle(\''+esc(id)+'\',\''+esc(r.key)+'\')">'
       +'<button class="btn" style="font-size:.7rem;padding:1px 6px'+(pd.anchor===r.d.p?';background:#4a5d8f;color:#fff':'')+'" title="この商品を基準（最安の本物）にする" onclick="event.stopPropagation();rePendAnchor(\''+esc(id)+'\','+r.d.p+')">⚓</button>'
-      +(r.d.i?'<img src="'+esc(r.d.i)+'" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">':'<span style="width:56px;height:56px;display:inline-flex;align-items:center;justify-content:center;background:#f4f2ec;border-radius:6px;font-size:.62rem;color:#999">画像なし</span>')
+      +(r.d.i?'<img src="'+esc(r.d.i)+'" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">':'<span style="width:72px;height:72px;display:inline-flex;align-items:center;justify-content:center;background:#f4f2ec;border-radius:6px;font-size:.62rem;color:#999">画像なし</span>')
       +'<b>'+Number(r.d.p).toLocaleString()+'円</b>'
       +(r.st==='on'?'<span style="color:#1d5c2f;font-size:.68rem">✓採用</span>':'')
       +'<span class="muted" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.d.t||'')+'</span>'
