@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.78</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.79</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1072,6 +1072,7 @@ function handleIncoming(){
     //   （最後に押した検索ボタンがリサーチ由来なら、在庫ITEMSに触れずリサーチの受け皿へ）
     var reA=null;try{reA=JSON.parse(localStorage.getItem('ss_re_active_v1')||'null');}catch(rae){}
     if(reA&&reA.id&&pr>0){
+      window.__reIncoming=String(reA.id); // v1.9.79: 他タブに消されないメモリ上の受信フラグ（タブ表示・ジャンプの判定用）
       try{
         var prevB=null;try{prevB=JSON.parse(localStorage.getItem('ss_re_batch_v1')||'null');}catch(pbe){}
         var merged=(prevB&&String(prevB.id)===String(reA.id))?(prevB.items||[]):[];
@@ -1562,6 +1563,7 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     //   リサーチ側の受け皿（ss_re_batch_v1）に保存する。処理は全関数定義後（最終ブロック）で行う
     var reActive=null;try{reActive=JSON.parse(localStorage.getItem('ss_re_active_v1')||'null');}catch(rae){}
     if(reActive&&reActive.id&&!parseErr&&pl&&pl.items&&pl.items.length){
+      window.__reIncoming=String(reActive.id); // v1.9.79: 他タブに消されないメモリ上の受信フラグ
       pl.items.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
       try{localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reActive.id),at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,30)}));}catch(se){}
       showBanner('#0a7d55','📥 まとめ取り '+pl.items.length+'件をリサーチ候補の仕入れ候補として受信しました（最安5件を自動採用・リサーチタブで確認できます）');
@@ -1602,6 +1604,7 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     // ▼ リサーチ振り分け（v1.9.71）: 仕入れ値取得（単品）もまとめ取りと同じルール（最後に押した検索ボタンが宛先）
     var reActive1=null;try{reActive1=JSON.parse(localStorage.getItem('ss_re_active_v1')||'null');}catch(rae1){}
     if(reActive1&&reActive1.id&&arr&&arr.length){
+      window.__reIncoming=String(reActive1.id); // v1.9.79: 他タブに消されないメモリ上の受信フラグ
       arr.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
       try{
         // 既存の受信分（未処理マーカー）があればマージして最安順に統合
@@ -1626,9 +1629,10 @@ restoreAll();
 var incoming=handleIncoming();
 var actId=localStorage.getItem(LS_ACTIVE);if(actId){ITEMS.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}
 renderAll();
-if(window.__scrollToActive&&activeIdx!=null){setTimeout(function(){scrollToCard(activeIdx);},150);}
+if(window.__scrollToActive&&activeIdx!=null&&!window.__reIncoming){setTimeout(function(){scrollToCard(activeIdx);},150);}
 // メンテ中の商品へスクロール（在庫ありセクションは折りたたみのため開く）
-if(activeIdx!==null){
+// v1.9.79: リサーチ宛て受信で開いたタブでは抑止（在庫カードへ飛んで見える誤動作の元）
+if(activeIdx!==null&&!window.__reIncoming){
   var t=stockType(ITEMS[activeIdx]);
   if(t==='in'){var det=document.querySelector('#secIn details');if(det)det.open=true;}
   setTimeout(function(){var el=document.getElementById('card'+activeIdx);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});}},250);
@@ -2491,6 +2495,9 @@ async function reInit(){
   //   （ブックマークレット→新タブ受信の典型経路）②RE_REVIEWSが空のうちに単品マージ→ファイル上の
   //   既存仕入れ候補5件をsupplies全置換で消し得る（v1.9.73保護の抜け穴）。取り込み自体が再描画とジャンプを行う
   try{await reProcessBatchIntake();}catch(e){}
+  // v1.9.79: マーカーを接続済みの別タブが先に取り込んだ場合（取り込み自体は完了・ファイルに反映済み）、
+  //   このタブの取り込みは空振りしてジャンプが起きない。メモリフラグが残っていれば自タブでジャンプする
+  if(window.__reIncoming){var _rid=window.__reIncoming;window.__reIncoming=null;reScrollToCand(_rid);}
 }
 function reRenderSellers(){
   var el=document.getElementById('reSellerList');
@@ -2714,6 +2721,7 @@ async function reProcessBatchIntake(){
   if(!b||!b.id||!b.items)return;
   if(!AUTO_DIR)return; // 未接続タブでは処理しない（マーカーを残し、接続済みタブのreInitが処理する）
   localStorage.removeItem('ss_re_batch_v1');
+  if(window.__reIncoming===String(b.id))window.__reIncoming=null; // v1.9.79: 自タブで取り込む場合はフラグも消費（以降は取り込み側がジャンプする）
   // ▼ まとめ取り（複数件）は在庫メンテと同じ「⚓基準選択」フローへ（v1.9.74・ユーザー要望）。
   //   別物混入をワンタップで弾く体験を統一。選んだ候補はR3出品時にシートへ引き継がれる
   var raw=b.items.filter(function(it){return it&&it.p>0;});
@@ -3276,7 +3284,8 @@ showMainTab('inv');
 //   （v1.9.56では先頭ブロックから呼んで未定義エラー→通常起動に流れるバグ）
 try{if(location.hash&&location.hash.indexOf('#soldv=')===0){reHandleSoldHash();}}catch(e){}
 try{reProcessBatchIntake();}catch(e){}
-try{if(localStorage.getItem('ss_re_batch_v1')){showMainTab('re');}}catch(e){}
+// v1.9.79: マーカーは接続済みの別タブがstorageイベントで先に消費し得るため、メモリフラグを併用して判定
+try{if(window.__reIncoming||localStorage.getItem('ss_re_batch_v1')){showMainTab('re');}}catch(e){}
 </script>
 </body>
 </html>
