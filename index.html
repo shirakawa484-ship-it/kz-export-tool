@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.82</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.84</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -345,6 +345,7 @@ window.scrollBy(0,Math.round(window.innerHeight*1.5));
 setTimeout(loop,650);}
 loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・自動スクロール収集）</a>
     <a class="bm" href="javascript:(function(){try{var u=location.href;var prices=[];document.querySelectorAll(&#39;script[type=&quot;application/ld+json&quot;]&#39;).forEach(function(sc){try{var d=JSON.parse(sc.textContent);var dd=Array.isArray(d)?d:[d];function dig(x){if(!x||typeof x!==&#39;object&#39;)return;if(x.offers){var of=Array.isArray(x.offers)?x.offers:[x.offers];of.forEach(function(f){if(f&amp;&amp;f.price)prices.push(parseInt(String(f.price).replace(/[^\d]/g,&#39;&#39;),10));if(f&amp;&amp;f.lowPrice)prices.push(parseInt(String(f.lowPrice).replace(/[^\d]/g,&#39;&#39;),10));});}if(x.price)prices.push(parseInt(String(x.price).replace(/[^\d]/g,&#39;&#39;),10));}dd.forEach(function(o){dig(o);if(o&amp;&amp;o[&#39;@graph&#39;])o[&#39;@graph&#39;].forEach(dig);});}catch(e){}});if(!prices.length){document.querySelectorAll(&#39;meta[itemprop=&quot;price&quot;],meta[property=&quot;product:price:amount&quot;],meta[property=&quot;og:price:amount&quot;],meta[property*=&quot;price&quot;]&#39;).forEach(function(m){var v=m.getAttribute(&#39;content&#39;);if(v)prices.push(parseInt(String(v).replace(/[^\d]/g,&#39;&#39;),10));});}if(!prices.length){document.querySelectorAll(&#39;[itemprop=&quot;price&quot;],[class*=&quot;price&quot;],[class*=&quot;Price&quot;],[data-testid*=&quot;price&quot;]&#39;).forEach(function(el){var v=el.getAttribute(&#39;content&#39;)||el.textContent;var t=String(v).replace(/[,\u00a5\uffe5\s\u5186]/g,&#39;&#39;);var m=t.match(/\d{2,8}/);if(m)prices.push(parseInt(m[0],10));});}prices=prices.filter(function(p){return p&amp;&amp;p&gt;=50&amp;&amp;p&lt;=3000000;});var price=prices.length?prices[0]:null;if(price===null){var inp=prompt(&#39;価格を自動取得できませんでした。手で入力してください（円）:&#39;,&#39;&#39;);if(!inp)return;price=parseInt(String(inp).replace(/[^\d]/g,&#39;&#39;),10);if(!price)return;}var target=&#39;https://shirakawa484-ship-it.github.io/kz-export-tool/&#39;+&#39;?price=&#39;+price+&#39;&amp;url=&#39;+encodeURIComponent(u);window.open(target,&#39;_blank&#39;);}catch(err){alert(&#39;エラー: &#39;+err.message);}})();">仕入れ値取得（これをブックマークバーへ）</a>
+    <a class="bm alt2" href="javascript:(function(){try{var out=[],seen={};function add(u){if(!u)return;u=String(u);if(u.indexOf('http')!==0)return;var b=u.split('?')[0];if(/\.(svg|gif)$/i.test(b))return;if(seen[b])return;seen[b]=1;out.push(b);}document.querySelectorAll('img').forEach(function(im){var u=null;try{if(im.srcset){var ps=im.srcset.split(',').map(function(s){return s.trim().split(' ')[0];});u=ps[ps.length-1];}}catch(se){}u=u||im.currentSrc||im.src;var w=im.naturalWidth||0,h=im.naturalHeight||0;if(w&amp;&amp;h&amp;&amp;(w&lt;200||h&lt;200))return;add(u);});if(!out.length){alert('商品画像が見つかりませんでした。ページを下までスクロールして画像を読み込ませてから再実行してください');return;}var payload=JSON.stringify({u:location.href,imgs:out.slice(0,40)});window.open('https://shirakawa484-ship-it.github.io/kz-export-tool/#photos='+encodeURIComponent(payload),'_blank');}catch(err){alert('エラー: '+err.message);}})();">📷写真取り込み（これをブックマークバーへ）</a>
     <div style="font-size:11px;color:var(--muted);padding-bottom:12px">※対応：メルカリ・Yahoo!フリマ・駿河屋。自分で開いた1ページだけを読み取ります。自動巡回はしません。</div>
   </details>
 
@@ -1538,6 +1539,31 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
 }catch(e){}})();
 (function(){try{
   if(location.hash&&location.hash.indexOf('#soldv=')===0){/* Sold検証データ: 全関数定義後（最終scriptブロック末尾）で処理する。ここではbatch2に流さないための分岐のみ */}
+  else if(location.hash&&location.hash.indexOf('#photos=')===0){
+    // ▼ v1.9.84 (R3b): 写真取り込み受信。選択UIで確定するまでドラフトには書かず、pend（localStorage）に保持
+    //   （ファイル書き込み不要＝未接続タブでも受信でき、接続済みタブにはstorageイベントで伝播する）
+    var phBanner=function(color,text){try{var b=document.createElement('div');
+      b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:'+color+';color:#fff;padding:10px 44px 10px 14px;font:bold 13px/1.5 sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+      b.textContent=text;var x=document.createElement('span');x.textContent='×';
+      x.style.cssText='position:absolute;right:14px;top:8px;cursor:pointer;font-size:18px';
+      x.onclick=function(){b.remove();};b.appendChild(x);
+      var add=function(){document.body.appendChild(b);};
+      if(document.body)add();else document.addEventListener('DOMContentLoaded',add);}catch(be){}};
+    var pj=null;try{pj=JSON.parse(decodeURIComponent(location.hash.slice(8)));}catch(pe){}
+    var reAp=null;try{reAp=JSON.parse(localStorage.getItem('ss_re_active_v1')||'null');}catch(rae2){}
+    if(pj&&pj.imgs&&pj.imgs.length&&reAp&&reAp.id){
+      window.__reIncoming=String(reAp.id);
+      window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(reAp.id)]=true;
+      window.__rePhotoSel={};
+      (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_photo_pend_v1',JSON.stringify({id:String(reAp.id),imgs:pj.imgs.slice(0,40),u:pj.u||'',ts:Date.now()}));
+      phBanner('#1d5c2f','📷 写真 '+pj.imgs.length+'枚を受信しました。ドラフトで採用する写真を選んでください');
+    }else if(pj&&pj.imgs&&pj.imgs.length){
+      phBanner('#a33','📷 写真受信: 宛先のリサーチ候補が不明です。先に該当候補の検索ボタンか仕入れ候補の「開く」を押してから実行してください');
+    }else{
+      phBanner('#a33','📷 写真受信: データを解釈できませんでした（もう一度ブックマークレットを押してください）');
+    }
+    try{history.replaceState(null,'',location.pathname+location.search);}catch(he){}
+  }
   else if(location.hash&&location.hash.indexOf('#batch2=')===0){
     // ▼ 受信計器（2026-07-29）：受信の結果を必ず「消えないバナー」で表示し、直近5回をログに残す。
     //   「メッセージが出ない・取り込まれない」の切り分けを次の1回で確定させるため。
@@ -2488,6 +2514,8 @@ async function reInit(){
   var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||RE_CANDS||[];
   // ▼ v1.9.80: R2.5 ライバルスキャン結果（バックエンドが夜間生成。ブラウザはuser_excludedのみ書く）
   try{var rrj=await autoReadJSON('research_rivals.json');window.RE_RIVALS=(rrj&&rrj.rivals)||window.RE_RIVALS||{};}catch(e){window.RE_RIVALS=window.RE_RIVALS||{};}
+  // ▼ v1.9.83: R3a 出品ドラフト（バックエンドdraft_builder生成。ブラウザはtitle_final/desc_final/photos/statusを書く）
+  try{var drj=await autoReadJSON('listing_drafts.json');window.RE_DRAFTS=(drj&&drj.drafts)||window.RE_DRAFTS||{};}catch(e){window.RE_DRAFTS=window.RE_DRAFTS||{};}
   if(!window.__reFiltersRestored){window.__reFiltersRestored=true;if(typeof reRestoreFilters==='function')reRestoreFilters();}
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
@@ -2657,6 +2685,183 @@ function reBenchThumb(r,size){
   if(!r||!r.image_url)return '';
   return '<img src="'+esc(r.image_url)+'" loading="lazy" alt="" style="width:'+size+'px;height:'+size+'px;object-fit:cover;border-radius:4px;border:1px solid var(--line);vertical-align:middle">';
 }
+// ▼ v1.9.83 (R3a): 出品ドラフトパネル。listing_drafts.jsonのブラウザ担当分＝
+//   title_final/desc_final/photos/価格・重量の確定/status('draft'→'approved')。保存は常にread-modify-writeマージ
+// ▼ v1.9.84 (R3b): 写真取り込み。ブックマークレット→#photos=→pend（localStorage）→選択UI→draft.photos。
+//   宛先＝ss_re_active_v1（候補の検索ボタン or 仕入れ候補「開く」で設定。最後に押した方が勝つ既存ルール）
+function reMarkDest(id){
+  (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_active_v1',JSON.stringify({id:String(id),at:new Date().toISOString()}));
+}
+function rePhotoPend(){try{return JSON.parse(localStorage.getItem('ss_re_photo_pend_v1')||'null');}catch(e){return null;}}
+function rePhotoToggle(id,i){
+  window.__rePhotoSel=window.__rePhotoSel||{};var s=window.__rePhotoSel[id]=window.__rePhotoSel[id]||[];
+  var k=s.indexOf(i);
+  if(k>=0)s.splice(k,1);
+  else{if(s.length>=12){showToast('写真は最大12枚までです（eBay無料枠）');return;}s.push(i);}
+  window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+  reRenderCands();
+}
+async function rePhotoSaveSel(id){
+  var pend=rePhotoPend();if(!pend||String(pend.id)!==String(id))return;
+  var s=(window.__rePhotoSel||{})[id]||[];
+  if(!s.length){alert('写真が選択されていません（サムネをタップして番号を付けてください）');return;}
+  var d=reDraftRec(id)||{};
+  var urls=s.map(function(i){return pend.imgs[i];}).filter(Boolean);
+  var merged=(d.photos||[]).concat(urls).filter(function(u,ix,a){return a.indexOf(u)===ix;}).slice(0,12);
+  var ok=await reDraftSave(id,{photos:merged});
+  if(ok){
+    try{localStorage.removeItem('ss_re_photo_pend_v1');}catch(e){}
+    if(window.__rePhotoSel)delete window.__rePhotoSel[id];
+    showToast('📷 写真 '+urls.length+'枚をドラフトに保存しました（1枚目がメイン写真）');
+    reRenderCands();
+  }
+}
+function rePhotoDiscard(){
+  try{localStorage.removeItem('ss_re_photo_pend_v1');}catch(e){}
+  window.__rePhotoSel={};reRenderCands();
+}
+async function rePhotoMove(id,i,dir){
+  var d=reDraftRec(id);if(!d)return;
+  var ph=(d.photos||[]).slice();var j=i+dir;
+  if(j<0||j>=ph.length)return;
+  var tmp=ph[i];ph[i]=ph[j];ph[j]=tmp;
+  window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+  if(await reDraftSave(id,{photos:ph}))reRenderCands();
+}
+async function rePhotoRemove(id,i){
+  var d=reDraftRec(id);if(!d)return;
+  var ph=(d.photos||[]).slice();ph.splice(i,1);
+  window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+  if(await reDraftSave(id,{photos:ph}))reRenderCands();
+}
+function reDraftRec(id){return (window.RE_DRAFTS||{})[String(id)]||null;}
+async function reDraftSave(id,patch){
+  if(!AUTO_DIR){showToast('⚠️ autoフォルダ未接続のため保存できません');return false;}
+  try{
+    var cur=await autoReadJSON('listing_drafts.json')||{drafts:{}};
+    if(!cur.drafts)cur.drafts={};
+    var rec=cur.drafts[String(id)]||{};
+    Object.keys(patch).forEach(function(k){rec[k]=patch[k];});
+    cur.drafts[String(id)]=rec;cur.updated_at=new Date().toISOString();
+    var fh=await AUTO_DIR.getFileHandle('listing_drafts.json',{create:true});
+    var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
+    window.RE_DRAFTS=cur.drafts;
+    return true;
+  }catch(e){showToast('⚠️ ドラフト保存に失敗しました');return false;}
+}
+function reDraftPreview(id){
+  var d=reDraftRec(id);if(!d)return;
+  var html=d.desc_final||d.desc_ai||'';
+  var w=window.open('','redraftpv');
+  if(!w){showToast('ポップアップがブロックされました');return;}
+  w.document.open();w.document.write(html);w.document.close();
+}
+async function reDraftApprove(id){
+  var d=reDraftRec(id);if(!d)return;
+  var title=(d.title_final||d.title_ai||'').trim();
+  var price=Number(d.price_usd);
+  if(!title){alert('タイトルが空です');return;}
+  if(title.length>80){alert('タイトルが80字を超えています（'+title.length+'字）。短くしてください');return;}
+  if(!(price>0)){alert('価格が未設定です');return;}
+  if(!(d.photos||[]).length){
+    if(!confirm('写真が0枚です（写真取り込みはR3bで実装予定）。このまま承認しますか？\n※承認してもAddItem実行はR3c実装後です'))return;
+  }
+  var ok=await reDraftSave(id,{status:'approved',title_final:title,approved_at:new Date().toISOString(),weight_provisional:false});
+  if(ok){showToast('✓ ドラフトを承認しました（AddItemはR3cで実行）');reRenderCands();}
+}
+async function reDraftUnapprove(id){
+  var ok=await reDraftSave(id,{status:'draft'});
+  if(ok){showToast('承認を解除しました');reRenderCands();}
+}
+function reDraftProfitHtml(id,price){
+  var lp=reLiveProfit(id,Number(price));
+  if(!lp)return '<span class="muted">仕入れ値未設定のため利益計算不可</span>';
+  var col=lp.profit<0?'#a33':'#1d5c2f';
+  return '利益 <b style="color:'+col+'">¥'+Math.round(lp.profit).toLocaleString()+'</b> 利益率 <b style="color:'+col+'">'+lp.margin.toFixed(1)+'%</b>';
+}
+function reDraftBlock(c,rv){
+  var id=String(c.item_id);
+  var d=reDraftRec(id);
+  var listed=rv.decision==='list';
+  if(!d&&!listed)return '';
+  var open=!!(window.__reDraftOpen&&window.__reDraftOpen[id]);
+  if(!d){
+    return '<div style="flex-basis:100%;font-size:.78rem" class="muted">📝 出品ドラフト: 未生成（CODE側で draft_builder.py --once の実行待ち。夜間launchd昇格後は自動）</div>';
+  }
+  var st=d.status||'draft';
+  var stBadge={draft:'<span style="background:#eef3ff;color:#4a5d8f;border:1px solid #c9d6f2;border-radius:5px;padding:0 6px">下書き</span>',
+    approved:'<span style="background:#eef7f0;color:#2e7d4f;border:1px solid #bfe0cb;border-radius:5px;padding:0 6px">✅承認済み（AddItem待ち）</span>',
+    listed:'<span style="background:#2e7d4f;color:#fff;border-radius:5px;padding:0 6px">📦出品済み</span>',
+    error:'<span style="background:#fdecec;color:#a33;border:1px solid #eec;border-radius:5px;padding:0 6px">エラー</span>'}[st]||esc(st);
+  var title=(d.title_final!=null?d.title_final:(d.title_ai||''));
+  var tlen=String(title).length;
+  var head='<b style="color:#8a5b00">📝 出品ドラフト</b> '+stBadge
+    +(d.price_usd!=null?(' <b>$'+Number(d.price_usd).toFixed(2)+'</b><small class="muted">（'+esc(d.price_source||'')+'）</small>'):'')
+    +((d.photos||[]).length?(' 📷'+(d.photos||[]).length+'枚'):' <small style="color:#8a5b00">📷写真なし</small>');
+  var inner='';
+  if(st==='error'){
+    inner='<div style="margin-top:5px;color:#a33;font-size:.78rem">生成エラー: '+esc(String(d.error_msg||'不明'))+'（次回のdraft_builder実行で別ライバルにフォールバックして再試行されます）</div>';
+  }else{
+    var ph=d.photos||[];
+    var photosHtml='';
+    if(ph.length){
+      photosHtml='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">'+ph.map(function(u,i){
+        return '<div style="text-align:center">'
+          +'<div style="position:relative"><img src="'+esc(u)+'" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">'
+          +(i===0?'<span style="position:absolute;left:2px;top:2px;background:#2e7d4f;color:#fff;font-size:.6rem;border-radius:4px;padding:0 4px">メイン</span>':'<span style="position:absolute;left:2px;top:2px;background:#4a5d8f;color:#fff;font-size:.6rem;border-radius:4px;padding:0 4px">'+(i+1)+'</span>')
+          +'</div>'
+          +'<div style="display:flex;gap:2px;justify-content:center;margin-top:2px">'
+          +'<button class="btn" style="font-size:.62rem;padding:1px 5px" onclick="rePhotoMove(\''+esc(id)+'\','+i+',-1)">←</button>'
+          +'<button class="btn" style="font-size:.62rem;padding:1px 5px" onclick="rePhotoMove(\''+esc(id)+'\','+i+',1)">→</button>'
+          +'<button class="btn" style="font-size:.62rem;padding:1px 5px" onclick="rePhotoRemove(\''+esc(id)+'\','+i+')">×</button>'
+          +'</div></div>';
+      }).join('')+'</div>';
+    }else{
+      photosHtml='<div class="muted" style="font-size:.72rem">📷 写真なし。仕入れ元ページを「開く」で開いて📷写真取り込みブックマークレットを押すと、ここに候補が届きます</div>';
+    }
+    var pend=rePhotoPend();
+    var pickHtml='';
+    if(pend&&String(pend.id)===id&&(pend.imgs||[]).length){
+      var sel=(window.__rePhotoSel||{})[id]||[];
+      pickHtml='<div style="border:1px dashed #4a5d8f;border-radius:8px;padding:6px;margin-top:4px;background:#f7f9ff">'
+        +'<div style="font-size:.75rem;margin-bottom:4px"><b>📷 受信した写真から選択</b>（タップで採用・もう一度で解除。番号順＝掲載順。最大12枚）</div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+pend.imgs.map(function(u,i){
+          var k=sel.indexOf(i);
+          return '<div style="position:relative;cursor:pointer" onclick="rePhotoToggle(\''+esc(id)+'\','+i+')">'
+            +'<img src="'+esc(u)+'" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:2px solid '+(k>=0?'#2e7d4f':'var(--line)')+'">'
+            +(k>=0?'<span style="position:absolute;left:2px;top:2px;background:#2e7d4f;color:#fff;font-size:.65rem;border-radius:4px;padding:0 4px">'+(k+1)+'</span>':'')
+            +'</div>';
+        }).join('')+'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:6px">'
+        +'<button class="btn" style="font-size:.72rem;padding:3px 10px;background:#2e7d4f;color:#fff" onclick="rePhotoSaveSel(\''+esc(id)+'\')">選択をドラフトに保存</button>'
+        +'<button class="btn" style="font-size:.72rem;padding:3px 10px" onclick="rePhotoDiscard()">破棄</button>'
+        +'</div></div>';
+    }
+    inner='<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:.8rem">'
+      +'<div><span class="muted" style="font-size:.72rem">タイトル（<span id="rdtlen-'+esc(id)+'">'+tlen+'</span>/80字'+(tlen>80?'<b style="color:#a33">超過</b>':'')+'）</span><br>'
+      +'<input type="text" value="'+esc(title)+'" data-rdtitle="'+esc(id)+'" maxlength="120" style="width:100%;max-width:640px;padding:5px 8px;border:1px solid '+(tlen>80?'#a33':'var(--line)')+';border-radius:6px;font-size:.82rem">'
+      +' <button class="btn" style="font-size:.68rem;padding:2px 7px" onclick="reDraftSave(\''+esc(id)+'\',{title_final:null}).then(function(){reRenderCands();})">AI案に戻す</button></div>'
+      +'<div class="muted" style="font-size:.7rem">AI案: '+esc(String(d.title_ai||''))+'<br>参考(ライバル): '+esc(String(d.title_ref||''))+'</div>'
+      +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+      +'<span>価格 $<input type="number" step="0.01" value="'+(d.price_usd!=null?Number(d.price_usd):'')+'" data-rdprice="'+esc(id)+'" style="width:100px;padding:4px 7px;border:1px solid var(--line);border-radius:6px"></span>'
+      +'<span id="rdprofit-'+esc(id)+'">'+reDraftProfitHtml(id,d.price_usd)+'</span>'
+      +'<span>重量区分 <input type="text" value="'+esc(d.weight_class!=null?String(d.weight_class):'')+'" data-rdweight="'+esc(id)+'" style="width:70px;padding:4px 7px;border:1px solid var(--line);border-radius:6px">'+(d.weight_provisional?'<small style="color:#8a5b00">仮</small>':'')+'</span>'
+      +'<span class="muted" style="font-size:.72rem">カテゴリ '+esc(String(d.category_id||'?'))+'・Cond '+esc(String(d.condition_id||'?'))+'</span>'
+      +'</div>'
+      +photosHtml+pickHtml
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="reDraftPreview(\''+esc(id)+'\')">説明文プレビュー</button>'
+      +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="var t=document.getElementById(\'rddesc-'+esc(id)+'\');t.style.display=(t.style.display===\'none\'?\'block\':\'none\')">HTMLを直接編集</button>'
+      +(st==='approved'
+        ?'<button class="btn" style="font-size:.75rem;padding:4px 12px;background:#fff;border:2px solid #8a5b00;color:#8a5b00" onclick="reDraftUnapprove(\''+esc(id)+'\')">承認を解除</button>'
+        :'<button class="btn" style="font-size:.75rem;padding:4px 12px;background:#2e7d4f;color:#fff" onclick="reDraftApprove(\''+esc(id)+'\')">✅ このドラフトを承認</button>')
+      +'</div>'
+      +'<textarea id="rddesc-'+esc(id)+'" data-rddesc="'+esc(id)+'" style="display:none;width:100%;max-width:760px;height:180px;font-family:monospace;font-size:.7rem;border:1px solid var(--line);border-radius:6px;padding:6px">'+esc(String(d.desc_final||d.desc_ai||''))+'</textarea>'
+      +'</div>';
+  }
+  return '<details data-rdbox="'+esc(id)+'" '+(open?'open':'')+' style="flex-basis:100%;border-top:1px dashed #d8c9a0;padding-top:4px;margin-top:2px" ontoggle="window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[\''+esc(id)+'\']=this.open">'
+    +'<summary style="cursor:pointer;font-size:.78rem">'+head+'</summary>'+inner+'</details>';
+}
 function reRivalBlock(c,rv){
   var id=String(c.item_id);
   var rr=reRivalRec(id);
@@ -2765,7 +2970,7 @@ function reSourcingBlock(c,rv){
     return '<span style="display:inline-flex;gap:3px;align-items:center;border:1px solid '+(s.price===mn?'#2e7d4f':'var(--line)')+';border-radius:6px;padding:2px 5px;background:'+(s.price===mn?'#eef7f0':'#fff')+'">'
       +(s.price===mn?'<b style="font-size:.62rem;color:#2e7d4f">最安</b>':'')
       +'<input type="number" value="'+s.price+'" data-rsedit="'+esc(id)+':'+i+'" style="width:72px;padding:2px 5px;border:1px solid var(--line);border-radius:5px;font-size:.78rem">円'
-      +(s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener" style="font-size:.68rem">開く</a>':'')
+      +(s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener" onclick="reMarkDest(\''+esc(id)+'\')" style="font-size:.68rem">開く</a>':'')
       +'<button class="btn" style="font-size:.65rem;padding:1px 5px" onclick="reSupDel(\''+esc(id)+'\','+i+')">×</button></span>';
   }).join(' ');
   var calcHtml='';
@@ -2797,6 +3002,7 @@ function reSourcingBlock(c,rv){
     +calcHtml
     +'<button class="btn" style="font-size:.75rem;padding:4px 10px;'+(listed?'background:#2e7d4f;color:#fff':'background:#fff;border:2px solid #2e7d4f;color:#2e7d4f')+'" onclick="reToggleList(\''+esc(id)+'\')">'+(listed?'📦 出品予定（解除）':'📦 出品する')+'</button>'
     +reRivalBlock(c,rv)
+    +reDraftBlock(c,rv)
     +'</div>';
 }
 // ▼ リサーチ版・⚓基準選択（在庫メンテのanchor pickと同じ流儀）
@@ -2976,6 +3182,25 @@ document.addEventListener('input',function(e){
   if(t&&t.dataset&&t.dataset.rbench!==undefined&&t.type==='radio'&&t.checked){
     // v1.9.81: 基準ライバル選択（空文字=自動）。research_review.jsonのbench_rival_urlへマージ保存
     reBenchPick(t.dataset.rbench,(t.dataset.rurl?decodeURIComponent(t.dataset.rurl):''));
+  }
+  // ▼ v1.9.83: ドラフト編集の遅延保存（renderは呼ばずフォーカス維持。利益表示と字数だけ直接更新）
+  if(t&&t.dataset&&t.dataset.rdtitle!==undefined){
+    clearTimeout(window.__rdtT);var idt=t.dataset.rdtitle,vt=t.value;
+    var cEl=document.getElementById('rdtlen-'+idt);if(cEl)cEl.textContent=String(vt.length);
+    window.__rdtT=setTimeout(function(){reDraftSave(idt,{title_final:vt});},600);
+  }
+  if(t&&t.dataset&&t.dataset.rdprice!==undefined){
+    clearTimeout(window.__rdpT);var idp=t.dataset.rdprice,vp=Number(t.value)||null;
+    var pEl=document.getElementById('rdprofit-'+idp);if(pEl&&vp)pEl.innerHTML=reDraftProfitHtml(idp,vp);
+    window.__rdpT=setTimeout(function(){if(vp)reDraftSave(idp,{price_usd:vp,price_source:'manual'});},600);
+  }
+  if(t&&t.dataset&&t.dataset.rdweight!==undefined){
+    clearTimeout(window.__rdwT);var idw=t.dataset.rdweight,vw=t.value.trim();
+    window.__rdwT=setTimeout(function(){reDraftSave(idw,{weight_class:vw});},600);
+  }
+  if(t&&t.dataset&&t.dataset.rddesc!==undefined){
+    clearTimeout(window.__rddT);var idd=t.dataset.rddesc,vd=t.value;
+    window.__rddT=setTimeout(function(){reDraftSave(idd,{desc_final:vd});},800);
   }
   if(t&&t.dataset&&t.dataset.rscost!==undefined){
     clearTimeout(window.__rscostT);var id2=t.dataset.rscost,v2=Number(t.value)||null;
@@ -3307,7 +3532,22 @@ window.addEventListener('message',function(e){
 window.addEventListener('storage',function(e){
   try{
     if(!e.key)return;
-    if(['ss_re_vq_v1','ss_re_vstore_v1','ss_re_vreview_v1','ss_re_review_pending_v1','ss_re_batch_v1','ss_re_pend_v1'].indexOf(e.key)<0)return;
+    if(['ss_re_vq_v1','ss_re_vstore_v1','ss_re_vreview_v1','ss_re_review_pending_v1','ss_re_batch_v1','ss_re_pend_v1','ss_re_photo_pend_v1'].indexOf(e.key)<0)return;
+    // ▼ v1.9.84: 写真受信は接続不要（localStorage完結）。表示中なら描画してジャンプ＋ドラフトを開く
+    if(e.key==='ss_re_photo_pend_v1'&&e.newValue){
+      try{var pd=JSON.parse(e.newValue);
+        if(pd&&pd.id){
+          window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(pd.id)]=true;
+          window.__rePhotoSel={};
+          var trp=document.getElementById('tabRe');
+          if(trp&&trp.style.display!=='none'&&typeof reRenderCands==='function'){
+            reRenderCands();
+            if(typeof reScrollToCand==='function')setTimeout(function(){reScrollToCand(pd.id);},250);
+          }
+        }
+      }catch(pe){}
+      return;
+    }
     if(e.key==='ss_re_pend_v1'){var tr2=document.getElementById('tabRe');if(tr2&&tr2.style.display!=='none'&&typeof reRenderCands==='function')reRenderCands();return;}
     // 仕入れ候補の受信は表示中タブに関わらず即取り込み（接続済みタブが処理する）
     if(e.key==='ss_re_batch_v1'&&e.newValue){
