@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.84</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.85</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2862,6 +2862,28 @@ function reDraftBlock(c,rv){
   return '<details data-rdbox="'+esc(id)+'" '+(open?'open':'')+' style="flex-basis:100%;border-top:1px dashed #d8c9a0;padding-top:4px;margin-top:2px" ontoggle="window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[\''+esc(id)+'\']=this.open">'
     +'<summary style="cursor:pointer;font-size:.78rem">'+head+'</summary>'+inner+'</details>';
 }
+// ▼ v1.9.85: 合否判定に使ったSold明細（sold_samples）を候補展開に常設表示。
+//   ライバル（現在出品中の言い値）と実売（売れた実績）を同じ画面で見比べるため
+function reSoldBlock(c,rv){
+  var ss=rv.sold_samples||[];
+  if(!ss.length)return '';
+  var id=String(c.item_id);
+  var open=!!(window.__reSoldOpen&&window.__reSoldOpen[id]);
+  var med=rv.median_sold_usd;
+  var head='<b style="color:#7a3b8f">実売(Sold)</b> '+ss.length+'件'
+    +(med!=null?('・中央値 <b>$'+Number(med).toFixed(2)+'</b>'):'')
+    +(rv.verified_at?(' <small class="muted">検証 '+esc(String(rv.verified_at).slice(0,10))+(rv.source==='auto_queue'?'・自動':'')+'</small>'):'');
+  var rows=ss.slice().sort(function(a,b){return String(b.d||'').localeCompare(String(a.d||''));}).map(function(s){
+    return '<div class="rival" style="grid-template-columns:64px 1fr auto;cursor:default">'
+      +(s.i?('<img src="'+esc(s.i)+'" loading="lazy" alt="">'):'<div class="noimg">画像なし</div>')
+      +'<span class="rt">'+(s.u?('<a href="'+esc(s.u)+'" target="_blank" rel="noopener">'+esc(String(s.t||''))+'</a>'):esc(String(s.t||'')))
+      +'<small>'+(s.d?('売れた日 '+esc(String(s.d))):'日付不明')+'</small></span>'
+      +'<span><b>$'+(s.usd!=null?Number(s.usd).toFixed(0):'?')+'</b>'+(s.c==='JPY'?'<small class="muted">（円換算）</small>':'')+'</span>'
+      +'</div>';
+  }).join('');
+  return '<details '+(open?'open':'')+' style="flex-basis:100%" ontoggle="window.__reSoldOpen=window.__reSoldOpen||{};window.__reSoldOpen[\''+esc(id)+'\']=this.open">'
+    +'<summary style="cursor:pointer;font-size:.78rem">'+head+'</summary>'+rows+'</details>';
+}
 function reRivalBlock(c,rv){
   var id=String(c.item_id);
   var rr=reRivalRec(id);
@@ -3002,6 +3024,7 @@ function reSourcingBlock(c,rv){
     +calcHtml
     +'<button class="btn" style="font-size:.75rem;padding:4px 10px;'+(listed?'background:#2e7d4f;color:#fff':'background:#fff;border:2px solid #2e7d4f;color:#2e7d4f')+'" onclick="reToggleList(\''+esc(id)+'\')">'+(listed?'📦 出品予定（解除）':'📦 出品する')+'</button>'
     +reRivalBlock(c,rv)
+    +reSoldBlock(c,rv)
     +reDraftBlock(c,rv)
     +'</div>';
 }
@@ -3326,9 +3349,18 @@ function reRenderVerify(){
 function reMedian(a){if(!a||!a.length)return null;var s=a.slice().sort(function(x,y){return x-y;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
 async function reSaveVerdict(status,cnt){
   var tgt=reVerifyTarget();if(!tgt)return;
-  var med=null;
-  try{var vv=reVerifyRows();if(vv)med=reMedian(vv.rows.filter(function(r){return r.checked&&r.inDays;}).map(function(r){return r.usd;}));}catch(e){}
+  var med=null,samples=null;
+  try{var vv=reVerifyRows();
+    if(vv){
+      med=reMedian(vv.rows.filter(function(r){return r.checked&&r.inDays;}).map(function(r){return r.usd;}));
+      // ▼ v1.9.85: 判定に使ったSold明細を保存（チェック済み行・最大20件）。後から候補一覧で見比べられるように
+      samples=vv.rows.filter(function(r){return r.checked;}).slice(0,20).map(function(r){
+        return {usd:(r.usd!=null?Math.round(r.usd*100)/100:null),t:String((r.it&&r.it.t)||'').slice(0,80),d:(r.it&&r.it.d)||null,u:(r.it&&r.it.u)||'',i:(r.it&&r.it.i)||'',c:(r.it&&r.it.c)||''};
+      });
+    }
+  }catch(e){}
   var rec={status:status,sold_count_60d:cnt,median_sold_usd:(med!=null?Math.round(med*100)/100:null),verified_at:new Date().toISOString(),title:tgt.title,source:'manual'};
+  if(samples&&samples.length)rec.sold_samples=samples;
   var saved=await reSaveVerdictRecord(String(tgt.item_id),rec);
   if(!saved)alert('autoフォルダ未接続のため一時保存しました。接続済みのツール画面でリサーチタブを開くと本保存されます。');
   localStorage.removeItem('ss_re_verify_v1');localStorage.removeItem('ss_soldv_inbox_v1');localStorage.removeItem('ss_re_vchk_v1');
@@ -3499,6 +3531,10 @@ window.addEventListener('message',function(e){
       if(av){
         var med=reMedian(v.rows.filter(function(r){return r.inDays&&r.pnState==='match'&&!r.gradeMismatch;}).map(function(r){return r.usd;}));
         var rec={status:av.status,sold_count_60d:av.count,median_sold_usd:(med!=null?Math.round(med*100)/100:null),verified_at:new Date().toISOString(),title:(v.tgt.title||''),source:'auto_queue'};
+        // ▼ v1.9.85: 自動判定でも根拠のSold明細を保存（自動チェック該当行・最大20件）
+        try{var smp=v.rows.filter(function(r){return r.auto;}).slice(0,20).map(function(r){
+          return {usd:(r.usd!=null?Math.round(r.usd*100)/100:null),t:String((r.it&&r.it.t)||'').slice(0,80),d:(r.it&&r.it.d)||null,u:(r.it&&r.it.u)||'',i:(r.it&&r.it.i)||'',c:(r.it&&r.it.c)||''};
+        });if(smp.length)rec.sold_samples=smp;}catch(se){}
         q.stats[av.status==='pass'?'pass':'fail']++;
         q.last=(av.status==='pass'?'✅自動合格':'✖自動不合格')+'（60日'+av.count+'点）: '+String(v.tgt.title||'').slice(0,40);
         reQueueSave(q);
