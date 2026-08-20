@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.85</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.86</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2734,6 +2734,14 @@ async function rePhotoRemove(id,i){
   window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
   if(await reDraftSave(id,{photos:ph}))reRenderCands();
 }
+async function reDraftSpecAdd(id){
+  var k=prompt('追加するItem Specificsの項目名（例: Language）');
+  if(!k)return;k=k.trim();if(!k)return;
+  var d=reDraftRec(id)||{};var sp=Object.assign({},d.item_specifics||{});
+  if(sp[k]===undefined)sp[k]='';
+  window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+  if(await reDraftSave(id,{item_specifics:sp}))reRenderCands();
+}
 function reDraftRec(id){return (window.RE_DRAFTS||{})[String(id)]||null;}
 async function reDraftSave(id,patch){
   if(!AUTO_DIR){showToast('⚠️ autoフォルダ未接続のため保存できません');return false;}
@@ -2846,9 +2854,34 @@ function reDraftBlock(c,rv){
       +'<span>価格 $<input type="number" step="0.01" value="'+(d.price_usd!=null?Number(d.price_usd):'')+'" data-rdprice="'+esc(id)+'" style="width:100px;padding:4px 7px;border:1px solid var(--line);border-radius:6px"></span>'
       +'<span id="rdprofit-'+esc(id)+'">'+reDraftProfitHtml(id,d.price_usd)+'</span>'
       +'<span>重量区分 <input type="text" value="'+esc(d.weight_class!=null?String(d.weight_class):'')+'" data-rdweight="'+esc(id)+'" style="width:70px;padding:4px 7px;border:1px solid var(--line);border-radius:6px">'+(d.weight_provisional?'<small style="color:#8a5b00">仮</small>':'')+'</span>'
-      +'<span class="muted" style="font-size:.72rem">カテゴリ '+esc(String(d.category_id||'?'))+'・Cond '+esc(String(d.condition_id||'?'))+'</span>'
+      +'<span class="muted" style="font-size:.72rem">カテゴリ '+esc(String(d.category_id||'?'))+'</span>'
       +'</div>'
       +photosHtml+pickHtml
+      +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+      +'<span>コンディション <select data-rdcond="'+esc(id)+'" style="padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:.78rem">'
+      +(function(){
+        var opts=[[1000,'New（新品）'],[1500,'New other（未使用に近い）'],[2750,'Like New / Graded'],[3000,'Used（中古）'],[4000,'Very Good / Ungraded'],[5000,'Good'],[6000,'Acceptable']];
+        var cur=(d.condition_id!=null?Number(d.condition_id):null);
+        var known=opts.some(function(o){return o[0]===cur;});
+        var h2='';
+        if(cur!=null&&!known)h2+='<option value="'+cur+'" selected>現在値（'+cur+'・ライバル由来）</option>';
+        opts.forEach(function(o){h2+='<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+o[1]+'</option>';});
+        return h2;
+      })()
+      +'</select> <small class="muted">ライバル由来の初期値。実物の状態に合わせて確定を</small></span>'
+      +'</div>'
+      +'<div><span class="muted" style="font-size:.72rem">状態説明（Condition description・任意。傷・スレ・付属品など実物の状態）</span><br>'
+      +'<textarea data-rdconddesc="'+esc(id)+'" style="width:100%;max-width:640px;height:44px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:.78rem">'+esc(String(d.condition_description||''))+'</textarea></div>'
+      +(function(){
+        var sp2=d.item_specifics||{};var keys=Object.keys(sp2);
+        var rows2=keys.map(function(k){
+          return '<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:.72rem"><b>'+esc(k)+'</b>'
+            +'<input type="text" value="'+esc(String(sp2[k]))+'" data-rdspeck="'+esc(id)+'|'+esc(encodeURIComponent(k))+'" style="width:120px;padding:2px 5px;border:1px solid var(--line);border-radius:5px;font-size:.72rem"></span>';
+        }).join(' ');
+        return '<div><span class="muted" style="font-size:.72rem">Item Specifics（ライバル由来・値は編集可）</span><br><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:3px">'+rows2
+          +' <button class="btn" style="font-size:.68rem;padding:2px 7px" onclick="reDraftSpecAdd(\''+esc(id)+'\')">＋項目追加</button></div></div>';
+      })()
+      +'<div class="muted" style="font-size:.7rem">出品設定（全ドラフト共通・R3cで適用）: Buy It Now・数量1・GTC・Best Offer受付（$20未満は自動拒否）・広告 General 2.1%・配送/支払/返品＝既存出品のビジネスポリシーを流用</div>'
       +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
       +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="reDraftPreview(\''+esc(id)+'\')">説明文プレビュー</button>'
       +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="var t=document.getElementById(\'rddesc-'+esc(id)+'\');t.style.display=(t.style.display===\'none\'?\'block\':\'none\')">HTMLを直接編集</button>'
@@ -3224,6 +3257,23 @@ document.addEventListener('input',function(e){
   if(t&&t.dataset&&t.dataset.rddesc!==undefined){
     clearTimeout(window.__rddT);var idd=t.dataset.rddesc,vd=t.value;
     window.__rddT=setTimeout(function(){reDraftSave(idd,{desc_final:vd});},800);
+  }
+  // ▼ v1.9.86: コンディション・状態説明・Item Specifics値の遅延保存
+  if(t&&t.dataset&&t.dataset.rdcond!==undefined){
+    var idc=t.dataset.rdcond,vc=Number(t.value)||null;
+    if(vc)reDraftSave(idc,{condition_id:vc});
+  }
+  if(t&&t.dataset&&t.dataset.rdconddesc!==undefined){
+    clearTimeout(window.__rdcdT);var idcd=t.dataset.rdconddesc,vcd=t.value;
+    window.__rdcdT=setTimeout(function(){reDraftSave(idcd,{condition_description:vcd});},700);
+  }
+  if(t&&t.dataset&&t.dataset.rdspeck!==undefined){
+    clearTimeout(window.__rdskT);
+    var pr=t.dataset.rdspeck.split('|');var ids=pr[0],key=decodeURIComponent(pr[1]||''),vs2=t.value;
+    window.__rdskT=setTimeout(function(){
+      var d2=reDraftRec(ids)||{};var sp3=Object.assign({},d2.item_specifics||{});sp3[key]=vs2;
+      reDraftSave(ids,{item_specifics:sp3});
+    },700);
   }
   if(t&&t.dataset&&t.dataset.rscost!==undefined){
     clearTimeout(window.__rscostT);var id2=t.dataset.rscost,v2=Number(t.value)||null;
