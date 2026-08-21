@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.86</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.87</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -535,6 +535,7 @@ loop();})();" onclick="return false" title="ブックマークバーにドラッ
     <button class="btn" style="background:#4a5d8f;color:#fff;font-weight:700" id="reQueueBtn" onclick="reQueueStart()">▶ 連続検証を開始</button>
     <span id="reQueueStatus" class="muted"></span>
   </div>
+  <div id="reListQueue" style="display:none;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:.82rem;border:1px solid var(--line);border-radius:8px;padding:6px 10px"></div>
   <div id="reVerifyPanel"></div>
   <div class="toolbar" style="margin:10px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <input type="text" id="reSearch" placeholder="🔍 候補を絞り込み" style="padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:.85rem;min-width:200px">
@@ -2516,10 +2517,12 @@ async function reInit(){
   try{var rrj=await autoReadJSON('research_rivals.json');window.RE_RIVALS=(rrj&&rrj.rivals)||window.RE_RIVALS||{};}catch(e){window.RE_RIVALS=window.RE_RIVALS||{};}
   // ▼ v1.9.83: R3a 出品ドラフト（バックエンドdraft_builder生成。ブラウザはtitle_final/desc_final/photos/statusを書く）
   try{var drj=await autoReadJSON('listing_drafts.json');window.RE_DRAFTS=(drj&&drj.drafts)||window.RE_DRAFTS||{};}catch(e){window.RE_DRAFTS=window.RE_DRAFTS||{};}
+  // ▼ v1.9.87: 出品キュー設定（listing_config.json・ブラウザ編集可）
+  try{var lcj=await autoReadJSON('listing_config.json');if(lcj)window.RE_LCFG=lcj;}catch(e){}
   if(!window.__reFiltersRestored){window.__reFiltersRestored=true;if(typeof reRestoreFilters==='function')reRestoreFilters();}
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
-  reRenderSellers(); reRenderCands(); reRenderVerify(); if(typeof reQueueUi==='function')reQueueUi();
+  reRenderSellers(); reRenderCands(); reRenderVerify(); if(typeof reQueueUi==='function')reQueueUi(); if(typeof reListQueueUi==='function')reListQueueUi();
   // ▼ v1.9.78: 受信取り込みは「候補・合否の読み込み完了後」に移動（従来は読み込み前に実行していた）。
   //   旧順序の実害2件：①RE_CANDSが空のうちに描画→ジャンプ先カード不在で自動スクロールが黙って不発
   //   （ブックマークレット→新タブ受信の典型経路）②RE_REVIEWSが空のうちに単品マージ→ファイル上の
@@ -2804,6 +2807,7 @@ function reDraftBlock(c,rv){
   var title=(d.title_final!=null?d.title_final:(d.title_ai||''));
   var tlen=String(title).length;
   var head='<b style="color:#8a5b00">📝 出品ドラフト</b> '+stBadge
+    +(st==='listed'&&d.listed_item_id?(' <a href="https://www.ebay.com/itm/'+esc(String(d.listed_item_id))+'" target="_blank" rel="noopener" style="font-size:.75rem">実ページを開く</a>'):'')
     +(d.price_usd!=null?(' <b>$'+Number(d.price_usd).toFixed(2)+'</b><small class="muted">（'+esc(d.price_source||'')+'）</small>'):'')
     +((d.photos||[]).length?(' 📷'+(d.photos||[]).length+'枚'):' <small style="color:#8a5b00">📷写真なし</small>');
   var inner='';
@@ -2894,6 +2898,42 @@ function reDraftBlock(c,rv){
   }
   return '<details data-rdbox="'+esc(id)+'" '+(open?'open':'')+' style="flex-basis:100%;border-top:1px dashed #d8c9a0;padding-top:4px;margin-top:2px" ontoggle="window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[\''+esc(id)+'\']=this.open">'
     +'<summary style="cursor:pointer;font-size:.78rem">'+head+'</summary>'+inner+'</details>';
+}
+// ▼ v1.9.87 (R3c連携): 出品キュー状況バー。承認済み＝キュー。listing_config.jsonのdaily_limitを編集可
+function reListQueueUi(){
+  var el=document.getElementById('reListQueue');if(!el)return;
+  var drafts=window.RE_DRAFTS||{};
+  var ids=Object.keys(drafts);
+  var nApproved=ids.filter(function(k){return drafts[k].status==='approved';}).length;
+  var nListed=ids.filter(function(k){return drafts[k].status==='listed';}).length;
+  var nDraft=ids.filter(function(k){return drafts[k].status==='draft';}).length;
+  if(!ids.length){el.style.display='none';return;}
+  var cfg=window.RE_LCFG||{};
+  var lim=Number(cfg.daily_limit);if(isNaN(lim))lim=5;
+  var wm=Number(cfg.queue_low_watermark)||15;
+  var days=lim>0?(nApproved/lim):null;
+  var low=nApproved<wm;
+  el.style.display='flex';
+  el.style.background=low?'#fdf3e0':'#f4f7f4';
+  el.style.borderColor=low?'#ecd9ae':'var(--line)';
+  el.innerHTML='<b>📦 出品キュー</b> 承認済み <b>'+nApproved+'件</b>'
+    +(days!=null?('（約'+(days<1?'1日未満':Math.floor(days)+'日')+'分）'):'（自動出品は一時停止中）')
+    +(low?'<span style="color:#8a5b00;font-weight:700">⚠️ 残り少（'+wm+'件未満）— 検証と承認で補充を</span>':'')
+    +'<span class="muted">下書き'+nDraft+'・出品済み'+nListed+'</span>'
+    +'<span>1日 <input type="number" min="0" max="50" value="'+lim+'" data-rlqlim="1" style="width:52px;padding:2px 5px;border:1px solid var(--line);border-radius:5px">件'
+    +'<small class="muted">（0で一時停止・毎朝の自動出品に反映）</small></span>';
+}
+async function reListQueueSaveLimit(v){
+  if(!AUTO_DIR){showToast('⚠️ autoフォルダ未接続のため保存できません');return;}
+  try{
+    var cur=await autoReadJSON('listing_config.json')||{};
+    cur.daily_limit=v;
+    var fh=await AUTO_DIR.getFileHandle('listing_config.json',{create:true});
+    var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
+    window.RE_LCFG=cur;
+    showToast('1日の出品数を'+v+'件に設定しました（明朝の自動出品から反映）');
+    reListQueueUi();
+  }catch(e){showToast('⚠️ 設定の保存に失敗しました');}
 }
 // ▼ v1.9.85: 合否判定に使ったSold明細（sold_samples）を候補展開に常設表示。
 //   ライバル（現在出品中の言い値）と実売（売れた実績）を同じ画面で見比べるため
@@ -3266,6 +3306,10 @@ document.addEventListener('input',function(e){
   if(t&&t.dataset&&t.dataset.rdconddesc!==undefined){
     clearTimeout(window.__rdcdT);var idcd=t.dataset.rdconddesc,vcd=t.value;
     window.__rdcdT=setTimeout(function(){reDraftSave(idcd,{condition_description:vcd});},700);
+  }
+  if(t&&t.dataset&&t.dataset.rlqlim!==undefined){
+    clearTimeout(window.__rlqT);var vq=Math.max(0,Math.min(50,Number(t.value)||0));
+    window.__rlqT=setTimeout(function(){reListQueueSaveLimit(vq);},700);
   }
   if(t&&t.dataset&&t.dataset.rdspeck!==undefined){
     clearTimeout(window.__rdskT);
