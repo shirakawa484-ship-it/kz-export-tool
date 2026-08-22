@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.90</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.91</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2600,13 +2600,28 @@ function reRenderCands(){
   }).sort(function(a,b){return String(b.first_seen||'').localeCompare(String(a.first_seen||''));});
   var srcLabel={new_listing:['新規出品','#e8f5ec;color:#1d5c2f'],possible_sold:['売れた可能性','#fdf3e0;color:#8a5b00'],sold_confirmed:['Sold確定','#fde8e8;color:#8a1f1f'],seller_scan:['巡回','#f0f1f3;color:#555']};
   document.getElementById('reCandInfo').textContent='候補 '+list.length+'件（全'+RE_CANDS.length+'件・出品済み'+RE_CANDS.filter(function(c){return c.already_listed||(((window.RE_DRAFTS||{})[String(c.item_id)]||{}).status==='listed');}).length+'件）';
-  var shown=list.slice(0,RE_SHOWN);
-  el.innerHTML=shown.map(function(c){
+  // ▼ v1.9.91: ドラフト状況でグループ化——📝下書き編集中を先頭、✅承認済み(出品待ち)は末尾へ沈める。
+  //   通常候補のみ従来のページング対象（特別グループは件数が少ないため常時全件表示）
+  var gDraft=[],gApproved=[],gNormal=[];
+  list.forEach(function(c){
+    var dd=(window.RE_DRAFTS||{})[String(c.item_id)];
+    if(dd&&(dd.status==='draft'||dd.status==='requested'||dd.status==='error'))gDraft.push(c);
+    else if(dd&&dd.status==='approved')gApproved.push(c);
+    else gNormal.push(c);
+  });
+  var shown=gDraft.concat(gNormal.slice(0,RE_SHOWN)).concat(gApproved);
+  var secHead=function(txt,color,bg){return '<div style="margin:10px 0 2px;padding:4px 10px;border-radius:7px;background:'+bg+';color:'+color+';font-size:.78rem;font-weight:700">'+txt+'</div>';};
+  var htmlParts=[];
+  if(gDraft.length)htmlParts.push(secHead('📝 ドラフト編集中 '+gDraft.length+'件 — 内容確認・必須項目・承認を','#8a5b00','#fdf3e0'));
+  el.innerHTML=htmlParts.join('')+shown.map(function(c,__ix){
+    var __pre='';
+    if(gDraft.length&&__ix===gDraft.length&&gNormal.length)__pre=secHead('候補一覧','#555','#f0f1f3');
+    if(__ix===gDraft.length+Math.min(gNormal.length,RE_SHOWN)&&gApproved.length)__pre=secHead('✅ 承認済み・出品待ち '+gApproved.length+'件（毎朝5件ずつ自動出品されます）','#1d5c2f','#e8f5ec');
     var sl=srcLabel[c.source]||[c.source,'#f0f1f3;color:#555'];
     var isDis=dis.indexOf(String(c.item_id))>=0;
     var rv=(window.RE_REVIEWS||{})[String(c.item_id)];
     var rvBadge=rv?(rv.status==='pass'?'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#e8f5ec;color:#1d5c2f;white-space:nowrap" title="直近60日'+(rv.sold_count_60d||0)+'点・'+String(rv.verified_at||'').slice(0,10)+'検証">✅合格</span>':'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#fde8e8;color:#8a1f1f;white-space:nowrap">✖不合格</span>'):'';
-    return '<div data-cid="'+esc(String(c.item_id))+'" style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
+    return __pre+'<div data-cid="'+esc(String(c.item_id))+'" style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
       +(c.image_url?('<div style="width:88px"><img src="'+esc(c.image_url)+'" loading="lazy" style="width:88px;height:88px;object-fit:cover;border-radius:7px;border:1px solid var(--line)">'
         +'<button class="lensbtn" style="width:88px" onclick="openLens(event,\''+esc(c.image_url)+'\')" title="この画像でGoogleレンズ検索。商品名やキーワードが分からない時に">🔍レンズ</button></div>')
         :'<div style="width:88px;height:88px;border-radius:7px;background:#f4f2ec;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#999">画像なし</div>')
@@ -2623,7 +2638,7 @@ function reRenderCands(){
   }).join('');
   var listedN=Object.keys(window.RE_REVIEWS||{}).filter(function(k){return (window.RE_REVIEWS[k]||{}).decision==='list';}).length;
   var lc=document.getElementById('reListCount');if(lc)lc.textContent=listedN?('📦 出品予定 '+listedN+'件'):'';
-  document.getElementById('reMoreBtn').style.display=(list.length>RE_SHOWN)?'inline-block':'none';
+  document.getElementById('reMoreBtn').style.display=(gNormal.length>RE_SHOWN)?'inline-block':'none';
 }
 function reShowMore(){RE_SHOWN+=100;reRenderCands();}
 // ══════ R2a: 合格候補の仕入れ探索・利益計算（v1.9.67）══════
@@ -2777,6 +2792,7 @@ async function reDraftApprove(id){
   if(!title){alert('タイトルが空です');return;}
   if(title.length>80){alert('タイトルが80字を超えています（'+title.length+'字）。短くしてください');return;}
   if(!(price>0)){alert('価格が未設定です');return;}
+  if(d.required_specifics_stale){alert('コンディション変更に伴う必須項目の更新待ちです（自動・通常10分以内）。更新後に承認してください');return;}
   // v1.9.88: カテゴリ必須Specifics/Descriptorの未選択チェック（AddItem時の21920355系エラーを事前ブロック）
   if(d.required_specifics&&d.required_specifics.length){
     var missing=d.required_specifics.filter(function(r){return !(r.selected!=null&&String(r.selected)!=='');}).map(function(r){return r.name;});
@@ -2913,6 +2929,7 @@ function reDraftBlock(c,rv){
       })()
       +(function(){
         // ▼ v1.9.88: カテゴリ必須Specifics/Descriptor（Card Condition等）。未選択があると承認ブロック
+        if(d.required_specifics_stale)return '<div style="border:1px dashed #8a5b00;border-radius:7px;padding:5px 9px;font-size:.75rem;color:#8a5b00;background:#fdf3e0">⏳ コンディション変更に合わせて必須項目を更新中（自動・通常10分以内）。完了まで承認できません</div>';
         var rq=d.required_specifics;
         if(!rq||!rq.length)return '';
         var rows3=rq.map(function(r,ri){
@@ -2984,12 +3001,12 @@ function rePollDraftsStart(){
       var rvs=window.RE_REVIEWS||{};var ds=window.RE_DRAFTS||{};
       var waiting=Object.keys(rvs).some(function(k){
         if(rvs[k].decision!=='list')return false;
-        var d=ds[k];return !d||d.status==='requested';
+        var d=ds[k];return !d||d.status==='requested'||d.required_specifics_stale;
       });
       if(!waiting)return;
       var j=await autoReadJSON('listing_drafts.json');
       if(!j||!j.drafts)return;
-      var sig=function(o){return JSON.stringify(Object.keys(o).map(function(k){return k+':'+(o[k].status||'')+':'+(o[k].built_at||'');}).sort());};
+      var sig=function(o){return JSON.stringify(Object.keys(o).map(function(k){return k+':'+(o[k].status||'')+':'+(o[k].built_at||'')+':'+(o[k].condition_id||'')+':'+(o[k].required_specifics_stale?1:0);}).sort());};
       if(sig(j.drafts)!==sig(ds)){
         window.RE_DRAFTS=j.drafts;
         showToast('📝 出品ドラフトが更新されました');
@@ -3428,7 +3445,14 @@ document.addEventListener('input',function(e){
   // ▼ v1.9.86: コンディション・状態説明・Item Specifics値の遅延保存
   if(t&&t.dataset&&t.dataset.rdcond!==undefined){
     var idc=t.dataset.rdcond,vc=Number(t.value)||null;
-    if(vc)reDraftSave(idc,{condition_id:vc});
+    if(vc){
+      var dcur=reDraftRec(idc)||{};
+      if(Number(dcur.condition_id)!==vc){
+        // v1.9.91: コンディション変更→必須項目(Descriptor)がConditionID依存のため、バックエンドに再取得を依頼。
+        //   required_specifics_stale中は承認をブロック（10分ポーリングのdraft_builderが再評価して解除）
+        reDraftSave(idc,{condition_id:vc,required_specifics_stale:true}).then(function(ok){if(ok)reRenderCands();});
+      }
+    }
   }
   if(t&&t.dataset&&t.dataset.rdconddesc!==undefined){
     clearTimeout(window.__rdcdT);var idcd=t.dataset.rdconddesc,vcd=t.value;
