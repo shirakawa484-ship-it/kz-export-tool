@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.92</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.93</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -3449,9 +3449,25 @@ document.addEventListener('input',function(e){
     if(vc){
       var dcur=reDraftRec(idc)||{};
       if(Number(dcur.condition_id)!==vc){
-        // v1.9.91: コンディション変更→必須項目(Descriptor)がConditionID依存のため、バックエンドに再取得を依頼。
-        //   required_specifics_stale中は承認をブロック（10分ポーリングのdraft_builderが再評価して解除）
-        reDraftSave(idc,{condition_id:vc,required_specifics_stale:true}).then(function(ok){if(ok)reRenderCands();});
+        // v1.9.93: 先読みマップ（required_specifics_by_condition）があれば即時差し替え。
+        //   共通項目のselectedは保持。マップが無い旧ドラフトのみ従来のstale→バックエンド再評価（最大10分）
+        var map=dcur.required_specifics_by_condition;
+        if(map&&map[String(vc)]){
+          var neu=JSON.parse(JSON.stringify(map[String(vc)]));
+          var old=dcur.required_specifics||[];
+          neu.forEach(function(r){
+            for(var oi=0;oi<old.length;oi++){
+              if(old[oi].name===r.name&&old[oi].selected!=null&&String(old[oi].selected)!==''){
+                if(!(r.values||[]).length||(r.values||[]).indexOf(old[oi].selected)>=0)r.selected=old[oi].selected;
+                break;
+              }
+            }
+          });
+          reDraftSave(idc,{condition_id:vc,required_specifics:neu,required_specifics_stale:false}).then(function(ok){if(ok)reRenderCands();});
+        }else{
+          // 旧ドラフト互換: コンディション変更→必須項目(Descriptor)がConditionID依存のため、バックエンドに再取得を依頼
+          reDraftSave(idc,{condition_id:vc,required_specifics_stale:true}).then(function(ok){if(ok)reRenderCands();});
+        }
       }
     }
   }
