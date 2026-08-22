@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.87</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.88</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2583,7 +2583,9 @@ function reRenderCands(){
   var vf=(document.getElementById('reVerdictFilter')||{}).value||'';
   var dis=reDismissSet();
   var list=RE_CANDS.filter(function(c){
-    if(hideL&&c.already_listed)return false;
+    // v1.9.88: 「出品済み」＝発見時の自店一致(already_listed) ＋ R3で出品完了したドラフト(status:'listed')
+    var isListed=c.already_listed||(((window.RE_DRAFTS||{})[String(c.item_id)]||{}).status==='listed');
+    if(hideL&&isListed)return false;
     if(src&&c.source!==src)return false;
     if(c.price_below_min)return false;
     var rvf=(window.RE_REVIEWS||{})[String(c.item_id)];
@@ -2596,7 +2598,7 @@ function reRenderCands(){
     return true;
   }).sort(function(a,b){return String(b.first_seen||'').localeCompare(String(a.first_seen||''));});
   var srcLabel={new_listing:['新規出品','#e8f5ec;color:#1d5c2f'],possible_sold:['売れた可能性','#fdf3e0;color:#8a5b00'],sold_confirmed:['Sold確定','#fde8e8;color:#8a1f1f'],seller_scan:['巡回','#f0f1f3;color:#555']};
-  document.getElementById('reCandInfo').textContent='候補 '+list.length+'件（全'+RE_CANDS.length+'件・出品済み'+RE_CANDS.filter(function(c){return c.already_listed;}).length+'件）';
+  document.getElementById('reCandInfo').textContent='候補 '+list.length+'件（全'+RE_CANDS.length+'件・出品済み'+RE_CANDS.filter(function(c){return c.already_listed||(((window.RE_DRAFTS||{})[String(c.item_id)]||{}).status==='listed');}).length+'件）';
   var shown=list.slice(0,RE_SHOWN);
   el.innerHTML=shown.map(function(c){
     var sl=srcLabel[c.source]||[c.source,'#f0f1f3;color:#555'];
@@ -2774,6 +2776,11 @@ async function reDraftApprove(id){
   if(!title){alert('タイトルが空です');return;}
   if(title.length>80){alert('タイトルが80字を超えています（'+title.length+'字）。短くしてください');return;}
   if(!(price>0)){alert('価格が未設定です');return;}
+  // v1.9.88: カテゴリ必須Specifics/Descriptorの未選択チェック（AddItem時の21920355系エラーを事前ブロック）
+  if(d.required_specifics&&d.required_specifics.length){
+    var missing=d.required_specifics.filter(function(r){return !(r.selected!=null&&String(r.selected)!=='');}).map(function(r){return r.name;});
+    if(missing.length){alert('カテゴリ必須項目が未選択です: '+missing.join(', ')+'\nドラフトパネルの「カテゴリ必須項目」で選択してください');return;}
+  }
   if(!(d.photos||[]).length){
     if(!confirm('写真が0枚です（写真取り込みはR3bで実装予定）。このまま承認しますか？\n※承認してもAddItem実行はR3c実装後です'))return;
   }
@@ -2884,6 +2891,24 @@ function reDraftBlock(c,rv){
         }).join(' ');
         return '<div><span class="muted" style="font-size:.72rem">Item Specifics（ライバル由来・値は編集可）</span><br><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:3px">'+rows2
           +' <button class="btn" style="font-size:.68rem;padding:2px 7px" onclick="reDraftSpecAdd(\''+esc(id)+'\')">＋項目追加</button></div></div>';
+      })()
+      +(function(){
+        // ▼ v1.9.88: カテゴリ必須Specifics/Descriptor（Card Condition等）。未選択があると承認ブロック
+        var rq=d.required_specifics;
+        if(!rq||!rq.length)return '';
+        var rows3=rq.map(function(r,ri){
+          var vals=(r.values||[]).slice();
+          var sel=(r.selected!=null?String(r.selected):'');
+          var opts='<option value="">— 未選択 —</option>';
+          if(sel&&vals.indexOf(sel)<0)opts+='<option value="'+esc(sel)+'" selected>'+esc(sel)+'</option>';
+          vals.forEach(function(v){opts+='<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';});
+          return '<span style="display:inline-flex;gap:4px;align-items:center;border:1px solid '+(sel?'var(--line)':'#a33')+';border-radius:6px;padding:2px 6px;font-size:.72rem;background:'+(sel?'#fff':'#fdecec')+'">'
+            +'<b>'+esc(String(r.name||''))+(r.is_descriptor?'<small class="muted">(Descriptor)</small>':'')+'</b>'
+            +'<select data-rdreq="'+esc(id)+'|'+ri+'" style="padding:2px 5px;border:1px solid var(--line);border-radius:5px;font-size:.72rem;max-width:220px">'+opts+'</select>'
+            +'</span>';
+        }).join(' ');
+        var miss=rq.some(function(r){return !(r.selected!=null&&String(r.selected)!=='');});
+        return '<div><span class="muted" style="font-size:.72rem">カテゴリ必須項目'+(miss?'<b style="color:#a33">（未選択あり・承認できません）</b>':'')+'</span><br><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:3px">'+rows3+'</div></div>';
       })()
       +'<div class="muted" style="font-size:.7rem">出品設定（全ドラフト共通・R3cで適用）: Buy It Now・数量1・GTC・Best Offer受付（$20未満は自動拒否）・広告 General 2.1%・配送/支払/返品＝既存出品のビジネスポリシーを流用</div>'
       +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
@@ -3310,6 +3335,17 @@ document.addEventListener('input',function(e){
   if(t&&t.dataset&&t.dataset.rlqlim!==undefined){
     clearTimeout(window.__rlqT);var vq=Math.max(0,Math.min(50,Number(t.value)||0));
     window.__rlqT=setTimeout(function(){reListQueueSaveLimit(vq);},700);
+  }
+  if(t&&t.dataset&&t.dataset.rdreq!==undefined){
+    // v1.9.88: 必須Specifics/Descriptorの選択保存
+    var pr2=t.dataset.rdreq.split('|');var idq=pr2[0],ri2=Number(pr2[1]),vq2=t.value;
+    var dq=reDraftRec(idq);
+    if(dq&&dq.required_specifics&&dq.required_specifics[ri2]!==undefined){
+      var arr2=JSON.parse(JSON.stringify(dq.required_specifics));
+      arr2[ri2].selected=(vq2||null);
+      window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(idq)]=true;
+      reDraftSave(idq,{required_specifics:arr2}).then(function(ok){if(ok)reRenderCands();});
+    }
   }
   if(t&&t.dataset&&t.dataset.rdspeck!==undefined){
     clearTimeout(window.__rdskT);
