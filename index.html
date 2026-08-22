@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.88</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.90</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2523,6 +2523,7 @@ async function reInit(){
   var info=c&&c.last_scan?('最終巡回: '+String(c.updated_at||'').slice(0,16).replace('T',' ')):'（巡回データ未生成。セラーを登録して翌日の巡回をお待ちください）';
   document.getElementById('reCandInfo').textContent=info;
   reRenderSellers(); reRenderCands(); reRenderVerify(); if(typeof reQueueUi==='function')reQueueUi(); if(typeof reListQueueUi==='function')reListQueueUi();
+  if(typeof rePollDraftsStart==='function')rePollDraftsStart();
   // ▼ v1.9.78: 受信取り込みは「候補・合否の読み込み完了後」に移動（従来は読み込み前に実行していた）。
   //   旧順序の実害2件：①RE_CANDSが空のうちに描画→ジャンプ先カード不在で自動スクロールが黙って不発
   //   （ブックマークレット→新タブ受信の典型経路）②RE_REVIEWSが空のうちに単品マージ→ファイル上の
@@ -2804,7 +2805,7 @@ function reDraftBlock(c,rv){
   if(!d&&!listed)return '';
   var open=!!(window.__reDraftOpen&&window.__reDraftOpen[id]);
   if(!d){
-    return '<div style="flex-basis:100%;font-size:.78rem" class="muted">📝 出品ドラフト: 未生成（CODE側で draft_builder.py --once の実行待ち。夜間launchd昇格後は自動）</div>';
+    return '<div style="flex-basis:100%;font-size:.78rem" class="muted">📝 出品ドラフト: ⏳ 生成待ち（自動・通常10分以内に生成されます。このまま待てば自動で表示に反映）</div>';
   }
   var st=d.status||'draft';
   var stBadge={draft:'<span style="background:#eef3ff;color:#4a5d8f;border:1px solid #c9d6f2;border-radius:5px;padding:0 6px">下書き</span>',
@@ -2867,6 +2868,24 @@ function reDraftBlock(c,rv){
       +'<span>重量区分 <input type="text" value="'+esc(d.weight_class!=null?String(d.weight_class):'')+'" data-rdweight="'+esc(id)+'" style="width:70px;padding:4px 7px;border:1px solid var(--line);border-radius:6px">'+(d.weight_provisional?'<small style="color:#8a5b00">仮</small>':'')+'</span>'
       +'<span class="muted" style="font-size:.72rem">カテゴリ '+esc(String(d.category_id||'?'))+'</span>'
       +'</div>'
+      +(function(){
+        // ▼ v1.9.89: 売価の選択チップ（価格承認と同じイメージ: A案/中央値/原価+目標利益率の逆算）
+        var einf=reEstInfo(id);var med=rv.median_sold_usd;
+        var cost=reDraftCost(id,rv);
+        var mSel=(window.__rdMargin||{})[id];if(mSel==null)mSel=n('targetMargin');
+        var pm=(cost>0)?reCalcPriceForMargin(cost,n('shipUS'),12.5,mSel):null;
+        var chip=function(label,on,click){return '<button class="btn" style="font-size:.7rem;padding:2px 8px;'+(on?'background:#4a5d8f;color:#fff':'')+'" onclick="'+click+'">'+label+'</button>';};
+        var cur=(d.price_usd!=null?Number(d.price_usd):null);
+        var h3='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.72rem"><span class="muted">売価を選ぶ:</span>';
+        if(einf.est!=null)h3+=chip((einf.mode==='bench'?'基準ライバル':'A案')+' $'+einf.est.toFixed(2),cur===einf.est,'reDraftSetPrice(\''+esc(id)+'\','+einf.est+',\''+(einf.mode==='bench'?'bench':'auto')+'\')');
+        if(med!=null)h3+=chip('実売中央値 $'+Number(med).toFixed(2),cur===Math.round(Number(med)*100)/100,'reDraftSetPrice(\''+esc(id)+'\','+Number(med)+',\'median\')');
+        h3+='<span style="display:inline-flex;gap:3px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:2px 6px">原価+利益率'
+          +'<input type="number" step="0.5" value="'+mSel+'" data-rdmargin="'+esc(id)+'" style="width:52px;padding:2px 5px;border:1px solid var(--line);border-radius:5px;font-size:.72rem">%'
+          +'<span id="rdmprice-'+esc(id)+'">'+(pm!=null?('→ $'+pm.toFixed(2)):'（仕入れ値未設定）')+'</span>'
+          +(cost>0?('<button class="btn" style="font-size:.68rem;padding:1px 7px;'+(d.price_source==='margin'?'background:#4a5d8f;color:#fff':'')+'" onclick="reDraftApplyMargin(\''+esc(id)+'\')">適用</button>'):'')
+          +'</span></div>';
+        return h3;
+      })()
       +photosHtml+pickHtml
       +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
       +'<span>コンディション <select data-rdcond="'+esc(id)+'" style="padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:.78rem">'
@@ -2923,6 +2942,61 @@ function reDraftBlock(c,rv){
   }
   return '<details data-rdbox="'+esc(id)+'" '+(open?'open':'')+' style="flex-basis:100%;border-top:1px dashed #d8c9a0;padding-top:4px;margin-top:2px" ontoggle="window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[\''+esc(id)+'\']=this.open">'
     +'<summary style="cursor:pointer;font-size:.78rem">'+head+'</summary>'+inner+'</details>';
+}
+// ▼ v1.9.89: 売価の逆算（価格承認C案と同式・目標利益率だけ可変）と選択チップ、ドラフト生成の自動反映ポーリング
+function reCalcPriceForMargin(costYen,shipYen,dutyRate,marginPct){
+  try{
+    var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed');
+    var t=Number(marginPct)/100;var taxPct=10;
+    var r1=(fvf+intl+fx+promo)/100*(1+taxPct/100),dd=dutyRate/100;
+    var den=rate*(1-r1-dd-t);
+    if(den<=0)return null;
+    return Math.round(((fixed*rate+costYen+shipYen)/den)*100)/100;
+  }catch(e){return null;}
+}
+function reDraftCost(id,rv){
+  var c=reMinSupply(rv||((window.RE_REVIEWS||{})[String(id)]||{}));
+  if(c>0)return c;
+  var d=reDraftRec(id);
+  return (d&&d.cost_yen>0)?Number(d.cost_yen):null;
+}
+async function reDraftSetPrice(id,price,src){
+  if(!(price>0))return;
+  window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+  if(await reDraftSave(id,{price_usd:Math.round(price*100)/100,price_source:src}))reRenderCands();
+}
+function reDraftApplyMargin(id){
+  var m=(window.__rdMargin||{})[String(id)];
+  if(m==null)m=n('targetMargin');
+  var cost=reDraftCost(id);
+  if(!(cost>0)){showToast('仕入れ値が未設定のため逆算できません');return;}
+  var p=reCalcPriceForMargin(cost,n('shipUS'),12.5,m);
+  if(p==null){showToast('この利益率では計算できません（手数料合計が100%を超えます）');return;}
+  reDraftSetPrice(id,p,'margin');
+}
+function rePollDraftsStart(){
+  // 📦直後〜生成完了までの自動反映（60秒間隔・待ちが無ければ即return・リサーチタブ表示中のみ読む）
+  if(window.__reDraftPollT)return;
+  window.__reDraftPollT=setInterval(async function(){
+    try{
+      if(!AUTO_DIR)return;
+      var tr=document.getElementById('tabRe');if(!tr||tr.style.display==='none')return;
+      var rvs=window.RE_REVIEWS||{};var ds=window.RE_DRAFTS||{};
+      var waiting=Object.keys(rvs).some(function(k){
+        if(rvs[k].decision!=='list')return false;
+        var d=ds[k];return !d||d.status==='requested';
+      });
+      if(!waiting)return;
+      var j=await autoReadJSON('listing_drafts.json');
+      if(!j||!j.drafts)return;
+      var sig=function(o){return JSON.stringify(Object.keys(o).map(function(k){return k+':'+(o[k].status||'')+':'+(o[k].built_at||'');}).sort());};
+      if(sig(j.drafts)!==sig(ds)){
+        window.RE_DRAFTS=j.drafts;
+        showToast('📝 出品ドラフトが更新されました');
+        reRenderCands();if(typeof reListQueueUi==='function')reListQueueUi();
+      }
+    }catch(e){}
+  },60000);
 }
 // ▼ v1.9.87 (R3c連携): 出品キュー状況バー。承認済み＝キュー。listing_config.jsonのdaily_limitを編集可
 function reListQueueUi(){
@@ -3070,6 +3144,23 @@ function reMinSupply(rv){
   sp.forEach(function(s){if(s&&s.price>0&&(mn===null||s.price<mn))mn=s.price;});
   return mn;
 }
+// ▼ v1.9.90: テラピーク答え合わせ。60日Sold検索を1クリックで開く（検証の中央値・Sold件数の裏取り用）
+function reTpKwDefault(c,rv){
+  if(rv&&rv.tp_kw)return rv.tp_kw;
+  var rr=reRivalRec(String(c.item_id));
+  if(rr&&rr.kw_used)return rr.kw_used;
+  if(rv&&rv.rival_kw)return rv.rival_kw;
+  if(rv&&rv.sourcing_kw&&/^[\x20-\x7e]+$/.test(rv.sourcing_kw))return rv.sourcing_kw;
+  return String(c.title||'').split(' ').slice(0,6).join(' ');
+}
+function reTpOpen(id){
+  var inp=document.getElementById('rtpkw-'+id);
+  var kw=(inp&&inp.value?inp.value:'').trim();
+  if(!kw){showToast('テラピーク検索KWが空です');return;}
+  var end=Date.now(),start=end-60*24*3600*1000;
+  var u='https://www.ebay.com/sh/research?marketplace=EBAY-US&tabName=SOLD&dayRange=60&startDate='+start+'&endDate='+end+'&keywords='+encodeURIComponent(kw);
+  window.open(u,'_blank');
+}
 function reSourcingBlock(c,rv){
   var id=String(c.item_id);
   var kw=rv.sourcing_kw!=null?rv.sourcing_kw:((c.part_numbers&&c.part_numbers.length)?c.part_numbers.join(' '):String(c.title||'').split(/\s+/).slice(0,6).join(' '));
@@ -3121,6 +3212,12 @@ function reSourcingBlock(c,rv){
     +'<span>手入力追加 <input type="number" data-rscost="'+esc(id)+'" placeholder="円" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">円</span>'
     +calcHtml
     +'<button class="btn" style="font-size:.75rem;padding:4px 10px;'+(listed?'background:#2e7d4f;color:#fff':'background:#fff;border:2px solid #2e7d4f;color:#2e7d4f')+'" onclick="reToggleList(\''+esc(id)+'\')">'+(listed?'📦 出品予定（解除）':'📦 出品する')+'</button>'
+    +'<span style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.75rem">'
+    +'<span class="muted">テラピーク確認:</span>'
+    +'<input type="text" id="rtpkw-'+esc(id)+'" value="'+esc(reTpKwDefault(c,rv))+'" data-rtpkw="'+esc(id)+'" style="min-width:240px;padding:3px 7px;border:1px solid var(--line);border-radius:6px;font-size:.75rem">'
+    +'<button class="btn" style="font-size:.72rem;padding:3px 10px" onclick="reTpOpen(\''+esc(id)+'\')">60日Soldを開く</button>'
+    +(rv.sold_count_60d!=null?('<span class="muted">検証時Sold(60日): <b>'+rv.sold_count_60d+'件</b>'+(rv.median_sold_usd!=null?('・中央値 $'+Number(rv.median_sold_usd).toFixed(0)):'')+' — テラピークと突き合わせ</span>'):'<span class="muted">2ヶ月の実売件数・相場の答え合わせ用</span>')
+    +'</span>'
     +reRivalBlock(c,rv)
     +reSoldBlock(c,rv)
     +reDraftBlock(c,rv)
@@ -3300,6 +3397,11 @@ document.addEventListener('input',function(e){
     clearTimeout(window.__rrkwT);var idr=t.dataset.rrkw,vr=t.value.trim();
     window.__rrkwT=setTimeout(function(){reReviewUpdate(idr,{rival_kw:vr});},600);
   }
+  if(t&&t.dataset&&t.dataset.rtpkw!==undefined){
+    // v1.9.90: テラピーク検索KWの永続化（research_review.jsonのtp_kw）
+    clearTimeout(window.__rtpT);var idtp=t.dataset.rtpkw,vtp=t.value.trim();
+    window.__rtpT=setTimeout(function(){reReviewUpdate(idtp,{tp_kw:vtp});},600);
+  }
   if(t&&t.dataset&&t.dataset.rbench!==undefined&&t.type==='radio'&&t.checked){
     // v1.9.81: 基準ライバル選択（空文字=自動）。research_review.jsonのbench_rival_urlへマージ保存
     reBenchPick(t.dataset.rbench,(t.dataset.rurl?decodeURIComponent(t.dataset.rurl):''));
@@ -3335,6 +3437,15 @@ document.addEventListener('input',function(e){
   if(t&&t.dataset&&t.dataset.rlqlim!==undefined){
     clearTimeout(window.__rlqT);var vq=Math.max(0,Math.min(50,Number(t.value)||0));
     window.__rlqT=setTimeout(function(){reListQueueSaveLimit(vq);},700);
+  }
+  if(t&&t.dataset&&t.dataset.rdmargin!==undefined){
+    // v1.9.89: 目標利益率→逆算売価のライブ表示（保存は「適用」ボタンで）
+    var idm=t.dataset.rdmargin,vm=Number(t.value);
+    window.__rdMargin=window.__rdMargin||{};window.__rdMargin[idm]=vm;
+    var cst=reDraftCost(idm);
+    var sp4=document.getElementById('rdmprice-'+idm);
+    if(sp4){var pv=(cst>0&&isFinite(vm))?reCalcPriceForMargin(cst,n('shipUS'),12.5,vm):null;
+      sp4.textContent=(pv!=null?('→ $'+pv.toFixed(2)):'（計算不可）');}
   }
   if(t&&t.dataset&&t.dataset.rdreq!==undefined){
     // v1.9.88: 必須Specifics/Descriptorの選択保存
