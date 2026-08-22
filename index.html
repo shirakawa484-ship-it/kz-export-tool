@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.91</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.92</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -3107,7 +3107,8 @@ function reRivalBlock(c,rv){
       if(on)small='📌 基準ライバル（この価格−$0.10で計算）'+(dx||bx?'／'+small:'');
       return '<label class="rival'+(on?' picked':'')+((dx||bx||ex)&&!on?' banded':'')+'" style="grid-template-columns:auto 64px 1fr auto auto">'
         +'<input type="radio" name="rebench-'+esc(id)+'" data-rbench="'+esc(id)+'" data-rurl="'+esc(encodeURIComponent(u))+'" '+(on?'checked':'')+(ex||!u?' disabled':'')+'>'
-        +(r.image_url?('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">'):'<div class="noimg">画像なし</div>')
+        // v1.9.92: 画像クリック=eBayページを開く（a要素はlabelのラジオ発火対象外なので基準選択は起きない）
+        +(r.image_url?(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" title="eBayで開く"><img src="'+esc(r.image_url)+'" loading="lazy" alt=""></a>'):('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">')):'<div class="noimg">画像なし</div>')
         +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
         +'<span>'+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag">範囲外</span>':'')
         +(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener">$'+(p!=null?p.toFixed(2):'?')+'</a>'):('$'+(p!=null?p.toFixed(2):'?')))+'</span>'
@@ -3473,7 +3474,10 @@ document.addEventListener('input',function(e){
   }
   if(t&&t.dataset&&t.dataset.rdreq!==undefined){
     // v1.9.88: 必須Specifics/Descriptorの選択保存
-    var pr2=t.dataset.rdreq.split('|');var idq=pr2[0],ri2=Number(pr2[1]),vq2=t.value;
+    // v1.9.92 修正: 候補IDは「v1|128026260674|0」のようにパイプを含むため、split('|')先頭取りだと
+    //   別IDに化けて保存されない（選んでも未選択のままになるバグ）。最後の区切りで分割する
+    var sq=t.dataset.rdreq;var cut=sq.lastIndexOf('|');
+    var idq=sq.slice(0,cut),ri2=Number(sq.slice(cut+1)),vq2=t.value;
     var dq=reDraftRec(idq);
     if(dq&&dq.required_specifics&&dq.required_specifics[ri2]!==undefined){
       var arr2=JSON.parse(JSON.stringify(dq.required_specifics));
@@ -3484,7 +3488,9 @@ document.addEventListener('input',function(e){
   }
   if(t&&t.dataset&&t.dataset.rdspeck!==undefined){
     clearTimeout(window.__rdskT);
-    var pr=t.dataset.rdspeck.split('|');var ids=pr[0],key=decodeURIComponent(pr[1]||''),vs2=t.value;
+    // v1.9.92 修正: rdreqと同じパイプ入りID問題。キーはencodeURIComponent済みで生パイプを含まないため最後の区切りが正
+    var sk=t.dataset.rdspeck;var cut2=sk.lastIndexOf('|');
+    var ids=sk.slice(0,cut2),key=decodeURIComponent(sk.slice(cut2+1)||''),vs2=t.value;
     window.__rdskT=setTimeout(function(){
       var d2=reDraftRec(ids)||{};var sp3=Object.assign({},d2.item_specifics||{});sp3[key]=vs2;
       reDraftSave(ids,{item_specifics:sp3});
