@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.95</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.96</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2764,6 +2764,58 @@ async function reDraftSpecAdd(id){
   window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
   if(await reDraftSave(id,{item_specifics:sp}))reRenderCands();
 }
+// ▼ v1.9.96: 写真アップロード。ローカルファイルをautoフォルダ(photos/<id>/)に保存し、
+//   ドラフトのphotosに "file:photos/..." エントリで追加。出品時はlist_publisherがEPSへアップロードして解決
+function rePhotoSrc(entry){
+  if(String(entry).indexOf('file:')!==0)return entry;
+  var c=(window.__rePhotoObj||{})[entry];
+  if(c)return c;
+  rePhotoLoadObj(entry);
+  return 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+}
+async function rePhotoLoadObj(entry){
+  try{
+    if(!AUTO_DIR)return;
+    window.__rePhotoObj=window.__rePhotoObj||{};
+    if(window.__rePhotoObj[entry]!==undefined)return;
+    window.__rePhotoObj[entry]=null;
+    var parts=String(entry).slice(5).split('/');
+    var dh=AUTO_DIR;
+    for(var i=0;i<parts.length-1;i++)dh=await dh.getDirectoryHandle(parts[i]);
+    var fh=await dh.getFileHandle(parts[parts.length-1]);
+    var f=await fh.getFile();
+    window.__rePhotoObj[entry]=URL.createObjectURL(f);
+    document.querySelectorAll('img[data-phent]').forEach(function(im){if(im.dataset.phent===entry&&window.__rePhotoObj[entry])im.src=window.__rePhotoObj[entry];});
+  }catch(e){}
+}
+async function rePhotoUpload(id,inputEl){
+  if(!AUTO_DIR){showToast('⚠️ autoフォルダ未接続のためアップロードできません');return;}
+  var files=inputEl.files;if(!files||!files.length)return;
+  var d=reDraftRec(id)||{};var ph=(d.photos||[]).slice();
+  var safe=String(id).replace(/[^A-Za-z0-9_-]/g,'_');
+  var added=0;
+  try{
+    var root=await AUTO_DIR.getDirectoryHandle('photos',{create:true});
+    var dir=await root.getDirectoryHandle(safe,{create:true});
+    for(var i=0;i<files.length;i++){
+      if(ph.length>=12){showToast('写真は最大12枚までです（eBay無料枠）');break;}
+      var f=files[i];
+      var ext=((f.name||'').match(/\.(jpe?g|png|webp)$/i)||[null,'jpg'])[1].toLowerCase();
+      var nm=Date.now()+'_'+i+'.'+ext;
+      var fh=await dir.getFileHandle(nm,{create:true});
+      var w=await fh.createWritable();await w.write(f);await w.close();
+      var entry='file:photos/'+safe+'/'+nm;
+      ph.push(entry);added++;
+      try{window.__rePhotoObj=window.__rePhotoObj||{};window.__rePhotoObj[entry]=URL.createObjectURL(f);}catch(oe){}
+    }
+    if(added&&await reDraftSave(id,{photos:ph})){
+      window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+      showToast('📷 '+added+'枚をアップロードしました（出品時にeBayへ転送されます）');
+      reRenderCands();
+    }
+  }catch(e){showToast('⚠️ アップロード失敗: '+(e&&e.message||e));}
+  try{inputEl.value='';}catch(ve){}
+}
 function reDraftRec(id){return (window.RE_DRAFTS||{})[String(id)]||null;}
 async function reDraftSave(id,patch){
   if(!AUTO_DIR){showToast('⚠️ autoフォルダ未接続のため保存できません');return false;}
@@ -2844,7 +2896,7 @@ function reDraftBlock(c,rv){
     if(ph.length){
       photosHtml='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">'+ph.map(function(u,i){
         return '<div style="text-align:center">'
-          +'<div style="position:relative"><img src="'+esc(u)+'" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">'
+          +'<div style="position:relative"><img src="'+esc(rePhotoSrc(u))+'" data-phent="'+esc(u)+'" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">'
           +(i===0?'<span style="position:absolute;left:2px;top:2px;background:#2e7d4f;color:#fff;font-size:.6rem;border-radius:4px;padding:0 4px">メイン</span>':'<span style="position:absolute;left:2px;top:2px;background:#4a5d8f;color:#fff;font-size:.6rem;border-radius:4px;padding:0 4px">'+(i+1)+'</span>')
           +'</div>'
           +'<div style="display:flex;gap:2px;justify-content:center;margin-top:2px">'
@@ -2852,9 +2904,9 @@ function reDraftBlock(c,rv){
           +'<button class="btn" style="font-size:.62rem;padding:1px 5px" onclick="rePhotoMove(\''+esc(id)+'\','+i+',1)">→</button>'
           +'<button class="btn" style="font-size:.62rem;padding:1px 5px" onclick="rePhotoRemove(\''+esc(id)+'\','+i+')">×</button>'
           +'</div></div>';
-      }).join('')+'</div>';
+      }).join('')+'<label class="btn" style="font-size:.68rem;padding:2px 8px;align-self:center;cursor:pointer">＋アップロード<input type="file" accept="image/*" multiple style="display:none" onchange="rePhotoUpload(\''+esc(id)+'\',this)"></label></div>';
     }else{
-      photosHtml='<div class="muted" style="font-size:.72rem">📷 写真なし。仕入れ元ページを「開く」で開いて📷写真取り込みブックマークレットを押すと、ここに候補が届きます</div>';
+      photosHtml='<div class="muted" style="font-size:.72rem">📷 写真なし。仕入れ元ページの📷写真取り込みブックマークレット、または <label style="text-decoration:underline;cursor:pointer">ファイルをアップロード<input type="file" accept="image/*" multiple style="display:none" onchange="rePhotoUpload(\''+esc(id)+'\',this)"></label> で追加できます</div>';
     }
     var pend=rePhotoPend();
     var pickHtml='';
@@ -3087,7 +3139,7 @@ function reRivalBlock(c,rv){
     +((rr&&rr.guard_warning)?' <span style="color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:0 5px;font-size:.68rem" title="eBay取得結果が大きく減少したため、前回スキャンの値を維持しています">⚠️取得劣化・前回値</span>':'');
   var inner='';
   if(rr){
-    var kwSrc={rival_kw:'手動上書き',sourcing_kw:'仕入れKW流用',part_numbers:'型番',title:'タイトル'}[rr.kw_source]||rr.kw_source||'';
+    var kwSrc={rival_kw:'手動上書き',sourcing_kw:'仕入れKW流用',title_pn:'タイトル型番',part_numbers:'型番',title:'タイトル'}[rr.kw_source]||rr.kw_source||'';
     var buSel=(info.mode==='bench'&&info.rival)?reRivalUrl(info.rival):null;
     var rows=(rr.rivals||[]).slice().sort(function(a,b){return (reRivalPrice(a)||9e9)-(reRivalPrice(b)||9e9);}).map(function(r){
       var p=reRivalPrice(r);
@@ -3546,10 +3598,36 @@ function rePartNums(t){
   return m.filter(function(x,i){return m.indexOf(x)===i;});
 }
 function reGrade(t){var g=String(t||'').toUpperCase().match(/\b(PSA|BGS|CGC)\s*(10|9\.5|9)\b/);return g?(g[1]+g[2]):null;}
+// ▼ v1.9.96: Sold検証の検索KWをリサーチライバルと同じ優先順位に統一
+//   rival_kw > ASCII sourcing_kw > タイトル内カード番号（キャラ名+番号・title_pn相当）> 型番 > タイトル先頭8語
+//   これまで型番なし候補はタイトル先頭8語（セット名混入で別商品Soldを検索する問題＝Gyaradosの実例）だった
+function reCardNumKw(title){
+  var t=String(title||'');
+  var m=t.match(/\b(\d{1,4}\/\d{1,4})\b/)||t.match(/\b(\d{1,4}\/[A-Z]{1,3}-P)\b/i);
+  if(!m)return null;
+  var num=m[1];
+  var stop={pokemon:1,card:1,cards:1,game:1,japanese:1,japan:1,nintendo:1,hobby:1,toy:1,promo:1,holo:1,rare:1,ultra:1,tcg:1,new:1,the:1,edition:1,first:1};
+  var name=null;
+  t.split(/\s+/).some(function(w){
+    var wl=w.replace(/[^A-Za-z\-]/g,'');
+    if(wl.length>=3&&!stop[wl.toLowerCase()]){name=wl.split('-')[0];return true;}
+    return false;
+  });
+  return name?(name+' '+num):num;
+}
+function reVerifyKw(c){
+  var rvw=(window.RE_REVIEWS||{})[String(c.item_id)]||{};
+  if(rvw.rival_kw)return rvw.rival_kw;
+  if(rvw.sourcing_kw&&/^[\x20-\x7e]+$/.test(rvw.sourcing_kw))return rvw.sourcing_kw;
+  var pk=reCardNumKw(c.title);
+  if(pk)return pk;
+  if(c.part_numbers&&c.part_numbers.length)return c.part_numbers.join(' ');
+  return String(c.title||'').split(/\s+/).slice(0,8).join(' ');
+}
 function reStartVerify(itemId){
   var c=(RE_CANDS||[]).find(function(x){return String(x.item_id)===String(itemId);});
   if(!c)return;
-  var kw=(c.part_numbers&&c.part_numbers.length)?c.part_numbers.join(' '):String(c.title||'').split(/\s+/).slice(0,8).join(' ');
+  var kw=reVerifyKw(c);
   (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_verify_v1',JSON.stringify({item_id:c.item_id,title:c.title,image_url:c.image_url||'',part_numbers:c.part_numbers||[],total_usd:(c.total_usd!=null?c.total_usd:c.price_usd),kw:kw,at:new Date().toISOString()}));
   var url='https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(kw)+'&LH_Sold=1&LH_Complete=1&_sop=13';
   window.open(url,'_blank');
@@ -3722,7 +3800,7 @@ function reQueueOpen(pos){
   if(pos>=q.ids.length){reQueueFinish();return;}
   var c=(RE_CANDS||[]).find(function(x){return String(x.item_id)===q.ids[pos];});
   if(!c){q.pos=pos+1;reQueueSave(q);reQueueOpen(pos+1);return;}
-  var kw=(c.part_numbers&&c.part_numbers.length)?c.part_numbers.join(' '):String(c.title||'').split(/\s+/).slice(0,8).join(' ');
+  var kw=reVerifyKw(c);
   (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_verify_v1',JSON.stringify({item_id:c.item_id,title:c.title,image_url:c.image_url||'',part_numbers:c.part_numbers||[],total_usd:(c.total_usd!=null?c.total_usd:c.price_usd),kw:kw,at:new Date().toISOString()}));
   localStorage.removeItem('ss_re_vchk_v1');
   var url='https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(kw)+'&LH_Sold=1&LH_Complete=1&_sop=13';
@@ -3838,7 +3916,7 @@ window.addEventListener('message',function(e){
       var tgt=reVerifyTarget();
       if(tgt){
         var vs;try{vs=JSON.parse(localStorage.getItem('ss_re_vstore_v1')||'{}');}catch(e2){vs={};}
-        vs[String(tgt.item_id)]={tgt:tgt,q:payload.q||'',items:payload.items.slice(0,30)};
+        vs[String(tgt.item_id)]={tgt:tgt,q:payload.q||'',items:payload.items.slice(0,100)};
         (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_vstore_v1',JSON.stringify(vs));
       }
       q.stats.manual++;
