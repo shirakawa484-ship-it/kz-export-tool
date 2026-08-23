@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.93</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.94</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1080,7 +1080,7 @@ function handleIncoming(){
         var merged=(prevB&&String(prevB.id)===String(reA.id))?(prevB.items||[]):[];
         merged=merged.concat([{p:pr,u:url||''}]);
         merged.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
-        localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reA.id),at:new Date().toISOString(),kw:'',items:merged.slice(0,30)}));
+        localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reA.id),at:new Date().toISOString(),kw:'',items:merged.slice(0,100)}));
       }catch(se){}
       showToast('✓ '+pr.toLocaleString()+'円 をリサーチ候補の仕入れ候補として受信（リサーチタブで確認）');
       history.replaceState(null,'',location.pathname);return true;
@@ -1592,7 +1592,7 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
     if(reActive&&reActive.id&&!parseErr&&pl&&pl.items&&pl.items.length){
       window.__reIncoming=String(reActive.id); // v1.9.79: 他タブに消されないメモリ上の受信フラグ
       pl.items.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
-      try{localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reActive.id),at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,30)}));}catch(se){}
+      try{localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reActive.id),at:new Date().toISOString(),kw:pl.kw||'',items:pl.items.slice(0,100)}));}catch(se){} // v1.9.94: 30→100（v6の送信上限に合わせる。約40KBでssSafeSet保護内）
       showBanner('#0a7d55','📥 まとめ取り '+pl.items.length+'件をリサーチ候補の仕入れ候補として受信しました（最安5件を自動採用・リサーチタブで確認できます）');
       logRecv('research_ok',pl.items.length,String(reActive.id),null);
       history.replaceState(null,'',location.pathname+location.search);
@@ -1638,7 +1638,7 @@ function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
         var prevB=null;try{prevB=JSON.parse(localStorage.getItem('ss_re_batch_v1')||'null');}catch(pbe){}
         var merged=(prevB&&String(prevB.id)===String(reActive1.id))?(prevB.items||[]).concat(arr):arr;
         merged.sort(function(a,b){return (a.p||9e9)-(b.p||9e9);});
-        localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reActive1.id),at:new Date().toISOString(),kw:'',items:merged.slice(0,30)}));
+        localStorage.setItem('ss_re_batch_v1',JSON.stringify({id:String(reActive1.id),at:new Date().toISOString(),kw:'',items:merged.slice(0,100)}));
       }catch(se1){}
       history.replaceState(null,'',location.pathname+location.search);
     }else{
@@ -3330,7 +3330,7 @@ async function reProcessBatchIntake(){
   if(raw.length>1){
     var pend;try{pend=JSON.parse(localStorage.getItem('ss_re_pend_v1')||'{}');}catch(pe){pend={};}
     pend[String(b.id)]={at:new Date().toISOString(),kw:b.kw||'',anchor:null,mult:1.3,ovr:{},
-      items:raw.slice(0,30).map(function(it){var im=String(it.i||'');if(im.indexOf('data:')===0||im.length>300)im='';return {p:it.p,u:it.u||'',t:String(it.t||'').slice(0,40),i:im};})};
+      items:raw.slice(0,100).map(function(it){var im=String(it.i||'');if(im.indexOf('data:')===0||im.length>300)im='';return {p:it.p,u:it.u||'',t:String(it.t||'').slice(0,40),i:im};})};
     (window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_pend_v1',JSON.stringify(pend));
     showMainTab('re');reRenderCands();
     reScrollToCand(String(b.id));
