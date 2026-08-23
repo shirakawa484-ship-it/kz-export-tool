@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.94</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.95</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2663,6 +2663,7 @@ function reLiveProfit(id,priceUsd){
 }
 function reRivalEligible(r,id){
   if(r.user_excluded)return false;
+  if(r.grade_mismatch)return false;  // v1.9.95: 鑑定/グレード違いはライブ利益判定より先に除外（利益が出ても別市場）
   var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
   var bx=!!r.band_excluded||(r.verdict==='excluded_band');
   if(dx||bx)return false;
@@ -3092,25 +3093,27 @@ function reRivalBlock(c,rv){
       var p=reRivalPrice(r);
       var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
       var bx=!!r.band_excluded||(r.verdict==='excluded_band');
+      var gm=!!r.grade_mismatch;  // v1.9.95: 鑑定/グレード違い（backendのグレード整合フィルタ）
       var sm=(r.same_item==='same')||(r.verdict==='match');
       var ex=!!r.user_excluded;
       var elig=reRivalEligible(r,id);
       var u=reRivalUrl(r);
       var on=(buSel!=null&&u===buSel);
-      var lp=(p!=null&&!ex&&!dx&&!bx)?reLiveProfit(id,Math.round((p-0.10)*100)/100):null;
+      var lp=(p!=null&&!ex&&!dx&&!bx&&!gm)?reLiveProfit(id,Math.round((p-0.10)*100)/100):null;
       var small;
       if(ex)small='🚫あなたが除外中';
+      else if(gm)small='⛔ 鑑定/グレード違い（別市場・基準指定は可）';
       else if(dx)small='⛔ 別商品判定';
       else if(bx)small='⛔ 価格帯の範囲外';
       else if(lp)small=(lp.margin>=5?('✅A適格（この価格基準なら利益+¥'+Math.round(lp.profit).toLocaleString()+'）'):(lp.profit>0?('△利益薄（+¥'+Math.round(lp.profit).toLocaleString()+'・5%未満）'):('▲赤字（¥'+Math.round(lp.profit).toLocaleString()+'）')));
       else small=(elig?'✅A適格':'— 適格外');
-      if(on)small='📌 基準ライバル（この価格−$0.10で計算）'+(dx||bx?'／'+small:'');
-      return '<label class="rival'+(on?' picked':'')+((dx||bx||ex)&&!on?' banded':'')+'" style="grid-template-columns:auto 64px 1fr auto auto">'
+      if(on)small='📌 基準ライバル（この価格−$0.10で計算）'+(dx||bx||gm?'／'+small:'');
+      return '<label class="rival'+(on?' picked':'')+((dx||bx||ex||gm)&&!on?' banded':'')+'" style="grid-template-columns:auto 64px 1fr auto auto">'
         +'<input type="radio" name="rebench-'+esc(id)+'" data-rbench="'+esc(id)+'" data-rurl="'+esc(encodeURIComponent(u))+'" '+(on?'checked':'')+(ex||!u?' disabled':'')+'>'
         // v1.9.92: 画像クリック=eBayページを開く（a要素はlabelのラジオ発火対象外なので基準選択は起きない）
         +(r.image_url?(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" title="eBayで開く"><img src="'+esc(r.image_url)+'" loading="lazy" alt=""></a>'):('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">')):'<div class="noimg">画像なし</div>')
         +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
-        +'<span>'+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag">範囲外</span>':'')
+        +'<span>'+(gm?'<span class="bandtag">グレード違い</span>':'')+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag">範囲外</span>':'')
         +(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener">$'+(p!=null?p.toFixed(2):'?')+'</a>'):('$'+(p!=null?p.toFixed(2):'?')))+'</span>'
         +'<button class="btn" style="font-size:.68rem;padding:2px 7px" onclick="event.preventDefault();reRivalToggleEx(\''+esc(id)+'\','+((rr.rivals||[]).indexOf(r))+')">'+(ex?'戻す':'×除外')+'</button>'
         +'</label>';
