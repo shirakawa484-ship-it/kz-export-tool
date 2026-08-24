@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.97</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.98</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2512,11 +2512,15 @@ async function reInit(){
   if(!window.RE_SELLERS_DIRTY){var s=await autoReadJSON('research_sellers.json');RE_SELLERS=(s&&s.sellers)||RE_SELLERS||[];}
   await reFlushPendingReviews();
   var rv=await autoReadJSON('research_review.json');window.RE_REVIEWS=(rv&&rv.reviews)||window.RE_REVIEWS||{};
+  // v1.9.98: 消失ガードの学習（健全な読み込みで件数が増えた時のみ更新＝壊れた読み込みでは下がらない）
+  try{reGuardLearn('ss_guard_reviews_v1',Object.keys(window.RE_REVIEWS||{}).length);}catch(ge1){}
   var c=await autoReadJSON('research_candidates.json');RE_CANDS=(c&&c.candidates)||RE_CANDS||[];
   // ▼ v1.9.80: R2.5 ライバルスキャン結果（バックエンドが夜間生成。ブラウザはuser_excludedのみ書く）
   try{var rrj=await autoReadJSON('research_rivals.json');window.RE_RIVALS=(rrj&&rrj.rivals)||window.RE_RIVALS||{};}catch(e){window.RE_RIVALS=window.RE_RIVALS||{};}
+  try{reGuardLearn('ss_guard_rivals_v1',Object.keys(window.RE_RIVALS||{}).length);}catch(ge3){}
   // ▼ v1.9.83: R3a 出品ドラフト（バックエンドdraft_builder生成。ブラウザはtitle_final/desc_final/photos/statusを書く）
   try{var drj=await autoReadJSON('listing_drafts.json');window.RE_DRAFTS=(drj&&drj.drafts)||window.RE_DRAFTS||{};}catch(e){window.RE_DRAFTS=window.RE_DRAFTS||{};}
+  try{reGuardLearn('ss_guard_drafts_v1',Object.keys(window.RE_DRAFTS||{}).length);}catch(ge2){}
   // ▼ v1.9.87: 出品キュー設定（listing_config.json・ブラウザ編集可）
   try{var lcj=await autoReadJSON('listing_config.json');if(lcj)window.RE_LCFG=lcj;}catch(e){}
   if(!window.__reFiltersRestored){window.__reFiltersRestored=true;if(typeof reRestoreFilters==='function')reRestoreFilters();}
@@ -2825,6 +2829,8 @@ async function reDraftSave(id,patch){
     var rec=cur.drafts[String(id)]||{};
     Object.keys(patch).forEach(function(k){rec[k]=patch[k];});
     cur.drafts[String(id)]=rec;cur.updated_at=new Date().toISOString();
+    // v1.9.98: 消失ガード（ドラフト＝承認キューを含む重要データ）
+    if(!reLossGuard('ss_guard_drafts_v1',Object.keys(cur.drafts).length,'出品ドラフト(listing_drafts)'))return false;
     var fh=await AUTO_DIR.getFileHandle('listing_drafts.json',{create:true});
     var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
     window.RE_DRAFTS=cur.drafts;
@@ -3068,6 +3074,41 @@ function rePollDraftsStart(){
     }catch(e){}
   },60000);
 }
+// ▼ v1.9.98: 消失ガード。2026-08-24のresearch_review.json消失事故（読み込み空振り＋pending掃き出しの
+//   マージ保存が「読めた1件だけのファイル」で上書き＝実質全置換）への恒久対策。
+//   直近の正常件数の半分未満に激減した内容での書き込みを拒否し、赤バナーで知らせる。
+//   件数の学習は「読み込みで増えた時」と「正常書き込み時」のみ（壊れた読み込みで下がらない単調設計）
+function reGuardBanner(text){
+  try{
+    var old=document.getElementById('reGuardBanner');if(old)old.remove();
+    var b=document.createElement('div');b.id='reGuardBanner';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#a33;color:#fff;padding:12px 48px 12px 16px;font:bold 13px/1.6 sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+    b.textContent=text;
+    var x=document.createElement('span');x.textContent='×';
+    x.style.cssText='position:absolute;right:16px;top:10px;cursor:pointer;font-size:18px';
+    x.onclick=function(){b.remove();};b.appendChild(x);
+    document.body.appendChild(b);
+  }catch(e){try{alert(text);}catch(e2){}}
+}
+function reGuardLearn(key,count){
+  try{
+    if(!(count>0))return;
+    var st=null;try{st=JSON.parse(localStorage.getItem(key)||'null');}catch(e){}
+    if(count>((st&&st.n)||0))(window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})(key,JSON.stringify({n:count,at:Date.now()}));
+  }catch(e){}
+}
+function reLossGuard(key,count,label){
+  try{
+    var st=null;try{st=JSON.parse(localStorage.getItem(key)||'null');}catch(e){}
+    var prev=(st&&st.n)?Number(st.n):0;
+    if(prev>=10&&count<prev*0.5){
+      reGuardBanner('⛔ '+label+'の保存を中止しました：読み込みが不完全の可能性（'+count+'件／直近の正常値'+prev+'件）。データ保護のため書き込みをブロックしました。ページをリロードしてから操作をやり直してください。リロード後も出る場合はファイルの状態を確認してください');
+      return false;
+    }
+    reGuardLearn(key,count);
+    return true;
+  }catch(e){return true;}
+}
 // ▼ v1.9.87 (R3c連携): 出品キュー状況バー。承認済み＝キュー。listing_config.jsonのdaily_limitを編集可
 function reListQueueUi(){
   var el=document.getElementById('reListQueue');if(!el)return;
@@ -3214,6 +3255,8 @@ async function reSaveRivalExcl(id,idx,val){
     });
     if(!hit)return false;
     cur.updated_at=new Date().toISOString();
+    // v1.9.98: 消失ガード
+    if(!reLossGuard('ss_guard_rivals_v1',Object.keys(cur.rivals).length,'ライバルデータ(research_rivals)'))return false;
     var fh=await AUTO_DIR.getFileHandle('research_rivals.json',{create:true});
     var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
     return true;
@@ -3989,6 +4032,8 @@ async function reSaveVerdictRecord(itemId,rec){
       var merged=cur.reviews[itemId]||{};
       Object.keys(rec).forEach(function(k){merged[k]=rec[k];});
       cur.reviews[itemId]=merged;cur.updated_at=new Date().toISOString();
+      // v1.9.98: 消失ガード——読み込み空振り時の1件上書き（8/24事故）を書き込み前にブロック
+      if(!reLossGuard('ss_guard_reviews_v1',Object.keys(cur.reviews).length,'合否データ(research_review)'))return false;
       var fh=await AUTO_DIR.getFileHandle('research_review.json',{create:true});
       var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
       window.RE_REVIEWS=cur.reviews;return true;
