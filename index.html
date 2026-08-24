@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.98</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.99</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2844,7 +2844,7 @@ function reDraftPreview(id){
   if(!w){showToast('ポップアップがブロックされました');return;}
   w.document.open();w.document.write(html);w.document.close();
 }
-async function reDraftApprove(id){
+async function reDraftApprove(id,pri){
   var d=reDraftRec(id);if(!d)return;
   var title=(d.title_final||d.title_ai||'').trim();
   var price=Number(d.price_usd);
@@ -2860,12 +2860,14 @@ async function reDraftApprove(id){
   if(!(d.photos||[]).length){
     if(!confirm('写真が0枚です（写真取り込みはR3bで実装予定）。このまま承認しますか？\n※承認してもAddItem実行はR3c実装後です'))return;
   }
-  var ok=await reDraftSave(id,{status:'approved',title_final:title,approved_at:new Date().toISOString(),weight_provisional:false});
-  if(ok){showToast('✓ ドラフトを承認しました（AddItemはR3cで実行）');reRenderCands();}
+  var patch={status:'approved',title_final:title,approved_at:new Date().toISOString(),weight_provisional:false};
+  if(pri)patch.priority=true;  // v1.9.99: 🚀次回の毎時実行で日次枠と別に即出品（backendのpriority対応と互換・未対応でも通常キューとして動く）
+  var ok=await reDraftSave(id,patch);
+  if(ok){showToast(pri?'🚀 優先承認しました（次回の実行で日次枠と別に出品されます）':'✓ ドラフトを承認しました（毎朝の枠で順番に出品）');reRenderCands();if(typeof reListQueueUi==='function')reListQueueUi();}
 }
 async function reDraftUnapprove(id){
-  var ok=await reDraftSave(id,{status:'draft'});
-  if(ok){showToast('承認を解除しました');reRenderCands();}
+  var ok=await reDraftSave(id,{status:'draft',priority:null});
+  if(ok){showToast('承認を解除しました');reRenderCands();if(typeof reListQueueUi==='function')reListQueueUi();}
 }
 function reDraftProfitHtml(id,price){
   var lp=reLiveProfit(id,Number(price));
@@ -2884,7 +2886,7 @@ function reDraftBlock(c,rv){
   }
   var st=d.status||'draft';
   var stBadge={draft:'<span style="background:#eef3ff;color:#4a5d8f;border:1px solid #c9d6f2;border-radius:5px;padding:0 6px">下書き</span>',
-    approved:'<span style="background:#eef7f0;color:#2e7d4f;border:1px solid #bfe0cb;border-radius:5px;padding:0 6px">✅承認済み（AddItem待ち）</span>',
+    approved:'<span style="background:#eef7f0;color:#2e7d4f;border:1px solid #bfe0cb;border-radius:5px;padding:0 6px">✅承認済み（'+(d.priority?'🚀次回すぐ出品':'AddItem待ち')+'）</span>',
     listed:'<span style="background:#2e7d4f;color:#fff;border-radius:5px;padding:0 6px">📦出品済み</span>',
     error:'<span style="background:#fdecec;color:#a33;border:1px solid #eec;border-radius:5px;padding:0 6px">エラー</span>'}[st]||esc(st);
   var title=(d.title_final!=null?d.title_final:(d.title_ai||''));
@@ -3010,8 +3012,9 @@ function reDraftBlock(c,rv){
       +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="reDraftPreview(\''+esc(id)+'\')">説明文プレビュー</button>'
       +'<button class="btn" style="font-size:.72rem;padding:3px 9px" onclick="var t=document.getElementById(\'rddesc-'+esc(id)+'\');t.style.display=(t.style.display===\'none\'?\'block\':\'none\')">HTMLを直接編集</button>'
       +(st==='approved'
-        ?'<button class="btn" style="font-size:.75rem;padding:4px 12px;background:#fff;border:2px solid #8a5b00;color:#8a5b00" onclick="reDraftUnapprove(\''+esc(id)+'\')">承認を解除</button>'
-        :'<button class="btn" style="font-size:.75rem;padding:4px 12px;background:#2e7d4f;color:#fff" onclick="reDraftApprove(\''+esc(id)+'\')">✅ このドラフトを承認</button>')
+        ?'<button class="btn" style="font-size:.75rem;padding:4px 12px;background:#fff;border:2px solid #8a5b00;color:#8a5b00" onclick="reDraftUnapprove(\''+esc(id)+'\')">承認を解除'+(d.priority?'（🚀優先中）':'')+'</button>'
+        :('<button class="btn" style="font-size:.75rem;padding:4px 12px;background:#2e7d4f;color:#fff" onclick="reDraftApprove(\''+esc(id)+'\')">✅ 承認（毎朝の枠）</button>'
+          +'<button class="btn" style="font-size:.75rem;padding:4px 12px;background:#fff;border:2px solid #2e7d4f;color:#2e7d4f" onclick="reDraftApprove(\''+esc(id)+'\',true)" title="次の毎時実行で日次枠と別に出品します（仕入れ確定直後など鮮度重視の時に）">🚀 承認して次回すぐ出品</button>'))
       +'</div>'
       +'<textarea id="rddesc-'+esc(id)+'" data-rddesc="'+esc(id)+'" style="display:none;width:100%;max-width:760px;height:180px;font-family:monospace;font-size:.7rem;border:1px solid var(--line);border-radius:6px;padding:6px">'+esc(String(d.desc_final||d.desc_ai||''))+'</textarea>'
       +'</div>';
@@ -3115,7 +3118,14 @@ function reListQueueUi(){
   var drafts=window.RE_DRAFTS||{};
   var ids=Object.keys(drafts);
   var nApproved=ids.filter(function(k){return drafts[k].status==='approved';}).length;
+  var nPri=ids.filter(function(k){return drafts[k].status==='approved'&&drafts[k].priority;}).length;
   var nListed=ids.filter(function(k){return drafts[k].status==='listed';}).length;
+  // v1.9.99: 本日(ローカル日付)の出品数
+  var todayStr=(function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);})();
+  var nToday=ids.filter(function(k){
+    var d2=drafts[k];if(d2.status!=='listed'||!d2.listed_at)return false;
+    try{var ld=new Date(d2.listed_at);return (ld.getFullYear()+'-'+('0'+(ld.getMonth()+1)).slice(-2)+'-'+('0'+ld.getDate()).slice(-2))===todayStr;}catch(e){return false;}
+  }).length;
   var nDraft=ids.filter(function(k){return drafts[k].status==='draft';}).length;
   if(!ids.length){el.style.display='none';return;}
   var cfg=window.RE_LCFG||{};
@@ -3126,7 +3136,7 @@ function reListQueueUi(){
   el.style.display='flex';
   el.style.background=low?'#fdf3e0':'#f4f7f4';
   el.style.borderColor=low?'#ecd9ae':'var(--line)';
-  el.innerHTML='<b>📦 出品キュー</b> 承認済み <b>'+nApproved+'件</b>'
+  el.innerHTML='<b>📦 出品キュー</b> <span'+(nToday>=lim&&lim>0?' style="color:#1d5c2f;font-weight:700"':'')+'>本日 '+nToday+'/'+lim+'件出品</span>・承認済み <b>'+nApproved+'件</b>'+(nPri?('（うち🚀'+nPri+'）'):'')
     +(days!=null?('（約'+(days<1?'1日未満':Math.floor(days)+'日')+'分）'):'（自動出品は一時停止中）')
     +(low?'<span style="color:#8a5b00;font-weight:700">⚠️ 残り少（'+wm+'件未満）— 検証と承認で補充を</span>':'')
     +'<span class="muted">下書き'+nDraft+'・出品済み'+nListed+'</span>'
