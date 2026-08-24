@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.99</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.100</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -3122,10 +3122,13 @@ function reListQueueUi(){
   var nListed=ids.filter(function(k){return drafts[k].status==='listed';}).length;
   // v1.9.99: 本日(ローカル日付)の出品数
   var todayStr=(function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);})();
-  var nToday=ids.filter(function(k){
+  var __isToday=function(k){
     var d2=drafts[k];if(d2.status!=='listed'||!d2.listed_at)return false;
     try{var ld=new Date(d2.listed_at);return (ld.getFullYear()+'-'+('0'+(ld.getMonth()+1)).slice(-2)+'-'+('0'+ld.getDate()).slice(-2))===todayStr;}catch(e){return false;}
-  }).length;
+  };
+  // v1.9.100: バックエンドの残数計算に合わせ、通常枠(n/limit)は優先出品(listed_priority)を除いて数える
+  var nToday=ids.filter(function(k){return __isToday(k)&&!drafts[k].listed_priority;}).length;
+  var nTodayPri=ids.filter(function(k){return __isToday(k)&&drafts[k].listed_priority;}).length;
   var nDraft=ids.filter(function(k){return drafts[k].status==='draft';}).length;
   if(!ids.length){el.style.display='none';return;}
   var cfg=window.RE_LCFG||{};
@@ -3136,7 +3139,7 @@ function reListQueueUi(){
   el.style.display='flex';
   el.style.background=low?'#fdf3e0':'#f4f7f4';
   el.style.borderColor=low?'#ecd9ae':'var(--line)';
-  el.innerHTML='<b>📦 出品キュー</b> <span'+(nToday>=lim&&lim>0?' style="color:#1d5c2f;font-weight:700"':'')+'>本日 '+nToday+'/'+lim+'件出品</span>・承認済み <b>'+nApproved+'件</b>'+(nPri?('（うち🚀'+nPri+'）'):'')
+  el.innerHTML='<b>📦 出品キュー</b> <span'+(nToday>=lim&&lim>0?' style="color:#1d5c2f;font-weight:700"':'')+'>本日 '+nToday+'/'+lim+'件出品'+(nTodayPri?('＋🚀'+nTodayPri):'')+'</span>・承認済み <b>'+nApproved+'件</b>'+(nPri?('（うち🚀'+nPri+'）'):'')
     +(days!=null?('（約'+(days<1?'1日未満':Math.floor(days)+'日')+'分）'):'（自動出品は一時停止中）')
     +(low?'<span style="color:#8a5b00;font-weight:700">⚠️ 残り少（'+wm+'件未満）— 検証と承認で補充を</span>':'')
     +'<span class="muted">下書き'+nDraft+'・出品済み'+nListed+'</span>'
