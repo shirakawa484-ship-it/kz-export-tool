@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.96</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.97</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -3134,8 +3134,10 @@ function reRivalBlock(c,rv){
   var est=info.est;
   var cnt=(rr&&rr.rivals)?rr.rivals.length:0;
   var benchLbl=(info.mode==='bench'?'基準ライバル−$0.10':'A案・適格最安−$0.10');
+  var scanTxt='';
+  try{if(rr&&rr.scanned_at){var sd=new Date(rr.scanned_at);if(!isNaN(sd))scanTxt=' <small class="muted" title="ライバル価格は夜間スキャン時点のスナップショットです。実ページの現在価格とは時差でずれることがあります">'+(sd.getMonth()+1)+'/'+sd.getDate()+' '+('0'+sd.getHours()).slice(-2)+':'+('0'+sd.getMinutes()).slice(-2)+'時点</small>';}}catch(sce){}
   var head='<b style="color:#4a5d8f">ライバル(eBay)</b> '
-    +(rr?(cnt+'件'+(est!=null?('・想定売価 <b>$'+est.toFixed(2)+'</b> '+reBenchThumb(info.rival,32)+'<small class="muted">（'+benchLbl+'）</small>'):'・<span style="color:#a33">適格ライバルなし</span>')):'<span class="muted">夜間スキャン待ち（翌朝反映）</span>')
+    +(rr?(cnt+'件'+(est!=null?('・想定売価 <b>$'+est.toFixed(2)+'</b> '+reBenchThumb(info.rival,32)+'<small class="muted">（'+benchLbl+'）</small>'):'・<span style="color:#a33">適格ライバルなし</span>')+scanTxt):'<span class="muted">夜間スキャン待ち（翌朝反映）</span>')
     +((rr&&rr.guard_warning)?' <span style="color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:0 5px;font-size:.68rem" title="eBay取得結果が大きく減少したため、前回スキャンの値を維持しています">⚠️取得劣化・前回値</span>':'');
   var inner='';
   if(rr){
@@ -3166,7 +3168,12 @@ function reRivalBlock(c,rv){
         +(r.image_url?(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" title="eBayで開く"><img src="'+esc(r.image_url)+'" loading="lazy" alt=""></a>'):('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">')):'<div class="noimg">画像なし</div>')
         +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
         +'<span>'+(gm?'<span class="bandtag">グレード違い</span>':'')+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag">範囲外</span>':'')
-        +(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener">$'+(p!=null?p.toFixed(2):'?')+'</a>'):('$'+(p!=null?p.toFixed(2):'?')))+'</span>'
+        +(r.shipping_known===false?'<span class="bandtag" title="この出品はAPIで送料が取得できず本体価格のみで計算しています。実際は送料が上乗せされる可能性があります">+送料不明</span>':'')
+        +(function(){
+          // v1.9.97: 価格の内訳ツールチップ（本体+送料・スキャン時点値）
+          var tip=(r.price_usd!=null&&r.shipping_usd!=null)?('本体 $'+Number(r.price_usd).toFixed(2)+' + 送料 $'+Number(r.shipping_usd).toFixed(2)+'（スキャン時点）'):'総額（スキャン時点）';
+          return u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" title="'+esc(tip)+'">$'+(p!=null?p.toFixed(2):'?')+'</a>'):('<span title="'+esc(tip)+'">$'+(p!=null?p.toFixed(2):'?')+'</span>');
+        })()+'</span>'
         +'<button class="btn" style="font-size:.68rem;padding:2px 7px" onclick="event.preventDefault();reRivalToggleEx(\''+esc(id)+'\','+((rr.rivals||[]).indexOf(r))+')">'+(ex?'戻す':'×除外')+'</button>'
         +'</label>';
     }).join('');
