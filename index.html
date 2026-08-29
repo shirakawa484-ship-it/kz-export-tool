@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.100</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.102</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2858,7 +2858,13 @@ async function reDraftApprove(id,pri){
     if(missing.length){alert('カテゴリ必須項目が未選択です: '+missing.join(', ')+'\nドラフトパネルの「カテゴリ必須項目」で選択してください');return;}
   }
   if(!(d.photos||[]).length){
-    if(!confirm('写真が0枚です（写真取り込みはR3bで実装予定）。このまま承認しますか？\n※承認してもAddItem実行はR3c実装後です'))return;
+    if(!confirm('写真が0枚です。写真なしで出品されてしまいます。このまま承認しますか？'))return;
+  }
+  // v1.9.101: 仕入れURL無しの警告（URL空で出品するとシートC-G列が空＝在庫監視の対象外「要確認」行きになる。8/29の12件の再発防止）
+  var rvw2=(window.RE_REVIEWS||{})[String(id)]||{};
+  var hasUrl=((rvw2.supplies||[]).some(function(s2){return s2&&s2.url;}));
+  if(!hasUrl){
+    if(!confirm('仕入れ元URLが1件も登録されていません。\nこのまま出品するとシートの仕入れURL列が空になり、在庫監視の対象外（在庫メンテの「要確認」）になります。\n\n仕入れ候補（まとめ取り／仕入れ値取得／手入力＋URL追加）を先に入れるのが推奨です。このまま承認しますか？'))return;
   }
   var patch={status:'approved',title_final:title,approved_at:new Date().toISOString(),weight_provisional:false};
   if(pri)patch.priority=true;  // v1.9.99: 🚀次回の毎時実行で日次枠と別に即出品（backendのpriority対応と互換・未対応でも通常キューとして動く）
@@ -3344,7 +3350,8 @@ function reSourcingBlock(c,rv){
     +'<button class="btn" style="font-size:.72rem;padding:3px 8px" onclick="reSourceSearch(\''+esc(id)+'\',\'paypay\')">Y!フリマ</button>'
     +'<button class="btn" style="font-size:.72rem;padding:3px 8px" onclick="reSourceSearch(\''+esc(id)+'\',\'suruga\')">駿河屋</button>'
     +((rePend()[id])?rePendBlock(id,rePend()[id]):'')
-    +(slots?('<span style="flex-basis:100%;display:flex;gap:5px;flex-wrap:wrap;align-items:center"><span class="muted" style="font-size:.7rem">仕入れ候補:</span>'+slots+'</span>'):'')
+    +(slots?('<span style="flex-basis:100%;display:flex;gap:5px;flex-wrap:wrap;align-items:center"><span class="muted" style="font-size:.7rem">仕入れ候補:</span>'+slots
+      +'<button class="btn" style="font-size:.65rem;padding:1px 7px;color:#a33;border-color:#e0b4b4" onclick="reSupClear(\''+esc(id)+'\')" title="仕入れ候補をすべて削除">全消し</button></span>'):'')
     +'<span>手入力追加 <input type="number" data-rscost="'+esc(id)+'" placeholder="円" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem">円</span>'
     +calcHtml
     +'<button class="btn" style="font-size:.75rem;padding:4px 10px;'+(listed?'background:#2e7d4f;color:#fff':'background:#fff;border:2px solid #2e7d4f;color:#2e7d4f')+'" onclick="reToggleList(\''+esc(id)+'\')">'+(listed?'📦 出品予定（解除）':'📦 出品する')+'</button>'
@@ -3422,6 +3429,13 @@ function rePendBlock(id,pd){
 function reSupDel(id,i){
   var rec=(window.RE_REVIEWS||{})[String(id)]||{};var sp=(rec.supplies||[]).slice();sp.splice(i,1);
   reReviewUpdate(id,{supplies:sp,cost_yen:reMinSupply({supplies:sp})}).then(function(){reRenderCands();});
+}
+// v1.9.102: 仕入れ候補の一括クリア（1個ずつ×を押す手間の解消。誤爆防止に確認ダイアログ）
+function reSupClear(id){
+  var rec=(window.RE_REVIEWS||{})[String(id)]||{};var n=(rec.supplies||[]).length;
+  if(!n)return;
+  if(!confirm('仕入れ候補 '+n+'件をすべて削除しますか？（最安仕入れ・利益計算もリセットされます）'))return;
+  reReviewUpdate(id,{supplies:[],cost_yen:null}).then(function(){reRenderCands();});
 }
 // batch2で届いたリサーチ宛てまとめ取りの取り込み（最終ブロックで実行）
 // autoフォルダ接続完了時のリサーチ更新フック（v1.9.75）:
