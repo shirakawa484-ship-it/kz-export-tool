@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.103</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.104</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2876,6 +2876,13 @@ async function reDraftApprove(id,pri){
   if(!hasUrl){
     if(!confirm('仕入れ元URLが1件も登録されていません。\nこのまま出品するとシートの仕入れURL列が空になり、在庫監視の対象外（在庫メンテの「要確認」）になります。\n\n仕入れ候補（まとめ取り／仕入れ値取得／手入力＋URL追加）を先に入れるのが推奨です。このまま承認しますか？'))return;
   }
+  // v1.9.104: トレカカテゴリでNew系コンディションの誤設定警告（中古カードをNewで出すとSNADクレーム・返品リスク）
+  var mapAp=d.required_specifics_by_condition;
+  var isCardCat=!!(mapAp&&(mapAp['2750']||mapAp['4000']));
+  var condAp=Number(d.condition_id);
+  if(isCardCat&&(condAp===1000||condAp===1500)){
+    if(!confirm('トレカカテゴリでコンディションが「New（新品）」系になっています（ライバル由来の初期値の可能性）。\n生カード＝Very Good / Ungraded、鑑定スラブ＝Like New / Graded が正しい区分です。\n中古カードをNewで出すと「説明と異なる」クレーム・返品の元になります。\n\n未開封品などで本当にNewの場合のみ続行してください。このまま承認しますか？'))return;
+  }
   var patch={status:'approved',title_final:title,approved_at:new Date().toISOString(),weight_provisional:false};
   if(pri)patch.priority=true;  // v1.9.99: 🚀次回の毎時実行で日次枠と別に即出品（backendのpriority対応と互換・未対応でも通常キューとして動く）
   var ok=await reDraftSave(id,patch);
@@ -2959,7 +2966,7 @@ function reDraftBlock(c,rv){
       +'<span>価格 $<input type="number" step="0.01" value="'+(d.price_usd!=null?Number(d.price_usd):'')+'" data-rdprice="'+esc(id)+'" style="width:100px;padding:4px 7px;border:1px solid var(--line);border-radius:6px"></span>'
       +'<span id="rdprofit-'+esc(id)+'">'+reDraftProfitHtml(id,d.price_usd)+'</span>'
       +'<span>重量区分 <input type="text" value="'+esc(d.weight_class!=null?String(d.weight_class):'')+'" data-rdweight="'+esc(id)+'" style="width:70px;padding:4px 7px;border:1px solid var(--line);border-radius:6px">'+(d.weight_provisional?'<small style="color:#8a5b00">仮</small>':'')+'</span>'
-      +'<span class="muted" style="font-size:.72rem">カテゴリ '+esc(String(d.category_id||'?'))+'</span>'
+      +'<span class="muted" style="font-size:.72rem">カテゴリ <input type="text" value="'+esc(String(d.category_id||''))+'" data-rdcat="'+esc(id)+'" style="width:76px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:.72rem" title="eBayカテゴリID。参照ライバルがロット出品等だと間違って継承されることがあります（単品カード=183454）。変更すると必須項目を自動で取り直します">'+(d.category_locked?'<small title="参照ライバル由来の上書きから保護中">🔒</small>':'')+'</span>'
       +'</div>'
       +(function(){
         // ▼ v1.9.89: 売価の選択チップ（価格承認と同じイメージ: A案/中央値/原価+目標利益率の逆算）
@@ -2983,15 +2990,24 @@ function reDraftBlock(c,rv){
       +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
       +'<span>コンディション <select data-rdcond="'+esc(id)+'" style="padding:4px 7px;border:1px solid var(--line);border-radius:6px;font-size:.78rem">'
       +(function(){
-        var opts=[[1000,'New（新品）'],[1500,'New other（未使用に近い）'],[2750,'Like New / Graded'],[3000,'Used（中古）'],[4000,'Very Good / Ungraded'],[5000,'Good'],[6000,'Acceptable']];
+        // v1.9.104: 選択肢をカテゴリの有効ConditionIDに連動（先読みマップのキー＝そのカテゴリで出品可能な値のみ）。
+        //   Zapdos事故（183455にcond=4000という不整合のまま承認寸前）の再発防止
+        var labels={1000:'New（新品）',1500:'New other（未使用に近い）',2750:'Like New / Graded（鑑定品）',3000:'Used（中古）',4000:'Very Good / Ungraded（生カード）',5000:'Good',6000:'Acceptable'};
+        var map=d.required_specifics_by_condition;
+        var ids2=map?Object.keys(map).map(Number).sort(function(a,b){return a-b;}):[1000,1500,2750,3000,4000,5000,6000];
         var cur=(d.condition_id!=null?Number(d.condition_id):null);
-        var known=opts.some(function(o){return o[0]===cur;});
         var h2='';
-        if(cur!=null&&!known)h2+='<option value="'+cur+'" selected>現在値（'+cur+'・ライバル由来）</option>';
-        opts.forEach(function(o){h2+='<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+o[1]+'</option>';});
+        if(cur!=null&&ids2.indexOf(cur)<0)h2+='<option value="'+cur+'" selected>現在値（'+cur+'・このカテゴリでは無効の可能性）</option>';
+        ids2.forEach(function(o){h2+='<option value="'+o+'"'+(o===cur?' selected':'')+'>'+(labels[o]||('Condition '+o))+'</option>';});
         return h2;
       })()
-      +'</select> <small class="muted">ライバル由来の初期値。実物の状態に合わせて確定を</small></span>'
+      +'</select> <small class="muted">'
+      +(function(){
+        var map=d.required_specifics_by_condition;
+        if(map&&(map['2750']||map['4000']))return 'トレカ: 生カード=Ungraded・鑑定スラブ=Graded（実物に合わせて）';
+        return 'ライバル由来の初期値。実物の状態に合わせて確定を';
+      })()
+      +'</small></span>'
       +'</div>'
       +'<div><span class="muted" style="font-size:.72rem">状態説明（Condition description・任意。傷・スレ・付属品など実物の状態）</span><br>'
       +'<textarea data-rdconddesc="'+esc(id)+'" style="width:100%;max-width:640px;height:44px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:.78rem">'+esc(String(d.condition_description||''))+'</textarea></div>'
@@ -3586,6 +3602,20 @@ document.addEventListener('input',function(e){
     window.__rddT=setTimeout(function(){reDraftSave(idd,{desc_final:vd});},800);
   }
   // ▼ v1.9.86: コンディション・状態説明・Item Specifics値の遅延保存
+  if(t&&t.dataset&&t.dataset.rdcat!==undefined){
+    // v1.9.104: カテゴリ変更→3点セット保存（category_id + stale + locked）。backendのstale再評価が
+    //   全マップ（by_condition含む）を新カテゴリで取り直し、必須項目・コンディション選択肢が入れ替わる
+    clearTimeout(window.__rdcatT);var idct=t.dataset.rdcat,vct=t.value.trim();
+    window.__rdcatT=setTimeout(function(){
+      var dcat=reDraftRec(idct)||{};
+      if(!/^\d{3,}$/.test(vct)){showToast('カテゴリIDは数字で入力してください');return;}
+      if(String(dcat.category_id)===vct)return;
+      if(!confirm('カテゴリを '+String(dcat.category_id||'?')+' → '+vct+' に変更しますか？\n必須項目・コンディション選択肢を新カテゴリで取り直します（自動・通常10分以内。完了まで承認できません）'))
+        {reRenderCands();return;}
+      window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(idct)]=true;
+      reDraftSave(idct,{category_id:vct,required_specifics_stale:true,category_locked:true}).then(function(ok){if(ok)reRenderCands();});
+    },900);
+  }
   if(t&&t.dataset&&t.dataset.rdcond!==undefined){
     var idc=t.dataset.rdcond,vc=Number(t.value)||null;
     if(vc){
