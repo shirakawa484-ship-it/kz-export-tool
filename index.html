@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.102</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.103</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1179,7 +1179,7 @@ function cardHtml(it,idx){
       return '<div class="pendwrap" id="pend'+idx+'"><div class="lbl">'+head+(anchor?'　倍率:'+chips:'')+'</div><div class="pendlist">'+rows+'</div>'+
         '<div class="pendactions"><button class="addbtn" onclick="commitPending('+idx+')">選んだ候補に追加</button><button class="del2" onclick="clearPending('+idx+')">全部捨てる</button></div></div>';
     })()+
-    '<div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div>'+
+    '<div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件） <button class="del" style="font-size:11px;padding:1px 8px" title="この商品の仕入れ候補をすべて削除" onclick="clearSupplies('+idx+')">全消し</button></div>'+
       '<div id="slots'+idx+'"></div>'+
       '<div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp'+idx+'" placeholder="価格（円）"><button class="addbtn" onclick="addManual('+idx+')">追加</button></div>'+
     '</div>'+
@@ -1441,6 +1441,14 @@ function onDuty(idx,v){duties[idx]=parseFloat(v)||0;saveMeta();recalc(idx);}
 function addManual(idx){var el=document.getElementById('mp'+idx);var p=parseInt(el.value,10);if(!p||p<=0)return;if(!supplies[idx])supplies[idx]=[];if(supplies[idx].length>=5){alert('最大5件です');return;}supplies[idx].push({price:p,url:''});el.value='';markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
 function editPrice(idx,i,v){var p=parseInt(v,10);if(!p||p<=0)return;supplies[idx][i].price=p;markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
 function delSupply(idx,i){supplies[idx].splice(i,1);markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);}
+// v1.9.102: 仕入れ候補の一括クリア（在庫メンテ側。×連打の手間解消・確認ダイアログつき）
+function clearSupplies(idx){
+  var n=(supplies[idx]||[]).length;
+  if(!n){return;}
+  if(!confirm('この商品の仕入れ候補 '+n+'件をすべて削除しますか？（最安仕入れ・利益計算もリセットされます）'))return;
+  supplies[idx]=[];
+  markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);
+}
 function exportCosts(){
   // ▼ 送料未確定の完全ブロック：書き出し対象（仕入れ候補あり）に
   //   「10kg超 または カテゴリ・重量とも未判定」で送料手入力なしの商品があれば保存を中断
@@ -2110,16 +2118,18 @@ function render(){
             const bx=!!r.band_excluded;
             const dx=(r.same_item==='different');
             const sm=(r.same_item==='same');
+            const gm=!!r.grade_mismatch;  // v1.9.103: 精度スタック本採用に伴い価格承認側にもグレード整合を表示
             const srcName={partnum:'型番判定',cache_human:'過去のあなたの選択',cache_partnum:'判定キャッシュ'}[r.same_item_source]||'自動判定';
             const bandTip=bx&&it.band_center_usd!=null?`基準${money(it.band_center_usd)}の${it.band_low_ratio!=null?it.band_low_ratio:0.5}〜${it.band_high_ratio!=null?it.band_high_ratio:2.0}倍（${money(it.band_low_usd)}〜${money(it.band_high_usd)}）の範囲外`:(bx?'価格帯の範囲外':'');
             const diffTip=dx?`${srcName}で別商品（型番・グレード不一致）と判定`:'';
-            const tip=(dx||bx)?[diffTip,bandTip].filter(Boolean).join('、かつ')+'のため候補・統計から除外中。選ぶと同一品として復活し、以後の自動判定に学習されます':(sm?`${srcName}で同一品と確認済み`:'');
-            const small=dx?('⛔ 別商品（'+srcName+'）'+(bx?'／価格帯も範囲外':'')):(bx?'⛔ 価格帯の範囲外（別商品の可能性）':(r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外')));
-            return `<label class="rival ${on?'picked':''} ${(bx||dx)?'banded':''}" ${tip?`title="${esc(tip)}"`:''}>
+            const gmTip=gm?'鑑定/グレード違い（生カードと鑑定品は別市場のため計算から除外）':'';
+            const tip=(dx||bx||gm)?[gmTip,diffTip,bandTip].filter(Boolean).join('、かつ')+'のため候補・統計から除外中。選ぶと基準として復活します':(sm?`${srcName}で同一品と確認済み`:'');
+            const small=gm?('⛔ 鑑定/グレード違い（別市場・基準指定は可）'+(dx?'／別商品':'')+(bx?'／範囲外':'')):(dx?('⛔ 別商品（'+srcName+'）'+(bx?'／価格帯も範囲外':'')):(bx?'⛔ 価格帯の範囲外（別商品の可能性）':(r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外'))));
+            return `<label class="rival ${on?'picked':''} ${(bx||dx||gm)?'banded':''}" ${tip?`title="${esc(tip)}"`:''}>
               <input type="radio" name="rv-${it.item_id}" data-rpick="${it.item_id}" data-rid="${r.rival_item_id||''}" ${on?'checked':''} ${canPick?'':'disabled'}>
-              ${r.image_url?`<img src="${r.image_url}" loading="lazy" alt="">`:`<div class="noimg">画像なし</div>`}
-              <span class="rt">${r.title}<small>${sm?'🔗同一品確認済み ':''}${small}${canPick?'':'／ID無しのため指定不可'}</small></span>
-              <span>${dx?'<span class="bandtag">別商品</span>':''}${bx?'<span class="bandtag">範囲外</span>':''}<a href="${r.url}" target="_blank" rel="noopener" data-stop="1">${money(r.total_usd)}</a></span>
+              ${r.image_url?(r.url?`<a href="${r.url}" target="_blank" rel="noopener" data-stop="1" title="eBayで開く"><img src="${r.image_url}" loading="lazy" alt=""></a>`:`<img src="${r.image_url}" loading="lazy" alt="">`):`<div class="noimg">画像なし</div>`}
+              <span class="rt">${r.title}<small>${sm&&!gm?'🔗同一品確認済み ':''}${small}${canPick?'':'／ID無しのため指定不可'}</small></span>
+              <span>${gm?'<span class="bandtag">グレード違い</span>':''}${dx?'<span class="bandtag">別商品</span>':''}${bx?'<span class="bandtag">範囲外</span>':''}<a href="${r.url}" target="_blank" rel="noopener" data-stop="1" ${r.price_usd!=null&&r.shipping_usd!=null?`title="本体 ${money(r.price_usd)} + 送料 ${money(r.shipping_usd)}（スキャン時点）"`:''}>${money(r.total_usd)}</a></span>
             </label>`;}).join("")}
           ${s.rivalGone?`<div class="rgone">⚠️ 前回の基準ライバルは今回見つかりませんでした（売り切れ・出品終了の可能性）。通常ロジックに戻しています。</div>`:""}
         </details>
