@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.104</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.105</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2966,7 +2966,25 @@ function reDraftBlock(c,rv){
       +'<span>価格 $<input type="number" step="0.01" value="'+(d.price_usd!=null?Number(d.price_usd):'')+'" data-rdprice="'+esc(id)+'" style="width:100px;padding:4px 7px;border:1px solid var(--line);border-radius:6px"></span>'
       +'<span id="rdprofit-'+esc(id)+'">'+reDraftProfitHtml(id,d.price_usd)+'</span>'
       +'<span>重量区分 <input type="text" value="'+esc(d.weight_class!=null?String(d.weight_class):'')+'" data-rdweight="'+esc(id)+'" style="width:70px;padding:4px 7px;border:1px solid var(--line);border-radius:6px">'+(d.weight_provisional?'<small style="color:#8a5b00">仮</small>':'')+'</span>'
-      +'<span class="muted" style="font-size:.72rem">カテゴリ <input type="text" value="'+esc(String(d.category_id||''))+'" data-rdcat="'+esc(id)+'" style="width:76px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:.72rem" title="eBayカテゴリID。参照ライバルがロット出品等だと間違って継承されることがあります（単品カード=183454）。変更すると必須項目を自動で取り直します">'+(d.category_locked?'<small title="参照ライバル由来の上書きから保護中">🔒</small>':'')+'</span>'
+      +'<span class="muted" style="font-size:.72rem">カテゴリ '
+      +(function(){
+        // v1.9.105: カテゴリをID手打ち→ドロップダウン選択に（取扱商材の主要カテゴリ）。
+        //   参照ライバルがロット/ケース等だとカテゴリごと間違って継承されるため、正しい区分へ1操作で直せるように
+        var cats=[
+          ['183454','トレカ単品（CCG Individual Cards）'],
+          ['183455','トレカ複数枚ロット/セット（Mixed Card Lots）']
+        ];
+        // 他ジャンル（フィギュア/ゲーム/レコード等）はCODEにleaf確認済みIDを出させてから追加する
+        try{(window.RE_LCFG&&window.RE_LCFG.category_presets||[]).forEach(function(cp){if(cp&&cp[0])cats.push([String(cp[0]),String(cp[1]||cp[0])]);});}catch(cpe){}
+        var cur=String(d.category_id||'');
+        var inList=cats.some(function(c2){return c2[0]===cur;});
+        var h4='<select data-rdcatsel="'+esc(id)+'" style="padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:.72rem;max-width:250px" title="参照ライバル由来のカテゴリ。ロット/ケース出品のカテゴリを継承していることがあります。変更すると必須項目を自動で取り直します">';
+        if(cur&&!inList)h4+='<option value="'+esc(cur)+'" selected>現在値: '+esc(cur)+'（ライバル由来）</option>';
+        cats.forEach(function(c2){h4+='<option value="'+c2[0]+'"'+(c2[0]===cur?' selected':'')+'>'+c2[1]+'</option>';});
+        h4+='<option value="__other__">その他（IDを入力）…</option></select>';
+        return h4;
+      })()
+      +(d.category_locked?'<small title="参照ライバル由来の上書きから保護中">🔒</small>':'')+'</span>'
       +'</div>'
       +(function(){
         // ▼ v1.9.89: 売価の選択チップ（価格承認と同じイメージ: A案/中央値/原価+目標利益率の逆算）
@@ -3602,19 +3620,22 @@ document.addEventListener('input',function(e){
     window.__rddT=setTimeout(function(){reDraftSave(idd,{desc_final:vd});},800);
   }
   // ▼ v1.9.86: コンディション・状態説明・Item Specifics値の遅延保存
-  if(t&&t.dataset&&t.dataset.rdcat!==undefined){
-    // v1.9.104: カテゴリ変更→3点セット保存（category_id + stale + locked）。backendのstale再評価が
+  if(t&&t.dataset&&t.dataset.rdcatsel!==undefined){
+    // v1.9.105: カテゴリ選択→3点セット保存（category_id + stale + locked）。backendのstale再評価が
     //   全マップ（by_condition含む）を新カテゴリで取り直し、必須項目・コンディション選択肢が入れ替わる
-    clearTimeout(window.__rdcatT);var idct=t.dataset.rdcat,vct=t.value.trim();
-    window.__rdcatT=setTimeout(function(){
-      var dcat=reDraftRec(idct)||{};
-      if(!/^\d{3,}$/.test(vct)){showToast('カテゴリIDは数字で入力してください');return;}
-      if(String(dcat.category_id)===vct)return;
-      if(!confirm('カテゴリを '+String(dcat.category_id||'?')+' → '+vct+' に変更しますか？\n必須項目・コンディション選択肢を新カテゴリで取り直します（自動・通常10分以内。完了まで承認できません）'))
-        {reRenderCands();return;}
-      window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(idct)]=true;
-      reDraftSave(idct,{category_id:vct,required_specifics_stale:true,category_locked:true}).then(function(ok){if(ok)reRenderCands();});
-    },900);
+    var idct=t.dataset.rdcatsel,vct=t.value;
+    var dcat=reDraftRec(idct)||{};
+    if(vct==='__other__'){
+      var man=prompt('eBayカテゴリIDを数字で入力してください（例: 183454）',String(dcat.category_id||''));
+      if(man==null){reRenderCands();return;}
+      vct=man.trim();
+    }
+    if(!/^\d{3,}$/.test(vct)){showToast('カテゴリIDは数字で入力してください');reRenderCands();return;}
+    if(String(dcat.category_id)===vct){reRenderCands();return;}
+    if(!confirm('カテゴリを '+String(dcat.category_id||'?')+' → '+vct+' に変更しますか？\n必須項目・コンディション選択肢を新カテゴリで取り直します（自動・通常10分以内。完了まで承認できません）'))
+      {reRenderCands();return;}
+    window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(idct)]=true;
+    reDraftSave(idct,{category_id:vct,required_specifics_stale:true,category_locked:true}).then(function(ok){if(ok)reRenderCands();});
   }
   if(t&&t.dataset&&t.dataset.rdcond!==undefined){
     var idc=t.dataset.rdcond,vc=Number(t.value)||null;
