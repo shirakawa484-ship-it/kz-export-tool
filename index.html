@@ -291,7 +291,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.105</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.106</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2119,17 +2119,19 @@ function render(){
             const dx=(r.same_item==='different');
             const sm=(r.same_item==='same');
             const gm=!!r.grade_mismatch;  // v1.9.103: 精度スタック本採用に伴い価格承認側にもグレード整合を表示
+            const vm=!!r.version_mismatch;  // v1.9.106: バージョン整合（Ver/Vol/Complete/単品/Sealed/セット数量の不一致・backend付与）
+            const vmTip=vm?('バージョン違い'+(r.version_detail?('（'+r.version_detail+'）'):'')+'（別版・セット構成違いは別相場のため計算から除外）'):'';
             const srcName={partnum:'型番判定',cache_human:'過去のあなたの選択',cache_partnum:'判定キャッシュ'}[r.same_item_source]||'自動判定';
             const bandTip=bx&&it.band_center_usd!=null?`基準${money(it.band_center_usd)}の${it.band_low_ratio!=null?it.band_low_ratio:0.5}〜${it.band_high_ratio!=null?it.band_high_ratio:2.0}倍（${money(it.band_low_usd)}〜${money(it.band_high_usd)}）の範囲外`:(bx?'価格帯の範囲外':'');
             const diffTip=dx?`${srcName}で別商品（型番・グレード不一致）と判定`:'';
             const gmTip=gm?'鑑定/グレード違い（生カードと鑑定品は別市場のため計算から除外）':'';
-            const tip=(dx||bx||gm)?[gmTip,diffTip,bandTip].filter(Boolean).join('、かつ')+'のため候補・統計から除外中。選ぶと基準として復活します':(sm?`${srcName}で同一品と確認済み`:'');
-            const small=gm?('⛔ 鑑定/グレード違い（別市場・基準指定は可）'+(dx?'／別商品':'')+(bx?'／範囲外':'')):(dx?('⛔ 別商品（'+srcName+'）'+(bx?'／価格帯も範囲外':'')):(bx?'⛔ 価格帯の範囲外（別商品の可能性）':(r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外'))));
-            return `<label class="rival ${on?'picked':''} ${(bx||dx||gm)?'banded':''}" ${tip?`title="${esc(tip)}"`:''}>
+            const tip=(dx||bx||gm||vm)?[gmTip,vmTip,diffTip,bandTip].filter(Boolean).join('、かつ')+'のため候補・統計から除外中。選ぶと基準として復活します':(sm?`${srcName}で同一品と確認済み`:'');
+            const small=gm?('⛔ 鑑定/グレード違い（別市場・基準指定は可）'+(vm?'／バージョン違い':'')+(dx?'／別商品':'')+(bx?'／範囲外':'')):(vm?('⛔ バージョン違い'+(r.version_detail?('（'+esc(String(r.version_detail))+'）'):'')+'（別版・基準指定は可）'+(dx?'／別商品':'')+(bx?'／範囲外':'')):(dx?('⛔ 別商品（'+srcName+'）'+(bx?'／価格帯も範囲外':'')):(bx?'⛔ 価格帯の範囲外（別商品の可能性）':(r.qualifies_a?'✅A/B適格':(r.qualifies_b?'△Bのみ適格':'— 利益基準外')))));
+            return `<label class="rival ${on?'picked':''} ${(bx||dx||gm||vm)?'banded':''}" ${tip?`title="${esc(tip)}"`:''}>
               <input type="radio" name="rv-${it.item_id}" data-rpick="${it.item_id}" data-rid="${r.rival_item_id||''}" ${on?'checked':''} ${canPick?'':'disabled'}>
               ${r.image_url?(r.url?`<a href="${r.url}" target="_blank" rel="noopener" data-stop="1" title="eBayで開く"><img src="${r.image_url}" loading="lazy" alt=""></a>`:`<img src="${r.image_url}" loading="lazy" alt="">`):`<div class="noimg">画像なし</div>`}
-              <span class="rt">${r.title}<small>${sm&&!gm?'🔗同一品確認済み ':''}${small}${canPick?'':'／ID無しのため指定不可'}</small></span>
-              <span>${gm?'<span class="bandtag">グレード違い</span>':''}${dx?'<span class="bandtag">別商品</span>':''}${bx?'<span class="bandtag">範囲外</span>':''}<a href="${r.url}" target="_blank" rel="noopener" data-stop="1" ${r.price_usd!=null&&r.shipping_usd!=null?`title="本体 ${money(r.price_usd)} + 送料 ${money(r.shipping_usd)}（スキャン時点）"`:''}>${money(r.total_usd)}</a></span>
+              <span class="rt">${r.title}<small>${sm&&!gm&&!vm?'🔗同一品確認済み ':''}${small}${canPick?'':'／ID無しのため指定不可'}</small></span>
+              <span>${gm?'<span class="bandtag">グレード違い</span>':''}${vm?'<span class="bandtag" title="'+esc(String(r.version_detail||'バージョン違い'))+'">バージョン違い</span>':''}${dx?'<span class="bandtag">別商品</span>':''}${bx?'<span class="bandtag">範囲外</span>':''}<a href="${r.url}" target="_blank" rel="noopener" data-stop="1" ${r.price_usd!=null&&r.shipping_usd!=null?`title="本体 ${money(r.price_usd)} + 送料 ${money(r.shipping_usd)}（スキャン時点）"`:''}>${money(r.total_usd)}</a></span>
             </label>`;}).join("")}
           ${s.rivalGone?`<div class="rgone">⚠️ 前回の基準ライバルは今回見つかりませんでした（売り切れ・出品終了の可能性）。通常ロジックに戻しています。</div>`:""}
         </details>
@@ -2653,6 +2655,7 @@ function reRenderCands(){
   var listedN=Object.keys(window.RE_REVIEWS||{}).filter(function(k){return (window.RE_REVIEWS[k]||{}).decision==='list';}).length;
   var lc=document.getElementById('reListCount');if(lc)lc.textContent=listedN?('📦 出品予定 '+listedN+'件'):'';
   document.getElementById('reMoreBtn').style.display=(gNormal.length>RE_SHOWN)?'inline-block':'none';
+  clearTimeout(window.__reAFT);window.__reAFT=setTimeout(function(){try{reDraftAutoFollow();}catch(e){}},300);  // v1.9.106: 売価の追従
 }
 function reShowMore(){RE_SHOWN+=100;reRenderCands();}
 // ══════ R2a: 合格候補の仕入れ探索・利益計算（v1.9.67）══════
@@ -2675,9 +2678,32 @@ function reLiveProfit(id,priceUsd){
     return calcProfit(priceUsd,Number(cost),ship,12.5);
   }catch(e){return null;}
 }
+function reRivalHardExcluded(r){
+  // v1.9.106: 利益に関係なく除外する条件をまとめた（A案/B案共通）
+  if(r.user_excluded)return true;
+  if(r.grade_mismatch)return true;    // v1.9.95: 鑑定/グレード違い（利益が出ても別市場）
+  if(r.version_mismatch)return true;  // v1.9.106: バージョン違い（別版・セット構成違いは別相場）
+  var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
+  var bx=!!r.band_excluded||(r.verdict==='excluded_band');
+  return dx||bx;
+}
+function reRivalEligibleB(r,id){
+  // v1.9.106: B案＝赤字でなければ適格（価格承認タブのB案と同じ定義・ドラフト売価の既定）
+  if(reRivalHardExcluded(r))return false;
+  var p=reRivalPrice(r);
+  if(p!=null&&id!=null){
+    var lp=reLiveProfit(id,Math.round((p-0.10)*100)/100);
+    if(lp)return lp.profit>0;
+  }
+  if(r.qualifies_b!==undefined)return !!r.qualifies_b;
+  if(r.qualifies_a!==undefined)return !!r.qualifies_a;
+  if(r.verdict!==undefined)return r.verdict==='match';
+  return true;
+}
 function reRivalEligible(r,id){
   if(r.user_excluded)return false;
   if(r.grade_mismatch)return false;  // v1.9.95: 鑑定/グレード違いはライブ利益判定より先に除外（利益が出ても別市場）
+  if(r.version_mismatch)return false;  // v1.9.106: バージョン違いも同様に先に除外
   var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
   var bx=!!r.band_excluded||(r.verdict==='excluded_band');
   if(dx||bx)return false;
@@ -2690,8 +2716,9 @@ function reRivalEligible(r,id){
   if(r.verdict!==undefined)return r.verdict==='match';       // 旧スキーマ互換
   return true;
 }
-function reEstInfo(id){
+function reEstInfo(id,stance){
   // ▼ v1.9.81: 基準ライバル選択（本家=価格承認タブと同じ流儀）
+  // ▼ v1.9.106: stance='b' で「赤字でなければ適格の最安−$0.10」（ドラフト売価の既定＝攻め）。省略時は従来のA案
   //   自動＝適格最安−$0.10 ／ 選択＝その基準ライバル−$0.10。選択はresearch_review.jsonのbench_rival_url。
   //   基準ライバルが今回のスキャンに居ない場合は自動へ戻し gone フラグで警告表示（本家rivalGoneと同じ）
   var rr=reRivalRec(id);if(!rr)return {est:null,mode:'none',rival:null,gone:false};
@@ -2709,7 +2736,8 @@ function reEstInfo(id){
   }
   if(!arr.length)return {est:(rr.est_price_usd!=null?Number(rr.est_price_usd):null),mode:'auto',rival:null,gone:gone};
   var mn=null,mr=null;
-  arr.forEach(function(r){var p=reRivalPrice(r);if(p==null)return;if(reRivalEligible(r,id)&&(mn===null||p<mn)){mn=p;mr=r;}});
+  var elig=(stance==='b')?reRivalEligibleB:reRivalEligible;
+  arr.forEach(function(r){var p=reRivalPrice(r);if(p==null)return;if(elig(r,id)&&(mn===null||p<mn)){mn=p;mr=r;}});
   return {est:(mn!==null?Math.round((mn-0.10)*100)/100:null),mode:'auto',rival:mr,gone:gone};
 }
 function reEstPrice(id){return reEstInfo(id).est;}
@@ -2861,6 +2889,16 @@ async function reDraftApprove(id,pri){
   if(!title){alert('タイトルが空です');return;}
   if(title.length>80){alert('タイトルが80字を超えています（'+title.length+'字）。短くしてください');return;}
   if(!(price>0)){alert('価格が未設定です');return;}
+  // v1.9.106: 赤字ガード（赤字＝ブロック／仕入れ値未設定＝確認／ライバルなし逆算＝確認。利益率5%未満は表示のみ）
+  var lpAp=reLiveProfit(id,price);
+  if(lpAp&&lpAp.profit<0){alert('この価格では赤字です（利益 ¥'+Math.round(lpAp.profit).toLocaleString()+'・利益率 '+lpAp.margin.toFixed(1)+'%）。\n承認できません。B案/A案チップか原価+利益率で価格を見直すか、仕入れ候補を安いものに変えてください');return;}
+  if(!lpAp){
+    if(!confirm('仕入れ値が未設定のため利益を判定できません（赤字チェックが効きません）。\n仕入れ候補を先に登録するのが推奨です。このまま承認しますか？'))return;
+  }
+  var noRival=(reEstInfo(id,'b').est==null&&reEstInfo(id,'a').est==null);
+  if(noRival&&String(d.price_source||'')!=='manual'){
+    if(!confirm('赤字でない適格ライバルが1件も見つかっていません。この価格はライバル基準ではなく'+(String(d.price_source||'')==='margin_fallback'?'「原価+5%」の逆算':'ライバル以外の根拠')+'です。\n相場より高い/安い可能性があります。このまま承認しますか？'))return;
+  }
   if(d.required_specifics_stale){alert('コンディション変更に伴う必須項目の更新待ちです（自動・通常10分以内）。更新後に承認してください');return;}
   // v1.9.88: カテゴリ必須Specifics/Descriptorの未選択チェック（AddItem時の21920355系エラーを事前ブロック）
   if(d.required_specifics&&d.required_specifics.length){
@@ -2916,7 +2954,8 @@ function reDraftBlock(c,rv){
   var tlen=String(title).length;
   var head='<b style="color:#8a5b00">📝 出品ドラフト</b> '+stBadge
     +(st==='listed'&&d.listed_item_id?(' <a href="https://www.ebay.com/itm/'+esc(String(d.listed_item_id))+'" target="_blank" rel="noopener" style="font-size:.75rem">実ページを開く</a>'):'')
-    +(d.price_usd!=null?(' <b>$'+Number(d.price_usd).toFixed(2)+'</b><small class="muted">（'+esc(d.price_source||'')+'）</small>'):'')
+    +(d.price_usd!=null?(' <b>$'+Number(d.price_usd).toFixed(2)+'</b><small class="muted">（'+esc(reDraftSrcLabel(d.price_source))+'）</small>'):'')
+    +(function(){var lp0=reLiveProfit(id,Number(d.price_usd));return (lp0&&lp0.profit<0&&st!=='listed')?' <b style="color:#a33">🔴赤字</b>':'';})()
     +((d.photos||[]).length?(' 📷'+(d.photos||[]).length+'枚'):' <small style="color:#8a5b00">📷写真なし</small>');
   var inner='';
   if(st==='error'){
@@ -2988,15 +3027,23 @@ function reDraftBlock(c,rv){
       +'</div>'
       +(function(){
         // ▼ v1.9.89: 売価の選択チップ（価格承認と同じイメージ: A案/中央値/原価+目標利益率の逆算）
-        var einf=reEstInfo(id);var med=rv.median_sold_usd;
+        // ▼ v1.9.106: 赤字ガード。既定＝B案（赤字でなければ適格の最安−$0.10・攻め）／A案（利益5%以上）ボタン／
+        //   ライバル皆無なら原価+5%逆算（🟡ライバルなし表示）。A/B/逆算は仕入れ最安値に追従（reDraftAutoFollow）。手打ち・📌基準は追従しない
+        var einf=reEstInfo(id,'a');var einfB=reEstInfo(id,'b');var med=rv.median_sold_usd;
         var cost=reDraftCost(id,rv);
         var mSel=(window.__rdMargin||{})[id];if(mSel==null)mSel=n('targetMargin');
         var pm=(cost>0)?reCalcPriceForMargin(cost,n('shipUS'),12.5,mSel):null;
-        var chip=function(label,on,click){return '<button class="btn" style="font-size:.7rem;padding:2px 8px;'+(on?'background:#4a5d8f;color:#fff':'')+'" onclick="'+click+'">'+label+'</button>';};
+        var chip=function(label,on,click,extra){return '<button class="btn" style="font-size:.7rem;padding:2px 8px;'+(on?'background:#4a5d8f;color:#fff':'')+'" onclick="'+click+'"'+(extra||'')+'>'+label+'</button>';};
         var cur=(d.price_usd!=null?Number(d.price_usd):null);
-        var h3='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.72rem"><span class="muted">売価を選ぶ:</span>';
-        if(einf.est!=null)h3+=chip((einf.mode==='bench'?'基準ライバル':'A案')+' $'+einf.est.toFixed(2),cur===einf.est,'reDraftSetPrice(\''+esc(id)+'\','+einf.est+',\''+(einf.mode==='bench'?'bench':'auto')+'\')');
-        if(med!=null)h3+=chip('実売中央値 $'+Number(med).toFixed(2),cur===Math.round(Number(med)*100)/100,'reDraftSetPrice(\''+esc(id)+'\','+Number(med)+',\'median\')');
+        var src=String(d.price_source||'');
+        var h3='<div style="margin-bottom:3px">'+reDraftPriceBadge(id,d)+'</div>'
+          +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.72rem"><span class="muted">売価を選ぶ:</span>';
+        if(einf.mode==='bench'&&einf.est!=null)h3+=chip('📌基準ライバル $'+einf.est.toFixed(2),src==='bench','reDraftSetPrice(\''+esc(id)+'\','+einf.est+',\'bench\')',' title="あなたが📌指定した基準ライバル−$0.10。仕入れ値が変わっても追従しません"');
+        if(einfB.mode!=='bench'&&einfB.est!=null)h3+=chip('B案（攻め・既定） $'+einfB.est.toFixed(2),src==='b'||src==='auto'||src==='',reDraftChipClick(id,einfB.est,'b'),' title="赤字でなければ適格のライバル最安−$0.10。仕入れ値の変化に追従します"');
+        if(einf.mode!=='bench'&&einf.est!=null)h3+=chip('A案（利益5%↑） $'+einf.est.toFixed(2),src==='a',reDraftChipClick(id,einf.est,'a'),' title="利益率5%以上取れる適格ライバル最安−$0.10。仕入れ値の変化に追従します"');
+        if(einf.mode!=='bench'&&einf.rival&&reRivalUrl(einf.rival))h3+='<button class="btn" style="font-size:.7rem;padding:2px 8px" onclick="reDraftPinA(\''+esc(id)+'\')" title="A案の根拠ライバルを📌基準ライバルとして固定します（以後の自動追従を止め、このライバル−$0.10で確定）">📌A案ライバルを基準に</button>';
+        if(einf.mode!=='bench'&&einfB.est==null&&einf.est==null&&cost>0){var p5=reCalcPriceForMargin(cost,n('shipUS'),12.5,5);if(p5!=null)h3+=chip('原価+5%（ライバルなし） $'+p5.toFixed(2),src==='margin_fallback',reDraftChipClick(id,p5,'margin_fallback'),' title="赤字でない適格ライバルが1件も無いため、利益率5%の逆算価格。仕入れ値の変化に追従します"');}
+        if(med!=null)h3+=chip('実売中央値 $'+Number(med).toFixed(2),src==='median','reDraftSetPrice(\''+esc(id)+'\','+Number(med)+',\'median\')');
         h3+='<span style="display:inline-flex;gap:3px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:2px 6px">原価+利益率'
           +'<input type="number" step="0.5" value="'+mSel+'" data-rdmargin="'+esc(id)+'" style="width:52px;padding:2px 5px;border:1px solid var(--line);border-radius:5px;font-size:.72rem">%'
           +'<span id="rdmprice-'+esc(id)+'">'+(pm!=null?('→ $'+pm.toFixed(2)):'（仕入れ値未設定）')+'</span>'
@@ -3101,7 +3148,77 @@ function reDraftApplyMargin(id){
   if(!(cost>0)){showToast('仕入れ値が未設定のため逆算できません');return;}
   var p=reCalcPriceForMargin(cost,n('shipUS'),12.5,m);
   if(p==null){showToast('この利益率では計算できません（手数料合計が100%を超えます）');return;}
-  reDraftSetPrice(id,p,'margin');
+  window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+  reDraftSave(id,{price_usd:Math.round(p*100)/100,price_source:'margin',margin_pct:Number(m)}).then(function(ok){if(ok)reRenderCands();});
+}
+// ▼ v1.9.106: 赤字ガード用の補助
+function reDraftSrcLabel(src){
+  return ({b:'B案・赤字でない最安',a:'A案・利益5%↑最安',auto:'A案',bench:'📌基準ライバル',median:'実売中央値',margin:'原価+利益率',margin_fallback:'原価+5%（ライバルなし）',manual:'手入力'})[String(src||'')]||String(src||'未設定');
+}
+function reDraftChipClick(id,price,src){return 'reDraftSetPrice(\''+esc(id)+'\','+Number(price)+',\''+src+'\')';}
+function reDraftPinA(id){
+  var inf=reEstInfo(id,'a');
+  if(!inf.rival||!reRivalUrl(inf.rival)){showToast('A案の根拠ライバルがありません');return;}
+  var u=reRivalUrl(inf.rival),p=inf.est;
+  window.__reDraftOpen=window.__reDraftOpen||{};window.__reDraftOpen[String(id)]=true;
+  reReviewUpdate(id,{bench_rival_url:u}).then(function(){return reDraftSave(id,{price_usd:Math.round(p*100)/100,price_source:'bench'});}).then(function(){showToast('📌 A案ライバルを基準に固定しました');reRenderCands();});
+}
+function reDraftDesired(id,d){
+  // 追従対象の価格を算出。追従しない場合は null。{price,src} を返す
+  var src=String(d.price_source||'');
+  if(src==='manual'||src==='bench'||src==='median')return null;
+  var rvw=(window.RE_REVIEWS||{})[String(id)]||{};
+  if(rvw.bench_rival_url){var ib=reEstInfo(id,'a');if(ib.mode==='bench')return null;}
+  var cost=reDraftCost(id,rvw);
+  if(src==='margin'){if(!(cost>0))return null;var pm=reCalcPriceForMargin(cost,n('shipUS'),12.5,d.margin_pct!=null?d.margin_pct:n('targetMargin'));return pm!=null?{price:pm,src:'margin'}:null;}
+  if(src==='a'){var ia=reEstInfo(id,'a');if(ia.est!=null)return {price:ia.est,src:'a'};}
+  var ibb=reEstInfo(id,'b');
+  if(ibb.est!=null)return {price:ibb.est,src:'b'};
+  var ia2=reEstInfo(id,'a');
+  if(ia2.est!=null)return {price:ia2.est,src:'a'};
+  if(cost>0){var p5=reCalcPriceForMargin(cost,n('shipUS'),12.5,5);if(p5!=null)return {price:p5,src:'margin_fallback'};}
+  return null;
+}
+function reDraftPriceBadge(id,d){
+  var lp=reLiveProfit(id,Number(d.price_usd));
+  var src=String(d.price_source||'');
+  if(src===''||src==='auto'){var wd=reDraftDesired(id,d);if(wd)src=wd.src;}
+  var b=function(txt,bg,fg,bd,tip){return '<span style="font-size:.7rem;border-radius:5px;padding:1px 7px;background:'+bg+';color:'+fg+';border:1px solid '+bd+'" title="'+esc(tip||'')+'">'+txt+'</span>';};
+  if(!lp)return b('⚪ 仕入れ値未設定（赤字判定不可）','#f4f2ec','#666','#ddd','仕入れ候補を登録すると利益・赤字判定が有効になります');
+  if(lp.profit<0)return b('🔴 赤字（承認ブロック）','#fdecec','#a33','#eec','この価格では赤字です。承認できません');
+  var noRival=(reEstInfo(id,'b').est==null&&reEstInfo(id,'a').est==null);
+  var tail=' 利益率'+lp.margin.toFixed(1)+'%'+(lp.margin<5?'（5%未満）':'');
+  if(noRival)return b('🟡 ライバルなし・'+reDraftSrcLabel(src)+tail,'#fdf3e0','#8a5b00','#ecd9ae','赤字でない適格ライバルが無いため、ライバル基準ではありません');
+  if(src==='manual'||src==='bench'||src==='median')return b('🟢 '+reDraftSrcLabel(src)+'（固定・追従なし）'+tail,'#eef7f0','#2e7d4f','#bfe0cb','あなたが指定した価格。仕入れ値が変わっても自動では動きません');
+  return b('🟢 '+reDraftSrcLabel(src)+'（仕入れ値に追従）'+tail,'#eef7f0','#2e7d4f','#bfe0cb','仕入れ最安値やライバルの変化に合わせて自動で更新されます');
+}
+async function reDraftAutoFollow(){
+  // 下書き(draft)のうち追従対象（a/b/margin/margin_fallback/未設定）を一括で最新価格に更新。差が無ければ書かない（ループ防止）
+  if(window.__reAFbusy||!AUTO_DIR)return;
+  var patches={};
+  Object.keys(window.RE_DRAFTS||{}).forEach(function(id){
+    var d=window.RE_DRAFTS[id];if(!d||(d.status||'draft')!=='draft')return;
+    var want=reDraftDesired(id,d);if(!want)return;
+    var np=Math.round(want.price*100)/100;
+    var cur=(d.price_usd!=null?Number(d.price_usd):null);
+    if(cur!=null&&Math.abs(cur-np)<0.005&&String(d.price_source||'')===want.src)return;
+    patches[id]={price_usd:np,price_source:want.src,price_followed_at:new Date().toISOString()};
+  });
+  var ids=Object.keys(patches);if(!ids.length)return;
+  window.__reAFbusy=true;
+  try{
+    var cur2=await autoReadJSON('listing_drafts.json')||{drafts:{}};
+    if(!cur2.drafts)cur2.drafts={};
+    ids.forEach(function(id){var rec=cur2.drafts[id]||{};Object.keys(patches[id]).forEach(function(k){rec[k]=patches[id][k];});cur2.drafts[id]=rec;});
+    cur2.updated_at=new Date().toISOString();
+    if(!reLossGuard('ss_guard_drafts_v1',Object.keys(cur2.drafts).length,'出品ドラフト(listing_drafts)'))return;
+    var fh=await AUTO_DIR.getFileHandle('listing_drafts.json',{create:true});
+    var w=await fh.createWritable();await w.write(JSON.stringify(cur2,null,2));await w.close();
+    window.RE_DRAFTS=cur2.drafts;
+    showToast('💹 ドラフト売価を仕入れ値/ライバルに追従して更新（'+ids.length+'件）');
+    reRenderCands();
+  }catch(e){}
+  finally{window.__reAFbusy=false;}
 }
 function rePollDraftsStart(){
   // 📦直後〜生成完了までの自動反映（60秒間隔・待ちが無ければ即return・リサーチタブ表示中のみ読む）
@@ -3247,31 +3364,42 @@ function reRivalBlock(c,rv){
   if(rr){
     var kwSrc={rival_kw:'手動上書き',sourcing_kw:'仕入れKW流用',title_pn:'タイトル型番',part_numbers:'型番',title:'タイトル'}[rr.kw_source]||rr.kw_source||'';
     var buSel=(info.mode==='bench'&&info.rival)?reRivalUrl(info.rival):null;
+    // v1.9.106: 価格帯フィルタの根拠を価格承認タブと同型で表示（backendが候補ごとに band_center_usd 等を出す前提・無ければ従来表示）
+    var bandTipTxt=(rr.band_center_usd!=null)?('基準$'+Number(rr.band_center_usd).toFixed(2)+'の'+(rr.band_low_ratio!=null?rr.band_low_ratio:0.5)+'〜'+(rr.band_high_ratio!=null?rr.band_high_ratio:2.0)+'倍（$'+Number(rr.band_low_usd!=null?rr.band_low_usd:rr.band_center_usd*(rr.band_low_ratio!=null?rr.band_low_ratio:0.5)).toFixed(2)+'〜$'+Number(rr.band_high_usd!=null?rr.band_high_usd:rr.band_center_usd*(rr.band_high_ratio!=null?rr.band_high_ratio:2.0)).toFixed(2)+'）の範囲外'+(rr.band_anchor?('・基準の根拠: '+({tier_a:'確認済み同一品の中央値',tier_b:'自動判定含む中央値',sold_median:'Sold検証の実売中央値'}[rr.band_anchor]||rr.band_anchor)):'')):'';
+    var bandNote='';
+    if(rr.band_all_excluded){
+      var bn=(rr.rivals||[]).length;
+      bandNote=bn===0?'':('<div style="margin:5px 0;padding:6px 9px;border:1px solid #ecd9ae;background:#fdf6e6;border-radius:7px;font-size:.74rem;color:#8a5b00">⚠️ 価格帯フィルタで全'+bn+'件が範囲外だったため、フィルタ無効で全件表示しています。基準額自体がズレている可能性があります（正しいライバルを📌基準にすると次回から改善されます）'+(bandTipTxt?('<br><small>'+esc(bandTipTxt.replace(/の範囲外/,'が今回の範囲'))+'</small>'):'')+'</div>');
+    }else if(rr.band_anchor==='none'){
+      bandNote='<div class="muted" style="margin:4px 0;font-size:.72rem">ℹ️ 価格帯の基準額なし（確認済み同一品もSold検証もまだ無いため、価格帯フィルタは未適用）。Sold検証を済ませると基準額が付きます</div>';
+    }
     var rows=(rr.rivals||[]).slice().sort(function(a,b){return (reRivalPrice(a)||9e9)-(reRivalPrice(b)||9e9);}).map(function(r){
       var p=reRivalPrice(r);
       var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
       var bx=!!r.band_excluded||(r.verdict==='excluded_band');
       var gm=!!r.grade_mismatch;  // v1.9.95: 鑑定/グレード違い（backendのグレード整合フィルタ）
+      var vm=!!r.version_mismatch;  // v1.9.106: バージョン違い（backendのバージョン整合フィルタ）
       var sm=(r.same_item==='same')||(r.verdict==='match');
       var ex=!!r.user_excluded;
       var elig=reRivalEligible(r,id);
       var u=reRivalUrl(r);
       var on=(buSel!=null&&u===buSel);
-      var lp=(p!=null&&!ex&&!dx&&!bx&&!gm)?reLiveProfit(id,Math.round((p-0.10)*100)/100):null;
+      var lp=(p!=null&&!ex&&!dx&&!bx&&!gm&&!vm)?reLiveProfit(id,Math.round((p-0.10)*100)/100):null;
       var small;
       if(ex)small='🚫あなたが除外中';
       else if(gm)small='⛔ 鑑定/グレード違い（別市場・基準指定は可）';
+      else if(vm)small='⛔ バージョン違い'+(r.version_detail?('（'+esc(String(r.version_detail))+'）'):'')+'（別版・基準指定は可）';
       else if(dx)small='⛔ 別商品判定';
-      else if(bx)small='⛔ 価格帯の範囲外';
+      else if(bx)small='⛔ 価格帯の範囲外'+(bandTipTxt?('：'+bandTipTxt):'');
       else if(lp)small=(lp.margin>=5?('✅A適格（この価格基準なら利益+¥'+Math.round(lp.profit).toLocaleString()+'）'):(lp.profit>0?('△利益薄（+¥'+Math.round(lp.profit).toLocaleString()+'・5%未満）'):('▲赤字（¥'+Math.round(lp.profit).toLocaleString()+'）')));
       else small=(elig?'✅A適格':'— 適格外');
-      if(on)small='📌 基準ライバル（この価格−$0.10で計算）'+(dx||bx||gm?'／'+small:'');
-      return '<label class="rival'+(on?' picked':'')+((dx||bx||ex||gm)&&!on?' banded':'')+'" style="grid-template-columns:auto 64px 1fr auto auto">'
+      if(on)small='📌 基準ライバル（この価格−$0.10で計算）'+(dx||bx||gm||vm?'／'+small:'');
+      return '<label class="rival'+(on?' picked':'')+((dx||bx||ex||gm||vm)&&!on?' banded':'')+'" style="grid-template-columns:auto 64px 1fr auto auto"'+(bx&&bandTipTxt?(' title="'+esc(bandTipTxt)+'"'):'')+'>'
         +'<input type="radio" name="rebench-'+esc(id)+'" data-rbench="'+esc(id)+'" data-rurl="'+esc(encodeURIComponent(u))+'" '+(on?'checked':'')+(ex||!u?' disabled':'')+'>'
         // v1.9.92: 画像クリック=eBayページを開く（a要素はlabelのラジオ発火対象外なので基準選択は起きない）
         +(r.image_url?(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" title="eBayで開く"><img src="'+esc(r.image_url)+'" loading="lazy" alt=""></a>'):('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">')):'<div class="noimg">画像なし</div>')
-        +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
-        +'<span>'+(gm?'<span class="bandtag">グレード違い</span>':'')+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag">範囲外</span>':'')
+        +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm&&!gm&&!vm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
+        +'<span>'+(gm?'<span class="bandtag">グレード違い</span>':'')+(vm?'<span class="bandtag" title="'+esc(String(r.version_detail||'バージョン違い'))+'">バージョン違い</span>':'')+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag"'+(bandTipTxt?(' title="'+esc(bandTipTxt)+'"'):'')+'>範囲外</span>':'')
         +(r.shipping_known===false?'<span class="bandtag" title="この出品はAPIで送料が取得できず本体価格のみで計算しています。実際は送料が上乗せされる可能性があります">+送料不明</span>':'')
         +(function(){
           // v1.9.97: 価格の内訳ツールチップ（本体+送料・スキャン時点値）
@@ -3286,6 +3414,7 @@ function reRivalBlock(c,rv){
       +'<input type="text" value="'+esc(rv.rival_kw!=null?rv.rival_kw:'')+'" data-rrkw="'+esc(id)+'" placeholder="eBay検索KW上書き（翌朝の再スキャンから反映）" style="min-width:230px;padding:3px 7px;border:1px solid var(--line);border-radius:6px;font-size:.75rem">'
       +'</div>'
       +(info.gone?'<div style="margin-top:5px;padding:5px 8px;border:1px solid #ecd9ae;background:#fdf3e0;border-radius:7px;font-size:.75rem;color:#8a5b00">⚠️ 前回の基準ライバルは今回のスキャンで見つかりませんでした（売り切れ・出品終了の可能性）。自動（適格最安）に戻しています</div>':'')
+      +bandNote
       +'<label class="rauto'+(info.mode!=='bench'?' picked':'')+'"><input type="radio" name="rebench-'+esc(id)+'" data-rbench="'+esc(id)+'" data-rurl="" '+(info.mode!=='bench'?'checked':'')+'>自動（適格ライバルの最安を基準にする）</label>'
       +rows;
   }
