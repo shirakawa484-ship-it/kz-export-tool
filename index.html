@@ -263,6 +263,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabPa .rival.picked,#tabRe .rival.picked{border-color:var(--accent);background:#eef3ff;}
 #tabPa .rival.banded,#tabRe .rival.banded{opacity:.55;background:#f7f7f8;}
 #tabPa .rival.banded.picked,#tabRe .rival.banded.picked{opacity:1;border-color:var(--accent);background:#eef3ff;}
+#tabPa .vbadge{font-size:.68rem;color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap;}
 #tabPa .rival .bandtag,#tabRe .rival .bandtag{font-size:.68rem;color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:1px 5px;margin-left:4px;white-space:nowrap;}
 #tabPa .bandallnote{margin:6px 0;padding:7px 10px;border:1px solid #ecd9ae;background:#fdf6e6;border-radius:7px;font-size:.8rem;color:#7a5200;}
 #tabPa .rkwrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 8px;padding:7px 9px;border:1px dashed var(--line);border-radius:7px;background:#fafbfc;font-size:.82rem;}
@@ -291,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.106</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.107</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1112,7 +1113,8 @@ function cardHtml(it,idx){
   var t=stockType(it);
   if(keywords[idx]===undefined)keywords[idx]=extractKw(it.title||it.name);
   var isActive=(activeIdx===idx);
-  var stLabel=(t==='out'?'在庫なし':(t==='in'?'在庫あり':'要確認（URL未設定等）'));
+  var isWait=(t==='err')&&(((it.urls||[]).length>0)||((addUrls[idx]||[]).length>0));  // v1.9.107: URLは登録済み＝StockSyncersの再走査待ち（真の要確認と区別）
+  var stLabel=(t==='out'?'在庫なし':(t==='in'?'在庫あり':(isWait?'🔗URL登録済み・再走査待ち':'要確認（URL未設定等）')));
   var hidden=(function(){try{return JSON.parse(localStorage.getItem('ss_hideurl_v1')||'{}');}catch(e){return {};}})()[String(it.id)]||[];
   var existing=(it.urls||[]).filter(function(u){return hidden.indexOf(u)<0;}).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">仕入'+(i+1)+'</a><button class="del" title="この仕入れ先を除外（次回の保存でスプシからも削除）" onclick="hideExistingUrl('+idx+',\''+esc(u)+'\')">×</button>';}).join(' ');
   var added=(addUrls[idx]||[]).map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener">追加'+(i+1)+'</a> <button class="del" onclick="delAddUrl('+idx+','+i+')">×</button>';}).join(' ');
@@ -1124,7 +1126,7 @@ function cardHtml(it,idx){
     })()+(sortMode==='mainte'&&mainteInfo(it).suspect
       ?(isPMainted(it)?'<span class="maintedbadge" title="この計画の警告後に仕入れ値を編集済み。次回の計画再生成に反映されます（警告が残れば再浮上します）">売価メンテ済み</span>':'')
       :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':(isTouchedId(it.id)?'<span class="maintedbadge" title="編集済み。保存ボタンで確定されます">メンテ済み（保存待ち）</span>':'')))+(it.manual_cost_override?'<span class="maintedbadge" title="仕入れ元URLの在庫判定は「なし」ですが、手入力原価で価格メンテを継続中のため在庫あり扱いにしています">手入力原価</span>':'')+(isSourceDead(it)?'<span class="maintedbadge" style="background:#fdf3e0;color:#8a5b00;border-color:#ecd9ae" title="eBayには実在庫（残'+it.ebay_quantity_available+'個）があるため在庫あり扱いですが、登録済みの仕入れ元は在庫切れです。売れたら次の補充先がない状態なので、余裕のある時に仕入れ元の追加を検討してください">仕入れ元切れ（eBay残'+it.ebay_quantity_available+'）</span>':'')+'</div>'+
-    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'">'+stLabel+'</span>'+
+    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'"'+(isWait?' style="background:#fdf6e6;color:#8a5b00;border:1px solid #ecd9ae" title="仕入れURLはシートに登録済みです。StockSyncersの再走査と毎時の在庫更新で、最大1時間ほどで在庫ありに変わります。操作は不要です"':'')+'>'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
     (isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':(stockType(it)==='out'?'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>':'<button class="endbtn subtle" onclick="endListing('+idx+')" title="この商品の扱いをやめる：eBayの出品を終了し、スプシの行も削除します（取り消し不可）">終了…</button>'))+'</div>'+
     '<div class="searchrow">'+
@@ -1401,7 +1403,8 @@ function renderAll(){
   _maintedAnchorDone=false;
   var suffix=query?('（絞り込み中・非表示'+hidden+'件）'):'';
   document.getElementById('outChip').textContent='在庫切れ '+groups.out.length;
-  document.getElementById('errChip').textContent='要確認 '+groups.err.length;
+  var waitN=0;groups.err.forEach(function(i2){var it2=ITEMS[i2];if(((it2.urls||[]).length>0)||((addUrls[i2]||[]).length>0))waitN++;});  // v1.9.107
+  document.getElementById('errChip').textContent='要確認 '+(groups.err.length-waitN)+(waitN?('（🔗待ち'+waitN+'）'):'');
   document.getElementById('inChip').textContent='在庫あり '+groups.in.length;
   // 件数＝「未対応の⚠️」のみ（対応済み・絞り込み非表示分は数えない）。画面に見える作業残と一致させる
   (function(){var n=0;ITEMS.forEach(function(it){if(matchQuery(it)&&mainteInfo(it).suspect&&!isPMainted(it))n++;});
@@ -1411,7 +1414,7 @@ function renderAll(){
   var so=document.getElementById('secOut');
   so.innerHTML='<h2>在庫切れ（補充が必要） '+groups.out.length+'件'+suffix+'</h2>'+(groups.out.length?renderCards(groups.out):'<div class="empty">'+(query?'絞り込みに該当なし':'在庫切れはありません')+'</div>');
   var se=document.getElementById('secErr');
-  se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+groups.err.length+'件'+suffix+'</h2>'+(groups.err.length?renderCards(groups.err):'<div class="empty">該当なし</div>');
+  se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+(groups.err.length-waitN)+'件'+(waitN?('　<small style="font-weight:normal;color:#8a5b00">＋🔗URL登録済み・再走査待ち '+waitN+'件（最大1時間で自動反映）</small>'):'')+suffix+'</h2>'+(groups.err.length?renderCards(groups.err):'<div class="empty">該当なし</div>');
   var si=document.getElementById('secIn');
   // 開閉状態（2026-08-02改）：手動の開閉は保持しつつ、まとめ取り候補（pending）を持つ在庫あり商品が
   // ある間は自動で開く（在庫あり商品の売価メンテで、メンテ中の商品が折りたたみの中に消えて
@@ -1490,13 +1493,15 @@ function exportCosts(){
     Object.keys(rm).forEach(function(id){rm[id]=rm[id].filter(function(u,ix){return rm[id].indexOf(u)===ix;});});
     if(Object.keys(rm).length)out.remove_source_urls=rm;
   })();
-  var n=0, skipped=[];
+  var n=0, skipped=[], urlOnly=0;
   ITEMS.forEach(function(it,i){
     var arr=supplies[i]||[];
-    if(!arr.length){skipped.push(it.name.slice(0,20));return;}
+    var aus=(addUrls[i]||[]).filter(function(u){return u&&!arr.some(function(s2){return s2.url===u;});});  // v1.9.107: 手動追加URL（価格なし）も収録。syncurlsでC-Gへ届き、mtime変化でdiff再計画が発火する
+    if(!arr.length&&!aus.length){skipped.push(it.name.slice(0,20));return;}
+    if(!arr.length)urlOnly++;
     var mn=minCost(i);
     var w=resolveWeight(it);
-    out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}),
+    out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}).concat(aus.map(function(u){return {price:null,url:u};})),
       weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
       ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined),
       rival_query:(_rkw[String(it.id)]!==undefined?_rkw[String(it.id)].q:undefined),
@@ -1509,7 +1514,7 @@ function exportCosts(){
     n++;
   });
   if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
-  var msg='仕入れ値・重量を書き出しました（'+n+'件）';
+  var msg='仕入れ値・重量を書き出しました（'+n+'件'+(urlOnly?('・うちURLのみ'+urlOnly+'件'):'')+'）';
   if(skipped.length)msg+='。候補なしのため未収載：'+skipped.length+'件';
   (async function(){
     var saved=false;
@@ -2046,7 +2051,7 @@ function render(){
         <div class="title">${it.title}</div>
         ${it.price_drop_suspect?`<div class="dropwarn" style="${(it.below_breakeven_pct||0)>=75?'background:#fbeaea;border-color:#e5b8b8;color:#8c2f2f':''}">⚠️ ライバルの${it.below_breakeven_pct}%があなたの損益分岐点を下回っています。仕入れ相場が下がった可能性 → 在庫メンテタブでメルカリ相場を確認し、安い候補があれば登録し直してください${it.days_to_renewal!=null?`（再出品まで${it.days_to_renewal}日）`:""}</div>`:""}
         ${it.benchmark_dropped?`<div class="dropwarn">📉 前回の基準ライバルが ${money(it.benchmark_dropped.prev_usd)} → ${money(it.benchmark_dropped.now_usd)} に値下げしています</div>`:""}
-        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.days_to_renewal!=null?` ｜ <span class="renew${it.days_to_renewal<=7?' soon':''}">再出品まで${it.days_to_renewal}日</span>`:""}<a class="goinv" href="javascript:void(0)" onclick="goInvItem('${it.item_id}')">この商品の在庫メンテへ ↗</a>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>${it.cost_source==='manual'?'<span class="manualbadge">手入力</span>':''}`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
+        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.days_to_renewal!=null?` ｜ <span class="renew${it.days_to_renewal<=7?' soon':''}">再出品まで${it.days_to_renewal}日</span>`:""}${(Array.isArray(it.changed_reason)&&it.changed_reason.indexOf('version')>=0)?`<span class="vbadge" title="版チェック（--version-check）でバージョン違いのライバルが除外され、価格候補が変わった項目です">版チェック由来</span>`:``}${it.version_price_capped?`<span class="vbadge" title="版チェック後の同一品確認が2件未満のため、推奨価格を現在価格でキャップ（上げ禁止・下げは可）">上限=現在価格</span>`:``}<a class="goinv" href="javascript:void(0)" onclick="goInvItem('${it.item_id}')">この商品の在庫メンテへ ↗</a>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>${it.cost_source==='manual'?'<span class="manualbadge">手入力</span>':''}`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
           const lc=it.last_choice; if(!lc||!lc.choice) return "";
           const lcC=(lc.c_margin!=null?lc.c_margin:lc.cpct)||"5";
           const lcM=(lc.manual_price_usd!=null?lc.manual_price_usd:lc.manual);
@@ -2455,8 +2460,10 @@ async function autoLoadAll(verbose){
   }catch(e){}
   var st=await autoReadJSON('status.json');
   if(st){ var t=st.generated_at? new Date(st.generated_at).toLocaleString('ja-JP'):'不明';
-    if(st.error){ setAutoStatus('⚠️ 今朝の計画生成に失敗（'+t+'）',false); }
-    else setAutoStatus('接続中｜最終生成 '+t,true); }
+    var invTxt='';  // v1.9.107: 在庫更新（毎時のSheets-only再生成）をフル生成と分けて表示
+    try{if(st.inventory_generated_at){var ivd=new Date(st.inventory_generated_at);var old6=(Date.now()-ivd.getTime())>6*3600*1000;invTxt='｜在庫更新 '+ivd.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})+(old6?'⚠️6時間超前（毎時ジョブ停止の可能性）':'');}}catch(e2){}
+    if(st.error){ setAutoStatus('⚠️ 今朝の計画生成に失敗（'+t+'）'+invTxt,false); }
+    else setAutoStatus('接続中｜最終生成 '+t+invTxt,true); }
   await refreshOpsStatus();
   if(typeof render==='function'&&DATA&&DATA.items) render();
   if(typeof renderAll==='function') renderAll();
