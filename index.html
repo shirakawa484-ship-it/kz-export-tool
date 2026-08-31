@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.107</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.108</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -554,6 +554,10 @@ loop();})();" onclick="return false" title="ブックマークバーにドラッ
       <option value="pass">✅合格のみ</option>
       <option value="fail">✖不合格のみ</option>
       <option value="none">未検証のみ</option>
+    </select>
+    <select id="reSortSel" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:.82rem" title="🔁再販数＝同一品ライバルの「〇個販売済み」の最大値（Browse APIのestimatedSoldQuantity・夜間スキャンで取得）。回転の良い商品から検証・仕入れするための並び">
+      <option value="">新着順</option>
+      <option value="sold">🔁再販数の多い順</option>
     </select>
     <span id="reListCount" style="font-size:.8rem;font-weight:700;color:#4a5d8f"></span>
     <span id="reCandInfo" class="muted" style="font-size:.8rem"></span>
@@ -2620,7 +2624,20 @@ function reRenderCands(){
     if(hideD&&isDis)return false;
     if(q&&String(c.title||'').toLowerCase().indexOf(q)<0&&String(c.item_id||'').indexOf(q)<0&&String(c.seller_id||'').toLowerCase().indexOf(q)<0)return false;
     return true;
-  }).sort(function(a,b){return String(b.first_seen||'').localeCompare(String(a.first_seen||''));});
+  });
+  var sortSel=(document.getElementById('reSortSel')||{}).value||'';
+  if(sortSel==='sold'){
+    list.sort(function(a,b){
+      var qa=reSoldMax(a.item_id),qb=reSoldMax(b.item_id);
+      if(qa==null&&qb==null)return String(b.first_seen||'').localeCompare(String(a.first_seen||''));
+      if(qa==null)return 1;
+      if(qb==null)return -1;
+      if(qb!==qa)return qb-qa;
+      return String(b.first_seen||'').localeCompare(String(a.first_seen||''));
+    });
+  }else{
+    list.sort(function(a,b){return String(b.first_seen||'').localeCompare(String(a.first_seen||''));});
+  }
   var srcLabel={new_listing:['新規出品','#e8f5ec;color:#1d5c2f'],possible_sold:['売れた可能性','#fdf3e0;color:#8a5b00'],sold_confirmed:['Sold確定','#fde8e8;color:#8a1f1f'],seller_scan:['巡回','#f0f1f3;color:#555']};
   document.getElementById('reCandInfo').textContent='候補 '+list.length+'件（全'+RE_CANDS.length+'件・出品済み'+RE_CANDS.filter(function(c){return c.already_listed||(((window.RE_DRAFTS||{})[String(c.item_id)]||{}).status==='listed');}).length+'件）';
   // ▼ v1.9.91: ドラフト状況でグループ化——📝下書き編集中を先頭、✅承認済み(出品待ち)は末尾へ沈める。
@@ -2651,6 +2668,7 @@ function reRenderCands(){
       +'<div style="flex:1;min-width:0"><a href="'+esc(c.url||'#')+'" target="_blank" rel="noopener" style="font-size:.88rem">'+esc(c.title||'')+'</a>'
       +'<div class="muted" style="font-size:.75rem;margin-top:2px">'+esc(c.seller_id||'')+' ・ 初検出 '+String(c.first_seen||'').slice(0,10)
       +(c.part_numbers&&c.part_numbers.length?' ・ 型番 '+esc(c.part_numbers.join(', ')):'')
+      +(function(){var sq=reSoldMax(String(c.item_id));return (sq!=null&&sq>0)?(' ・ <b style="color:#8a5b00" title="同一品ライバルの「〇個販売済み」の最大値。回転の良さの指標">🔁再販 '+sq+'</b>'):'';})()
       +(c.already_listed?' ・ <b style="color:#1d5c2f">出品済み</b>':'')+'</div></div>'
       +rvBadge
       +'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:'+sl[1]+';white-space:nowrap">'+sl[0]+'</span>'
@@ -2672,6 +2690,13 @@ function reShowMore(){RE_SHOWN+=100;reRenderCands();}
 //   ライバル表示は価格承認タブの部品を本家ごと移植（画像・ホバーズーム・判定バッジ・eBayリンク）。
 //   research_rivals.jsonはバックエンド生成。ブラウザが書くのは user_excluded のみ（責任分界）
 function reRivalRec(id){return (window.RE_RIVALS||{})[String(id)]||null;}
+function reSoldMax(id){
+  // v1.9.108: ライバルの再販数（eBayの「〇個販売済み」）。backendのrival_sold_max優先、無ければライバル行sold_qtyの最大（硬い除外は対象外）
+  var rr=reRivalRec(id);if(!rr)return null;
+  if(rr.rival_sold_max!=null)return Number(rr.rival_sold_max);
+  var mx=null;(rr.rivals||[]).forEach(function(r){if(reRivalHardExcluded(r))return;var q=(r.sold_qty!=null?Number(r.sold_qty):null);if(q!=null&&(mx===null||q>mx))mx=q;});
+  return mx;
+}
 function reRivalPrice(r){var v=(r.total_usd!=null?r.total_usd:r.price_usd);return (v!=null&&isFinite(Number(v)))?Number(v):null;}
 function reRivalUrl(r){return r.item_url||r.url||'';}
 function reLiveProfit(id,priceUsd){
@@ -3405,7 +3430,7 @@ function reRivalBlock(c,rv){
         +'<input type="radio" name="rebench-'+esc(id)+'" data-rbench="'+esc(id)+'" data-rurl="'+esc(encodeURIComponent(u))+'" '+(on?'checked':'')+(ex||!u?' disabled':'')+'>'
         // v1.9.92: 画像クリック=eBayページを開く（a要素はlabelのラジオ発火対象外なので基準選択は起きない）
         +(r.image_url?(u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" title="eBayで開く"><img src="'+esc(r.image_url)+'" loading="lazy" alt=""></a>'):('<img src="'+esc(r.image_url)+'" loading="lazy" alt="">')):'<div class="noimg">画像なし</div>')
-        +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm&&!gm&&!vm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+'</small></span>'
+        +'<span class="rt">'+esc(String(r.title||''))+'<small>'+(sm&&!gm&&!vm?'🔗同一品 ':'')+small+(r.seller?('／'+esc(String(r.seller))):'')+(r.sold_qty!=null&&Number(r.sold_qty)>0?('／<b style="color:#8a5b00">🔁'+Number(r.sold_qty)+'個販売</b>'):'')+'</small></span>'
         +'<span>'+(gm?'<span class="bandtag">グレード違い</span>':'')+(vm?'<span class="bandtag" title="'+esc(String(r.version_detail||'バージョン違い'))+'">バージョン違い</span>':'')+(dx?'<span class="bandtag">別商品</span>':'')+(bx?'<span class="bandtag"'+(bandTipTxt?(' title="'+esc(bandTipTxt)+'"'):'')+'>範囲外</span>':'')
         +(r.shipping_known===false?'<span class="bandtag" title="この出品はAPIで送料が取得できず本体価格のみで計算しています。実際は送料が上乗せされる可能性があります">+送料不明</span>':'')
         +(function(){
@@ -4291,15 +4316,16 @@ async function reFlushPendingReviews(){
 }
 (function(){
   // ▼ フィルタ状態の保存・復元（v1.9.76）: 別タブ・再読込・仕入れ探索から戻っても「合格のみ」等が維持される
-  function saveF(){try{var f={q:document.getElementById('reSearch').value,hl:document.getElementById('reHideListed').checked,hd:document.getElementById('reHideDismissed').checked,src:document.getElementById('reSourceFilter').value,vf:document.getElementById('reVerdictFilter').value};(window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_filters_v1',JSON.stringify(f));}catch(e){}}
+  function saveF(){try{var f={sort:(document.getElementById('reSortSel')||{}).value||'',q:document.getElementById('reSearch').value,hl:document.getElementById('reHideListed').checked,hd:document.getElementById('reHideDismissed').checked,src:document.getElementById('reSourceFilter').value,vf:document.getElementById('reVerdictFilter').value};(window.ssSafeSet||function(k,v){localStorage.setItem(k,v);return true;})('ss_re_filters_v1',JSON.stringify(f));}catch(e){}}
   window.reRestoreFilters=function(){try{var f=JSON.parse(localStorage.getItem('ss_re_filters_v1')||'null');if(!f)return;
     document.getElementById('reSearch').value=f.q||'';
     document.getElementById('reHideListed').checked=(f.hl!==false);
     document.getElementById('reHideDismissed').checked=(f.hd!==false);
     document.getElementById('reSourceFilter').value=f.src||'';
     document.getElementById('reVerdictFilter').value=f.vf||'';
+    if(document.getElementById('reSortSel'))document.getElementById('reSortSel').value=f.sort||'';
   }catch(e){}};
-  ['reSearch','reHideListed','reHideDismissed','reSourceFilter','reVerdictFilter'].forEach(function(id){
+  ['reSearch','reHideListed','reHideDismissed','reSourceFilter','reVerdictFilter','reSortSel'].forEach(function(id){
     var e=document.getElementById(id);if(!e)return;
     e.addEventListener(id==='reSearch'?'input':'change',function(){RE_SHOWN=100;saveF();clearTimeout(window.__reQT);window.__reQT=setTimeout(reRenderCands,200);});
   });
