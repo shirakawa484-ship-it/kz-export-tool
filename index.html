@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.108</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.109</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -969,6 +969,8 @@ function resolveWeight(it){
   if(w&&w.wc!==undefined)return {cat:w.cat||'custom',wc:w.wc,manual:true};
   var k=detectCategory(it.title||it.name);
   if(k){var c=catByKey(k);return {cat:k,wc:c.wc,manual:false};}
+  var lr=(window.LISTING_COSTS||{})[String(it.id)];  // v1.9.109: 出品時に確定した重量区分を未判定時のフォールバックに
+  if(lr&&lr.weight_class!=null&&SHIP_OC[Number(lr.weight_class)]!=null)return {cat:'listing',wc:Number(lr.weight_class),manual:false};
   return {cat:null,wc:null,manual:false}; // 未判定
 }
 function shipLabelW(w){
@@ -1695,6 +1697,19 @@ function invImportCosts(data){
   saveSupplies(); renderAll();
   return '仕入れ候補を取り込みました（'+hit+'商品）'+(miss?'。在庫一覧に無い'+miss+'商品分は未反映':'');
 }
+function invApplyListingCosts(){
+  // v1.9.109: costs_from_listings の candidates を、ユーザー登録（localStorage）が空の商品にだけメモリ上で補完する。
+  // 保存（exportCosts）すると costs_from_inventory に昇格する＝出品時の実コストなので昇格してよいデータ。
+  var lcs=window.LISTING_COSTS||{};var n=0;
+  ITEMS.forEach(function(it,i){
+    var rec=lcs[String(it.id)];if(!rec)return;
+    if((!supplies[i]||!supplies[i].length)&&Array.isArray(rec.candidates)&&rec.candidates.length){
+      supplies[i]=rec.candidates.filter(function(c){return c&&(c.price!=null||c.url);}).map(function(c){return {price:(c.price!=null?Number(c.price):null),url:String(c.url||'')};});
+      n++;
+    }
+  });
+  if(n)renderAll();
+}
 function invLoadInventory(data){
   var ni=(data.items||[]).map(function(r){return {name:String(r.name||r.title||''), title:r.title||null, id:String(r.item_id), urls:(r.source_urls||[]), stock:String(r.stock_status||''), method:String(r.search_method||'OR'), image_url:r.image_url||null, not_found_on_ebay:!!r.not_found_on_ebay, current_price_usd:(r.current_price_usd!=null?r.current_price_usd:null), days_to_renewal:(r.days_to_renewal!=null?r.days_to_renewal:null), listing_start:r.listing_start||null, manual_cost_override:!!r.manual_cost_override, ebay_quantity_available:(r.ebay_quantity_available!=null?Number(r.ebay_quantity_available):null)};});
   if(!ni.length){alert('在庫データが空です');return;}
@@ -1704,7 +1719,7 @@ function invLoadInventory(data){
   activeIdx=null;
   (function(){var actId=localStorage.getItem(LS_ACTIVE);
     if(actId){ni.forEach(function(it,i){if(String(it.id)===String(actId))activeIdx=i;});}})();
-  restoreAll();cleanupEndReq();reconcileStockTransitions();renderAll();
+  restoreAll();invApplyListingCosts();cleanupEndReq();reconcileStockTransitions();renderAll();
   (function(){var invSlim=ni.map(function(r){var c={};for(var kk in r){if(kk!=='image_url')c[kk]=r[kk];}return c;});
     window.ssSafeSet(LS_INV,JSON.stringify({saved_at:new Date().toISOString(),items:invSlim}));})();
   window.ITEM_IMAGES=window.ITEM_IMAGES||{};ni.forEach(function(r){if(r.image_url)window.ITEM_IMAGES[r.id]=r.image_url;});
@@ -2445,6 +2460,8 @@ async function autoLoadAll(verbose){
   if(inv&&inv.items){ invLoadInventory(inv); msgs.push('在庫 '+inv.items.length+'件'); }
   var costs=await autoReadJSON('costs_latest.json');
   if(costs&&costs.items&&!Array.isArray(costs.items)){ msgs.push(invImportCosts(costs)); }
+  // v1.9.109: 出品時コスト（costs_from_listings）を価格明細・送料区分のフォールバックに使う（③cost橋渡し拡張のブラウザ側）
+  try{var lc=await autoReadJSON('costs_from_listings.json');window.LISTING_COSTS=(lc&&lc.items&&!Array.isArray(lc.items))?lc.items:{};invApplyListingCosts();}catch(e){window.LISTING_COSTS=window.LISTING_COSTS||{};}
   var plan=await autoReadJSON('plan_latest.json');
   if(plan&&plan.items){ window.paLoadPlan(plan,'plan_latest.json（自動）'); msgs.push('計画 '+(plan.items||[]).length+'件'); }
   window.APPLIED=await autoReadJSON('applied_latest.json');
