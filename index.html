@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.109</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.110</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1132,7 +1132,7 @@ function cardHtml(it,idx){
     })()+(sortMode==='mainte'&&mainteInfo(it).suspect
       ?(isPMainted(it)?'<span class="maintedbadge" title="この計画の警告後に仕入れ値を編集済み。次回の計画再生成に反映されます（警告が残れば再浮上します）">売価メンテ済み</span>':'')
       :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':(isTouchedId(it.id)?'<span class="maintedbadge" title="編集済み。保存ボタンで確定されます">メンテ済み（保存待ち）</span>':'')))+(it.manual_cost_override?'<span class="maintedbadge" title="仕入れ元URLの在庫判定は「なし」ですが、手入力原価で価格メンテを継続中のため在庫あり扱いにしています">手入力原価</span>':'')+(isSourceDead(it)?'<span class="maintedbadge" style="background:#fdf3e0;color:#8a5b00;border-color:#ecd9ae" title="eBayには実在庫（残'+it.ebay_quantity_available+'個）があるため在庫あり扱いですが、登録済みの仕入れ元は在庫切れです。売れたら次の補充先がない状態なので、余裕のある時に仕入れ元の追加を検討してください">仕入れ元切れ（eBay残'+it.ebay_quantity_available+'）</span>':'')+'</div>'+
-    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div><span class="st '+t+'"'+(isWait?' style="background:#fdf6e6;color:#8a5b00;border:1px solid #ecd9ae" title="仕入れURLはシートに登録済みです。StockSyncersの再走査と毎時の在庫更新で、最大1時間ほどで在庫ありに変わります。操作は不要です"':'')+'>'+stLabel+'</span>'+
+    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div>'+((window.RESTOCK_BLOCKED||{})[String(it.id)]?('<span class="st err" style="background:#fdecec;color:#a33;border:1px solid #eec" title="'+esc(String((window.RESTOCK_BLOCKED||{})[String(it.id)]))+'。値上げ提案が価格承認に載ります。承認して価格が反映されると次のサイクルで自動的に在庫が復活します">⏸ 再入荷保留（赤字・値上げ承認待ち）</span>'):'')+'<span class="st '+t+'"'+(isWait?' style="background:#fdf6e6;color:#8a5b00;border:1px solid #ecd9ae" title="仕入れURLはシートに登録済みです。StockSyncersの再走査と毎時の在庫更新で、最大1時間ほどで在庫ありに変わります。操作は不要です"':'')+'>'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
     (isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':(stockType(it)==='out'?'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>':'<button class="endbtn subtle" onclick="endListing('+idx+')" title="この商品の扱いをやめる：eBayの出品を終了し、スプシの行も削除します（取り消し不可）">終了…</button>'))+'</div>'+
     '<div class="searchrow">'+
@@ -1697,6 +1697,29 @@ function invImportCosts(data){
   saveSupplies(); renderAll();
   return '仕入れ候補を取り込みました（'+hit+'商品）'+(miss?'。在庫一覧に無い'+miss+'商品分は未反映':'');
 }
+function reParseRestockBlocked(rst){
+  // v1.9.110: restock_status.json から blocked_restock_loss の {item_id: reason} を抽出。dict/list どちらの形でも読める防御実装
+  var out={};
+  if(!rst)return out;
+  var scan=function(id,rec){
+    if(!rec||typeof rec!=='object')return;
+    var act=String(rec.action||rec.status||'');
+    if(act==='blocked_restock_loss')out[String(id||rec.item_id||'')]=String(rec.block_reason||rec.reason||'赤字のため再入荷を保留中');
+  };
+  try{
+    if(Array.isArray(rst))rst.forEach(function(r){scan(r&&r.item_id,r);});
+    else{
+      ['items','intents','results','restocks'].forEach(function(k){
+        var v=rst[k];
+        if(Array.isArray(v))v.forEach(function(r){scan(r&&r.item_id,r);});
+        else if(v&&typeof v==='object')Object.keys(v).forEach(function(id){scan(id,v[id]);});
+      });
+      Object.keys(rst).forEach(function(k){var v=rst[k];if(v&&typeof v==='object'&&!Array.isArray(v)&&(v.action||v.status))scan(k,v);});
+    }
+  }catch(e){}
+  delete out[''];
+  return out;
+}
 function invApplyListingCosts(){
   // v1.9.109: costs_from_listings の candidates を、ユーザー登録（localStorage）が空の商品にだけメモリ上で補完する。
   // 保存（exportCosts）すると costs_from_inventory に昇格する＝出品時の実コストなので昇格してよいデータ。
@@ -2070,7 +2093,7 @@ function render(){
         <div class="title">${it.title}</div>
         ${it.price_drop_suspect?`<div class="dropwarn" style="${(it.below_breakeven_pct||0)>=75?'background:#fbeaea;border-color:#e5b8b8;color:#8c2f2f':''}">⚠️ ライバルの${it.below_breakeven_pct}%があなたの損益分岐点を下回っています。仕入れ相場が下がった可能性 → 在庫メンテタブでメルカリ相場を確認し、安い候補があれば登録し直してください${it.days_to_renewal!=null?`（再出品まで${it.days_to_renewal}日）`:""}</div>`:""}
         ${it.benchmark_dropped?`<div class="dropwarn">📉 前回の基準ライバルが ${money(it.benchmark_dropped.prev_usd)} → ${money(it.benchmark_dropped.now_usd)} に値下げしています</div>`:""}
-        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.days_to_renewal!=null?` ｜ <span class="renew${it.days_to_renewal<=7?' soon':''}">再出品まで${it.days_to_renewal}日</span>`:""}${(Array.isArray(it.changed_reason)&&it.changed_reason.indexOf('version')>=0)?`<span class="vbadge" title="版チェック（--version-check）でバージョン違いのライバルが除外され、価格候補が変わった項目です">版チェック由来</span>`:``}${it.version_price_capped?`<span class="vbadge" title="版チェック後の同一品確認が2件未満のため、推奨価格を現在価格でキャップ（上げ禁止・下げは可）">上限=現在価格</span>`:``}<a class="goinv" href="javascript:void(0)" onclick="goInvItem('${it.item_id}')">この商品の在庫メンテへ ↗</a>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>${it.cost_source==='manual'?'<span class="manualbadge">手入力</span>':''}`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
+        <div class="cur">現在価格 <b>${money(it.current_price_usd)}</b>${it.days_to_renewal!=null?` ｜ <span class="renew${it.days_to_renewal<=7?' soon':''}">再出品まで${it.days_to_renewal}日</span>`:""}${(Array.isArray(it.changed_reason)&&it.changed_reason.indexOf('version')>=0)?`<span class="vbadge" title="版チェック（--version-check）でバージョン違いのライバルが除外され、価格候補が変わった項目です">版チェック由来</span>`:``}${it.version_price_capped?`<span class="vbadge" title="版チェック後の同一品確認が2件未満のため、推奨価格を現在価格でキャップ（上げ禁止・下げは可）">上限=現在価格</span>`:``}${it.band_center_suspect_low?`<span class="vbadge" style="background:#fdecec;color:#a33;border-color:#eec" title="レア度・版トークンの無い安値ライバルが基準額（バンド中央）を押し下げている疑いがあります。ライバル一覧から正しい同一品を📌基準ライバルに選ぶと、この商品の基準額が人間確認済みの値に是正されます（選ぶだけでOK・以後の朝の計算にも効きます）">⚠️基準額が安値汚染の疑い — 📌基準選択で是正</span>`:``}<a class="goinv" href="javascript:void(0)" onclick="goInvItem('${it.item_id}')">この商品の在庫メンテへ ↗</a>${it.cost_yen!=null?` ｜ 仕入れ値 <b>${Math.round(it.cost_yen).toLocaleString()}円</b>${it.cost_source==='manual'?'<span class="manualbadge">手入力</span>':''}`:` ｜ <span style="color:#b45309">仕入れ値なし</span>`}${it.ship_yen!=null?` ・送料 ${Math.round(it.ship_yen).toLocaleString()}円`:""}${(function(){
           const lc=it.last_choice; if(!lc||!lc.choice) return "";
           const lcC=(lc.c_margin!=null?lc.c_margin:lc.cpct)||"5";
           const lcM=(lc.manual_price_usd!=null?lc.manual_price_usd:lc.manual);
@@ -2465,6 +2488,8 @@ async function autoLoadAll(verbose){
   var plan=await autoReadJSON('plan_latest.json');
   if(plan&&plan.items){ window.paLoadPlan(plan,'plan_latest.json（自動）'); msgs.push('計画 '+(plan.items||[]).length+'件'); }
   window.APPLIED=await autoReadJSON('applied_latest.json');
+  // v1.9.110: 再入荷赤字ガード（blocked_restock_loss）の保留状態を在庫メンテに表示するため読み込み（形が違っても落ちない防御読み）
+  try{var rst=await autoReadJSON('restock_status.json');window.RESTOCK_BLOCKED=reParseRestockBlocked(rst);}catch(e){window.RESTOCK_BLOCKED=window.RESTOCK_BLOCKED||{};}
   // ▼ 取得健全性の警告（v1.9.59）: 急減サニティガードが旧計画を保持した場合、承認タブに警告バナーを出す
   //   （eBay Browseの一時劣化で新計画が痩せていた→今見ている計画は前回の健全版、という状態の可視化）
   try{
