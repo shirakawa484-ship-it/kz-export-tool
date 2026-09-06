@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.112</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.113</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1806,6 +1806,34 @@ function isNoChange(it){
 function isNoChangeDefault(it){
   return (it.option_a&&it.current_price_usd!=null&&Math.abs(it.option_a.price_usd-it.current_price_usd)<=0.05);
 }
+function paDefChoice(it){
+  // v1.9.113: last_choice が無いときの既定＝B案（攻め・赤字回避の最安−$0.10）。B案が無ければ従来（recommended→A案）
+  return it&&it.option_b?'b':((it&&it.recommended)||'a');
+}
+function paBRival(it){
+  // v1.9.113: B案の根拠ライバル（option_b.price+$0.10 と一致する適格ライバル）。一致が無ければ qualifies_b の最安
+  if(!it||!it.option_b)return null;
+  var t=Number(it.option_b.price_usd)+0.10,best=null,mn=null;
+  (it.rivals||[]).forEach(function(r){
+    if(!r||r.user_excluded||r.grade_mismatch||r.version_mismatch)return;
+    var dx=(r.same_item==='different')||(r.verdict==='excluded_pn')||(r.verdict==='excluded_ai');
+    var bx=!!r.band_excluded||(r.verdict==='excluded_band');
+    if(dx||bx)return;
+    var p=(r.total_usd!=null?Number(r.total_usd):(r.price_usd!=null?Number(r.price_usd):null));
+    if(p==null)return;
+    if(Math.abs(p-t)<0.02&&!best)best=r;
+    if(r.qualifies_b&&(mn==null||p<mn)){mn=p;if(!best)var _k=0;}
+  });
+  if(best)return best;
+  var bq=null;mn=null;
+  (it.rivals||[]).forEach(function(r){
+    if(!r||!r.qualifies_b||r.user_excluded||r.grade_mismatch||r.version_mismatch)return;
+    var p=(r.total_usd!=null?Number(r.total_usd):(r.price_usd!=null?Number(r.price_usd):null));
+    if(p==null)return;
+    if(mn==null||p<mn){mn=p;bq=r;}
+  });
+  return bq;
+}
 function chosenPrice(it){
   const s=state[it.item_id];
   if(s.choice==='a') return it.option_a?.price_usd ?? null;
@@ -2025,7 +2053,7 @@ function render(){
     if(!(it.item_id in state)){
       const def=(it.option_c?.default)||'5';
       if(isExtreme){
-        state[it.item_id]={checked:false, choice:(it.option_a?'a':(it.option_c?'c':'m')), cpct:def, manual:null, rival:null, rivalGone:false};
+        state[it.item_id]={checked:false, choice:(it.option_b?'b':(it.option_a?'a':(it.option_c?'c':'m'))), cpct:def, manual:null, rival:null, rivalGone:false};  // v1.9.113: 既定=B案（攻め）
       } else {
       // 初期選択：前回の選択(last_choice)があればそれを優先、なければ推奨(recommended)
       const lc = it.last_choice; // Python側: {choice:'a'|'b'|'c'|'m'|'r', c_margin?:'5', manual_price_usd?:65.0, rival_item_id?:'v1|…'}
@@ -2036,13 +2064,13 @@ function render(){
         if(ch==='r'){
           const found=(it.rivals||[]).find(r=>r.rival_item_id===lc.rival_item_id);
           if(found){ rv=lc.rival_item_id; }
-          else { ch=(it.recommended||'a'); rgone=true; } // 基準ライバル消滅→通常ロジックに戻す
+          else { ch=paDefChoice(it); rgone=true; } // 基準ライバル消滅→通常ロジックに戻す（v1.9.113: 既定=B案）
         }
         state[it.item_id]={checked:!paNochange()[String(it.item_id)], choice:ch,
                            cpct:(lcC||def), manual:(lcM!=null?Number(lcM):null), rival:rv, rivalGone:rgone};
       } else {
         var nc0=(it.option_a&&it.current_price_usd!=null&&Math.abs(it.option_a.price_usd-it.current_price_usd)<=0.05)||!!paNochange()[String(it.item_id)];
-        state[it.item_id]={checked:!nc0, choice:(it.recommended||'a'), cpct:def, manual:null, rival:null, rivalGone:false};
+        state[it.item_id]={checked:!nc0, choice:paDefChoice(it), cpct:def, manual:null, rival:null, rivalGone:false};  // v1.9.113: 既定=B案（攻め）
       }
       }
     }
@@ -2114,6 +2142,7 @@ function render(){
             <div class="lab">B案 攻め(赤字回避)</div>
             <div class="pr">${ob?money(ob.price_usd):"N/A"}</div>
             <div class="pf">${ob?`利益 ${Math.round(ob.profit_yen).toLocaleString()}円 / ${ob.margin_pct.toFixed(1)}%`:"適格ライバルなし"}</div>
+            ${(function(){var br=paBRival(it);if(!br)return "";var u=br.url||br.item_url||"";return `<div style="margin-top:3px;font-size:.66rem;display:flex;gap:4px;align-items:center" title="B案の根拠になっているライバル。画像/タイトルをクリックすると実ページで同一品か確認できます">${br.image_url?`<a href="${esc(u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="${esc(br.image_url)}" loading="lazy" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line)"></a>`:``}<a href="${esc(u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#4a5d8f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;display:inline-block">根拠: ${esc(String(br.title||"ライバルを見る"))}</a></div>`;})()}
           </div>
           <div class="opt cwrap ${s.choice==='c'?'selected':''}" data-id="${it.item_id}" data-choice="c">
             ${it.recommended==='c'?'<span class="rec">推奨</span>':''}
@@ -3126,6 +3155,20 @@ function reDraftBlock(c,rv){
           +'<span id="rdmprice-'+esc(id)+'">'+(pm!=null?('→ $'+pm.toFixed(2)):'（仕入れ値未設定）')+'</span>'
           +(cost>0?('<button class="btn" style="font-size:.68rem;padding:1px 7px;'+(d.price_source==='margin'?'background:#4a5d8f;color:#fff':'')+'" onclick="reDraftApplyMargin(\''+esc(id)+'\')">適用</button>'):'')
           +'</span></div>';
+        // v1.9.113: 現在の売価の根拠ライバルを写真つきで表示（同一品かをワンクリック確認できるように）
+        var basis=null,basisLbl='';
+        if(einf.mode==='bench'&&(src==='bench'||src==='')){basis=einf.rival;basisLbl='📌基準ライバル';}
+        else if(src==='a'){basis=einf.rival;basisLbl='A案の根拠';}
+        else if(src===''||src==='auto'||src==='b'){basis=einfB.rival;basisLbl='B案の根拠';}
+        if(basis){
+          var bu=reRivalUrl(basis)||'';
+          h3+='<div style="display:flex;gap:6px;align-items:center;font-size:.72rem;margin-top:3px" title="この売価の根拠になっているライバル出品。画像/タイトルをクリックして実ページで同一品か確認してください（違ったらライバル一覧で除外か📌基準を選び直し）">'
+            +'<span class="muted">'+basisLbl+':</span>'
+            +(basis.image_url?('<a href="'+esc(bu)+'" target="_blank" rel="noopener"><img src="'+esc(String(basis.image_url))+'" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid var(--line)"></a>'):'')
+            +'<a href="'+esc(bu)+'" target="_blank" rel="noopener" style="color:#4a5d8f;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">'+esc(String(basis.title||'ライバルを見る'))+'</a>'
+            +(reRivalPrice(basis)!=null?('<b>$'+Number(reRivalPrice(basis)).toFixed(2)+'</b>'):'')
+            +'</div>';
+        }
         return h3;
       })()
       +photosHtml+pickHtml
