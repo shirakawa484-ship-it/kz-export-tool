@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.111</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.112</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -3229,6 +3229,21 @@ function reDraftApplyMargin(id){
   reDraftSave(id,{price_usd:Math.round(p*100)/100,price_source:'margin',margin_pct:Number(m)}).then(function(ok){if(ok)reRenderCands();});
 }
 // ▼ v1.9.106: 赤字ガード用の補助
+async function reRivalScanNow(id){
+  // v1.9.112: オンデマンドのライバルスキャン依頼。rival_scan_requests.json に追記し、backendのポーリングが数分以内に取得する契約
+  if(!AUTO_DIR){showToast('autoフォルダ未接続のため依頼できません');return;}
+  try{
+    var cur=await autoReadJSON('rival_scan_requests.json')||{requests:[]};
+    if(!Array.isArray(cur.requests))cur.requests=[];
+    if(!cur.requests.some(function(r){return r&&String(r.item_id)===String(id);}))cur.requests.push({item_id:String(id),requested_at:new Date().toISOString()});
+    cur.updated_at=new Date().toISOString();
+    var fh=await AUTO_DIR.getFileHandle('rival_scan_requests.json',{create:true});
+    var w=await fh.createWritable();await w.write(JSON.stringify(cur,null,2));await w.close();
+    window.__reScanReq=window.__reScanReq||{};window.__reScanReq[String(id)]=true;
+    showToast('🔍 スキャン依頼を書き込みました（数分〜10分で取得・自動反映）');
+    reRenderCands();
+  }catch(e){showToast('依頼の書き込みに失敗: '+e.message);}
+}
 function reDraftSrcLabel(src){
   return ({b:'B案・赤字でない最安',a:'A案・利益5%↑最安',auto:'A案',bench:'📌基準ライバル',median:'実売中央値',margin:'原価+利益率',margin_fallback:'原価+5%（ライバルなし）',manual:'手入力'})[String(src||'')]||String(src||'未設定');
 }
@@ -3435,7 +3450,7 @@ function reRivalBlock(c,rv){
   var scanTxt='';
   try{if(rr&&rr.scanned_at){var sd=new Date(rr.scanned_at);if(!isNaN(sd))scanTxt=' <small class="muted" title="ライバル価格は夜間スキャン時点のスナップショットです。実ページの現在価格とは時差でずれることがあります">'+(sd.getMonth()+1)+'/'+sd.getDate()+' '+('0'+sd.getHours()).slice(-2)+':'+('0'+sd.getMinutes()).slice(-2)+'時点</small>';}}catch(sce){}
   var head='<b style="color:#4a5d8f">ライバル(eBay)</b> '
-    +(rr?(cnt+'件'+(est!=null?('・想定売価 <b>$'+est.toFixed(2)+'</b> '+reBenchThumb(info.rival,32)+'<small class="muted">（'+benchLbl+'）</small>'):'・<span style="color:#a33">適格ライバルなし</span>')+scanTxt):'<span class="muted">夜間スキャン待ち（翌朝反映）</span>')
+    +(rr?(cnt+'件'+(est!=null?('・想定売価 <b>$'+est.toFixed(2)+'</b> '+reBenchThumb(info.rival,32)+'<small class="muted">（'+benchLbl+'）</small>'):'・<span style="color:#a33">適格ライバルなし</span>')+scanTxt):('<span class="muted">夜間スキャン待ち（翌朝反映）</span> '+((window.__reScanReq||{})[String(id)]?'<span style="font-size:.7rem;color:#2e7d4f">🔍依頼済み（数分〜10分で取得・反映）</span>':'<button class="btn" style="font-size:.68rem;padding:1px 7px" onclick="event.preventDefault();event.stopPropagation();reRivalScanNow(\''+esc(id)+'\')" title="夜間を待たず、この候補だけライバルを取得します（Browse API 約2コール・バックエンドが数分以内に処理・残クォータ0の間は取得側で待機）">🔍 今すぐスキャン依頼</button>')))
     +((rr&&rr.guard_warning)?' <span style="color:#8a5b00;background:#fdf3e0;border:1px solid #ecd9ae;border-radius:5px;padding:0 5px;font-size:.68rem" title="eBay取得結果が大きく減少したため、前回スキャンの値を維持しています">⚠️取得劣化・前回値</span>':'');
   var inner='';
   if(rr){
