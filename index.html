@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.110</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.111</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -2963,6 +2963,7 @@ async function reDraftApprove(id,pri){
   if(!title){alert('タイトルが空です');return;}
   if(title.length>80){alert('タイトルが80字を超えています（'+title.length+'字）。短くしてください');return;}
   if(!(price>0)){alert('価格が未設定です');return;}
+  if(!((d.photos||[]).length>0)){alert('写真がありません。eBayは最低1枚必須のため、このまま承認しても出品時にエラーで隔離されます。\n写真を追加してから承認してください');return;}  // v1.9.111: 承認時写真チェック（needs_fix隔離の前段防御）
   // v1.9.106: 赤字ガード（赤字＝ブロック／仕入れ値未設定＝確認／ライバルなし逆算＝確認。利益率5%未満は表示のみ）
   var lpAp=reLiveProfit(id,price);
   if(lpAp&&lpAp.profit<0){alert('この価格では赤字です（利益 ¥'+Math.round(lpAp.profit).toLocaleString()+'・利益率 '+lpAp.margin.toFixed(1)+'%）。\n承認できません。B案/A案チップか原価+利益率で価格を見直すか、仕入れ候補を安いものに変えてください');return;}
@@ -2995,7 +2996,7 @@ async function reDraftApprove(id,pri){
   if(isCardCat&&(condAp===1000||condAp===1500)){
     if(!confirm('トレカカテゴリでコンディションが「New（新品）」系になっています（ライバル由来の初期値の可能性）。\n生カード＝Very Good / Ungraded、鑑定スラブ＝Like New / Graded が正しい区分です。\n中古カードをNewで出すと「説明と異なる」クレーム・返品の元になります。\n\n未開封品などで本当にNewの場合のみ続行してください。このまま承認しますか？'))return;
   }
-  var patch={status:'approved',title_final:title,approved_at:new Date().toISOString(),weight_provisional:false};
+  var patch={status:'approved',title_final:title,approved_at:new Date().toISOString(),weight_provisional:false,publish_attempts:0,block_reason:null,needs_fix_at:null};  // v1.9.111: 再承認でキュー復帰（attempts=0リセット必須・backend契約）
   if(pri)patch.priority=true;  // v1.9.99: 🚀次回の毎時実行で日次枠と別に即出品（backendのpriority対応と互換・未対応でも通常キューとして動く）
   var ok=await reDraftSave(id,patch);
   if(ok){showToast(pri?'🚀 優先承認しました（次回の実行で日次枠と別に出品されます）':'✓ ドラフトを承認しました（毎朝の枠で順番に出品）');reRenderCands();if(typeof reListQueueUi==='function')reListQueueUi();}
@@ -3023,7 +3024,8 @@ function reDraftBlock(c,rv){
   var stBadge={draft:'<span style="background:#eef3ff;color:#4a5d8f;border:1px solid #c9d6f2;border-radius:5px;padding:0 6px">下書き</span>',
     approved:'<span style="background:#eef7f0;color:#2e7d4f;border:1px solid #bfe0cb;border-radius:5px;padding:0 6px">✅承認済み（'+(d.priority?'🚀次回すぐ出品':'AddItem待ち')+'）</span>',
     listed:'<span style="background:#2e7d4f;color:#fff;border-radius:5px;padding:0 6px">📦出品済み</span>',
-    error:'<span style="background:#fdecec;color:#a33;border:1px solid #eec;border-radius:5px;padding:0 6px">エラー</span>'}[st]||esc(st);
+    error:'<span style="background:#fdecec;color:#a33;border:1px solid #eec;border-radius:5px;padding:0 6px">エラー</span>',
+    needs_fix:'<span style="background:#fdecec;color:#a33;border:1px solid #eec;border-radius:5px;padding:0 6px" title="出品時のエラーが3回続いたため、出品キューから隔離されています。下の理由を直して✅承認し直すとキューに復帰します">🔧 要修正（キューから隔離中）</span>'}[st]||esc(st);
   var title=(d.title_final!=null?d.title_final:(d.title_ai||''));
   var tlen=String(title).length;
   var head='<b style="color:#8a5b00">📝 出品ドラフト</b> '+stBadge
@@ -3070,7 +3072,8 @@ function reDraftBlock(c,rv){
         +'<button class="btn" style="font-size:.72rem;padding:3px 10px" onclick="rePhotoDiscard()">破棄</button>'
         +'</div></div>';
     }
-    inner='<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:.8rem">'
+    var nfBanner=(st==='needs_fix')?('<div style="margin:5px 0;padding:6px 9px;border:1px solid #eec;background:#fdecec;border-radius:7px;font-size:.76rem;color:#a33"><b>隔離理由：</b>'+esc(String(d.block_reason||d.last_error||'不明'))+'<br><small>修正して下の「✅ 承認」を押すと出品キューの先頭グループに復帰します（失敗回数はリセットされます）</small></div>'):'';  // v1.9.111
+    inner=nfBanner+'<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:.8rem">'
       +'<div><span class="muted" style="font-size:.72rem">タイトル（<span id="rdtlen-'+esc(id)+'">'+tlen+'</span>/80字'+(tlen>80?'<b style="color:#a33">超過</b>':'')+'）</span><br>'
       +'<input type="text" value="'+esc(title)+'" data-rdtitle="'+esc(id)+'" maxlength="120" style="width:100%;max-width:640px;padding:5px 8px;border:1px solid '+(tlen>80?'#a33':'var(--line)')+';border-radius:6px;font-size:.82rem">'
       +' <button class="btn" style="font-size:.68rem;padding:2px 7px" onclick="reDraftSave(\''+esc(id)+'\',{title_final:null}).then(function(){reRenderCands();})">AI案に戻す</button></div>'
