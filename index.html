@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.113</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.114</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1511,6 +1511,7 @@ function exportCosts(){
       weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
       ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined),
       rival_query:(_rkw[String(it.id)]!==undefined?_rkw[String(it.id)].q:undefined),
+      kw:((keywords[i]!=null&&keywords[i]!=='')?keywords[i]:undefined),  // v1.9.114: 検索キーワードもファイルに同梱（localStorage消失時の復元源）
       // ▼ 補充意思フラグ（v1.9.51）：eBay数量が0の商品を人間がこのツールで在庫メンテ（仕入れ候補を編集）した
       //   ＝補充完了の宣言。Python側はこれを見てeBay数量を0→1に自動復帰させる。
       //   古い仕入れ候補が残っているだけの商品を誤復活させないため、編集済みフラグ（isTouchedId）を必須条件にする。
@@ -1719,6 +1720,22 @@ function reParseRestockBlocked(rst){
   }catch(e){}
   delete out[''];
   return out;
+}
+function invHydrateFromCosts(){
+  // v1.9.114: costs_from_inventory（自分が保存したファイル）から、LSに無い手動設定だけを静かに復元する。
+  // LSにある値（＝より新しい編集）が常に優先。復元対象：手入力送料/手動区分（未判定の商品のみ）・検索キーワード
+  var recs=window.COSTS_INV||{};var W=loadWeights();var wch=false,kch=0;
+  ITEMS.forEach(function(it,i){
+    var rec=recs[String(it.id)];if(!rec)return;
+    if(!W[String(it.id)]){
+      if(rec.ship_yen_manual!=null){W[String(it.id)]={cat:rec.category||'custom',wc:(rec.weight_class!=null?Number(rec.weight_class):null),ship:Number(rec.ship_yen_manual)};wch=true;}
+      else if(rec.weight_class!=null&&!detectCategory(it.title||it.name)){W[String(it.id)]={cat:rec.category||'custom',wc:Number(rec.weight_class)};wch=true;}
+    }
+    if((keywords[i]==null||keywords[i]==='')&&rec.kw){keywords[i]=rec.kw;kch++;}
+    else if(rec.kw&&(!meta[it.id]||meta[it.id].kw==null)&&keywords[i]!==rec.kw){keywords[i]=rec.kw;kch++;}
+  });
+  if(wch){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(W));}catch(e){}}
+  if(wch||kch)renderAll();
 }
 function invApplyListingCosts(){
   // v1.9.109: costs_from_listings の candidates を、ユーザー登録（localStorage）が空の商品にだけメモリ上で補完する。
@@ -2514,6 +2531,8 @@ async function autoLoadAll(verbose){
   if(costs&&costs.items&&!Array.isArray(costs.items)){ msgs.push(invImportCosts(costs)); }
   // v1.9.109: 出品時コスト（costs_from_listings）を価格明細・送料区分のフォールバックに使う（③cost橋渡し拡張のブラウザ側）
   try{var lc=await autoReadJSON('costs_from_listings.json');window.LISTING_COSTS=(lc&&lc.items&&!Array.isArray(lc.items))?lc.items:{};invApplyListingCosts();}catch(e){window.LISTING_COSTS=window.LISTING_COSTS||{};}
+  // v1.9.114: LS→auto移行。costs_from_inventory.json を正として、localStorage欠落時（キャッシュ削除後）に手動送料区分・KWを復元
+  try{var ci=await autoReadJSON('costs_from_inventory.json');window.COSTS_INV=(ci&&ci.items&&!Array.isArray(ci.items))?ci.items:{};invHydrateFromCosts();}catch(e){window.COSTS_INV=window.COSTS_INV||{};}
   var plan=await autoReadJSON('plan_latest.json');
   if(plan&&plan.items){ window.paLoadPlan(plan,'plan_latest.json（自動）'); msgs.push('計画 '+(plan.items||[]).length+'件'); }
   window.APPLIED=await autoReadJSON('applied_latest.json');
@@ -2598,7 +2617,13 @@ function reDismissSet(){try{return JSON.parse(localStorage.getItem('ss_re_dismis
 function reDismiss(id,on){var a=reDismissSet();var i=a.indexOf(String(id));
   if(on&&i<0)a.push(String(id)); if(!on&&i>=0)a.splice(i,1);
   (window.ssSafeSet||function(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}})('ss_re_dismiss_v1',JSON.stringify(a));
+  try{reReviewUpdate(id,{dismissed:!!on});}catch(e){}  // v1.9.114: ファイル（research_review）にも保存＝キャッシュ削除で消えない正データ
   reRenderCands();}
+function reIsDismissed(id){
+  // v1.9.114: LS（ミラー）またはreview（正）のどちらかで見送りなら見送り
+  if(reDismissSet().indexOf(String(id))>=0)return true;
+  return !!(((window.RE_REVIEWS||{})[String(id)]||{}).dismissed);
+}
 async function reInit(){
   if(!AUTO_DIR){document.getElementById('reCandList').innerHTML='<div class="muted" style="padding:14px">先に右上の「📁 autoフォルダに接続」をしてください。</div>';reRenderVerify();return;}
   // セラー・候補とも毎回読み直す（v1.9.60: ブックマークレット起点の新タブで、フォルダ再接続前に
@@ -2691,7 +2716,7 @@ function reRenderCands(){
     if(vf==='pass'&&(!rvf||rvf.status!=='pass'))return false;
     if(vf==='fail'&&(!rvf||rvf.status!=='fail'))return false;
     if(vf==='none'&&rvf)return false;
-    var isDis=dis.indexOf(String(c.item_id))>=0;
+    var isDis=dis.indexOf(String(c.item_id))>=0||!!(((window.RE_REVIEWS||{})[String(c.item_id)]||{}).dismissed);  // v1.9.114
     if(hideD&&isDis)return false;
     if(q&&String(c.title||'').toLowerCase().indexOf(q)<0&&String(c.item_id||'').indexOf(q)<0&&String(c.seller_id||'').toLowerCase().indexOf(q)<0)return false;
     return true;
@@ -2729,7 +2754,7 @@ function reRenderCands(){
     if(gDraft.length&&__ix===gDraft.length&&gNormal.length)__pre=secHead('候補一覧','#555','#f0f1f3');
     if(__ix===gDraft.length+Math.min(gNormal.length,RE_SHOWN)&&gApproved.length)__pre=secHead('✅ 承認済み・出品待ち '+gApproved.length+'件（毎朝5件ずつ自動出品されます）','#1d5c2f','#e8f5ec');
     var sl=srcLabel[c.source]||[c.source,'#f0f1f3;color:#555'];
-    var isDis=dis.indexOf(String(c.item_id))>=0;
+    var isDis=reIsDismissed(c.item_id);
     var rv=(window.RE_REVIEWS||{})[String(c.item_id)];
     var rvBadge=rv?(rv.status==='pass'?'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#e8f5ec;color:#1d5c2f;white-space:nowrap" title="直近60日'+(rv.sold_count_60d||0)+'点・'+String(rv.verified_at||'').slice(0,10)+'検証">✅合格</span>':'<span style="font-size:.68rem;border-radius:5px;padding:2px 7px;background:#fde8e8;color:#8a1f1f;white-space:nowrap">✖不合格</span>'):'';
     return __pre+'<div data-cid="'+esc(String(c.item_id))+'" style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:#fff'+(isDis?';opacity:.45':'')+'">'
