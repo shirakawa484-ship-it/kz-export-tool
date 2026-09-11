@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.115</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.116</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1471,12 +1471,14 @@ async function exportCosts(){
     var w=resolveWeight(it);
     if(!w.ship && (w.wc==='over10' || w.wc===null)) shipNG.push({idx:i,name:it.name});
   });
+  var shipSkip={};
   if(shipNG.length){
-    alert('⛔ 送料が未確定の商品が'+shipNG.length+'件あるため、保存できません。\n\n'+
+    // v1.9.116: 全ブロック→該当商品だけ除外して保存継続（v1.9.115のrmwマージにより、除外商品は前回の登録内容がファイルに保持されるため安全）
+    var okGo=confirm('⚠️ 送料が未確定の商品が'+shipNG.length+'件あります。\n\n'+
       shipNG.slice(0,5).map(function(x){return '・'+x.name.slice(0,28);}).join('\n')+(shipNG.length>5?'\n…ほか'+(shipNG.length-5)+'件':'')+
-      '\n\n各商品の「送料区分」でカテゴリか重量を選ぶか、10kg超は送料を手入力してください。最初の該当商品へ移動します。');
-    scrollToCard(shipNG[0].idx);
-    return;
+      '\n\nOK：この'+shipNG.length+'件だけ今回の書き出しから除外し、他の商品を保存します（除外分は前回の登録内容を保持・送料区分を選んだ後に改めて保存すれば反映）。\nキャンセル：保存を中止して最初の該当商品へ移動します（その場で直す場合）');
+    if(!okGo){scrollToCard(shipNG[0].idx);return;}
+    shipNG.forEach(function(x){shipSkip[String(ITEMS[x.idx].id)]=true;});
   }
   var out={exported_at:new Date().toISOString(),source:'inventory_tool_v2',items:{}};
   // ▼ ライバル検索KWの編集を同乗（v1.9.47）：承認タブで編集した分のみ。
@@ -1505,6 +1507,7 @@ async function exportCosts(){
   })();
   var n=0, skipped=[], urlOnly=0, cleared={};
   ITEMS.forEach(function(it,i){
+    if(shipSkip[String(it.id)]){skipped.push(it.name.slice(0,20));return;}  // v1.9.116: 送料未確定は今回書かない（前回レコード保持）
     var rawArr=supplies[i];  // v1.9.115: undefined=未編集/消失（既存レコード保持）／空配列=ユーザーが全消し（削除を反映）
     var arr=rawArr||[];
     var aus=(addUrls[i]||[]).filter(function(u){return u&&!arr.some(function(s2){return s2.url===u;});});  // v1.9.107: 手動追加URL（価格なし）も収録。syncurlsでC-Gへ届き、mtime変化でdiff再計画が発火する
@@ -1536,6 +1539,8 @@ async function exportCosts(){
     out.items[id]=prevItems[id];kept++;
   });
   if(kept)msg+='。既存レコード保持：'+kept+'件';
+  var shipSkipN=Object.keys(shipSkip).length;
+  if(shipSkipN)msg+='。⚠️送料未確定で除外：'+shipSkipN+'件（送料区分を選んで再保存を）';
   if(!reLossGuard('ss_guard_costs_v1',Object.keys(out.items).length,'仕入れ値(costs_from_inventory)'))return;
   (async function(){
     var saved=false;
