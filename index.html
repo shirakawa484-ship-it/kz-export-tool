@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.114</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.115</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1458,7 +1458,11 @@ function clearSupplies(idx){
   supplies[idx]=[];
   markTouched(idx);saveSupplies();renderSlots(idx);recalc(idx);
 }
-function exportCosts(){
+async function exportCosts(){
+  // ▼ v1.9.115: 全置換を根絶。既存costs_from_inventory.jsonを読み、今の画面に無い商品のレコードは保持するrmwマージ。
+  //   さらに消失ガード（reviews/drafts/rivalsと同じ二段防御）を適用——9/11のcost削除事故（1071→76件上書き）の根本対策
+  var prevItems={};
+  try{var prev=await autoReadJSON('costs_from_inventory.json');if(prev&&prev.items&&!Array.isArray(prev.items))prevItems=prev.items;}catch(e){}
   // ▼ 送料未確定の完全ブロック：書き出し対象（仕入れ候補あり）に
   //   「10kg超 または カテゴリ・重量とも未判定」で送料手入力なしの商品があれば保存を中断
   var shipNG=[];
@@ -1499,11 +1503,12 @@ function exportCosts(){
     Object.keys(rm).forEach(function(id){rm[id]=rm[id].filter(function(u,ix){return rm[id].indexOf(u)===ix;});});
     if(Object.keys(rm).length)out.remove_source_urls=rm;
   })();
-  var n=0, skipped=[], urlOnly=0;
+  var n=0, skipped=[], urlOnly=0, cleared={};
   ITEMS.forEach(function(it,i){
-    var arr=supplies[i]||[];
+    var rawArr=supplies[i];  // v1.9.115: undefined=未編集/消失（既存レコード保持）／空配列=ユーザーが全消し（削除を反映）
+    var arr=rawArr||[];
     var aus=(addUrls[i]||[]).filter(function(u){return u&&!arr.some(function(s2){return s2.url===u;});});  // v1.9.107: 手動追加URL（価格なし）も収録。syncurlsでC-Gへ届き、mtime変化でdiff再計画が発火する
-    if(!arr.length&&!aus.length){skipped.push(it.name.slice(0,20));return;}
+    if(!arr.length&&!aus.length){if(Array.isArray(rawArr))cleared[String(it.id)]=true;skipped.push(it.name.slice(0,20));return;}
     if(!arr.length)urlOnly++;
     var mn=minCost(i);
     var w=resolveWeight(it);
@@ -1523,6 +1528,15 @@ function exportCosts(){
   if(!n){alert('書き出せる仕入れ値がありません。仕入れ候補を登録してから実行してください。');return;}
   var msg='仕入れ値・重量を書き出しました（'+n+'件'+(urlOnly?('・うちURLのみ'+urlOnly+'件'):'')+'）';
   if(skipped.length)msg+='。候補なしのため未収載：'+skipped.length+'件';
+  // v1.9.115: マージ——既存にあって今回書かない商品は保持（全消しの明示削除だけ反映）
+  var kept=0;
+  Object.keys(prevItems).forEach(function(id){
+    if(out.items[id]!==undefined)return;
+    if(cleared[id])return;
+    out.items[id]=prevItems[id];kept++;
+  });
+  if(kept)msg+='。既存レコード保持：'+kept+'件';
+  if(!reLossGuard('ss_guard_costs_v1',Object.keys(out.items).length,'仕入れ値(costs_from_inventory)'))return;
   (async function(){
     var saved=false;
     if(AUTO_DIR){
@@ -1731,6 +1745,7 @@ function invHydrateFromCosts(){
       if(rec.ship_yen_manual!=null){W[String(it.id)]={cat:rec.category||'custom',wc:(rec.weight_class!=null?Number(rec.weight_class):null),ship:Number(rec.ship_yen_manual)};wch=true;}
       else if(rec.weight_class!=null&&!detectCategory(it.title||it.name)){W[String(it.id)]={cat:rec.category||'custom',wc:Number(rec.weight_class)};wch=true;}
     }
+    if(supplies[i]===undefined&&Array.isArray(rec.candidates)&&rec.candidates.length){supplies[i]=rec.candidates.filter(function(c){return c&&(c.price!=null||c.url);}).map(function(c){return {price:(c.price!=null?Number(c.price):null),url:String(c.url||'')};});wch=true;}  // v1.9.115: 仕入れ候補もファイルから復元（LSに一切無い時のみ）
     if((keywords[i]==null||keywords[i]==='')&&rec.kw){keywords[i]=rec.kw;kch++;}
     else if(rec.kw&&(!meta[it.id]||meta[it.id].kw==null)&&keywords[i]!==rec.kw){keywords[i]=rec.kw;kch++;}
   });
