@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.116</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.117</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -1747,8 +1747,16 @@ function invHydrateFromCosts(){
   ITEMS.forEach(function(it,i){
     var rec=recs[String(it.id)];if(!rec)return;
     if(!W[String(it.id)]){
-      if(rec.ship_yen_manual!=null){W[String(it.id)]={cat:rec.category||'custom',wc:(rec.weight_class!=null?Number(rec.weight_class):null),ship:Number(rec.ship_yen_manual)};wch=true;}
-      else if(rec.weight_class!=null&&!detectCategory(it.title||it.name)){W[String(it.id)]={cat:rec.category||'custom',wc:Number(rec.weight_class)};wch=true;}
+      // v1.9.117: 「今の解決結果が未確定（送料NG条件と同一判定）」なら必ずファイルから復元する。
+      //   v114の !detectCategory 条件は、タイトルがカテゴリ語に一致するのに wc が決まらない商品を取りこぼしていた
+      var cw=resolveWeight(it);
+      var undecided=(!cw.ship&&(cw.wc==='over10'||cw.wc===null||cw.wc===undefined));
+      if(undecided){
+        var fw=(rec.weight_class==='over10')?'over10':(rec.weight_class!=null?Number(rec.weight_class):null);
+        if(fw!=null&&isNaN(fw)&&fw!=='over10')fw=null;
+        if(rec.ship_yen_manual!=null){W[String(it.id)]={cat:rec.category||'custom',wc:fw,ship:Number(rec.ship_yen_manual)};wch=true;}
+        else if(fw!=null&&fw!=='over10'){W[String(it.id)]={cat:rec.category||'custom',wc:fw};wch=true;}
+      }
     }
     if(supplies[i]===undefined&&Array.isArray(rec.candidates)&&rec.candidates.length){supplies[i]=rec.candidates.filter(function(c){return c&&(c.price!=null||c.url);}).map(function(c){return {price:(c.price!=null?Number(c.price):null),url:String(c.url||'')};});wch=true;}  // v1.9.115: 仕入れ候補もファイルから復元（LSに一切無い時のみ）
     if((keywords[i]==null||keywords[i]==='')&&rec.kw){keywords[i]=rec.kw;kch++;}
