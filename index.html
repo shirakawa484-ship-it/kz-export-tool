@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.118</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.119</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -380,7 +380,7 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
       <div class="f"><label>広告費 %</label><input type="number" id="promo" value="2.1"></div>
       <div class="f"><label>固定費 $</label><input type="number" id="fixed" value="0.40"></div>
       <div class="f"><label>目標利益率 %</label><input type="number" id="targetMargin" value="5"></div>
-      <div class="f"><label>米国向け送料（円）</label><input type="number" id="shipUS" value="2115"></div>
+      <div class="f"><label>米国向け送料（円・重量未判定時の既定）</label><input type="number" id="shipUS" value="2804"></div>
       <div class="f"><label>その他国送料（円）</label><input type="number" id="shipOther" value="2243"></div>
       <div class="f"><label>還付率 %</label><input type="number" id="refund" value="10"></div>
     </div>
@@ -641,6 +641,32 @@ window.ssDiag=function(){
 // ===== 送料自動化（v1.2）: カテゴリマスター・自動判定・重量永続化 =====
 var LS_WEIGHT='ss_weight_v1';
 var SHIP_OC={0.5:2115,1.0:2599,1.5:2840,2.0:3108,2.5:3383,3.0:3540,3.5:3593,4.0:4022,4.5:4451,5.0:4718,5.5:5043,6.0:5366,6.5:5735,7.0:6184,7.5:6683,8.0:6871,8.5:7060,9.0:7249,9.5:8865,10.0:9089};
+/* ▼ v1.9.119: 送料モデルv2（発送運用変更 2026-09-19・backend shipping_model_v2 と完全一致必須）
+   米国宛: $1200以下かつ1kg未満→SpeedPAK Economy(+燃油+通関245円) / それ以外→Ship via DHL Zone10(+燃油)。
+   FUEL_OC は backend config と同値を保つ（月1回、OC請求実績で更新）。SHIP_OC は旧表・参照互換のため残置。 */
+var SHIP_ECO={0.5:1943,1.0:2848,1.5:3599,2.0:4947,2.5:5264,3.0:5973,3.5:6562,4.0:7266,4.5:8615,5.0:11065,5.5:11789,6.0:12576,6.5:13354,7.0:14344,7.5:15144,8.0:15932,8.5:16563,9.0:17119,9.5:18019,10.0:18522};
+var SHIP_DHL={0.5:2727,1.0:3078,1.5:3207,2.0:3365,2.5:3753,3.0:4138,3.5:4616,4.0:5010,4.5:5405,5.0:5800,5.5:6194,6.0:6587,6.5:7035,7.0:7580,7.5:8123,8.0:8667,8.5:9209,9.0:9752,9.5:10296,10.0:10839,10.5:11382,11.0:11925,11.5:12469,12.0:13012,12.5:13555,13.0:14099,13.5:14641,14.0:15185,14.5:15728,15.0:16273};
+var FUEL_OC=0.317, CUSTOMS_ECO=245, DUTY_PROC_MULT=1.021, ECO_MAX_USD=1200, ECO_MAX_WC=1.0;
+function shipYenV2(wc,priceUsd){
+  if(wc==null||wc==='over10')return null;
+  var w=Number(wc); if(!(w>0))return null;
+  var p=Number(priceUsd)||0;
+  if(p<=ECO_MAX_USD&&w<ECO_MAX_WC&&SHIP_ECO[w]!=null)return Math.round(SHIP_ECO[w]*(1+FUEL_OC))+CUSTOMS_ECO;
+  var b=w;
+  if(SHIP_DHL[b]==null){var ks=Object.keys(SHIP_DHL).map(Number).sort(function(a,c){return a-c});b=ks[ks.length-1];for(var i=0;i<ks.length;i++){if(w<=ks[i]+1e-9){b=ks[i];break;}}}
+  return SHIP_DHL[b]!=null?Math.round(SHIP_DHL[b]*(1+FUEL_OC)):null;
+}
+function shipForId(id,priceUsd){
+  try{
+    var w=loadWeights()[String(id)];
+    if(w&&w.ship!==undefined&&w.ship!==null)return Number(w.ship);
+    var wc=(w&&w.wc!==undefined)?w.wc:null;
+    if(wc==null){var lr=(window.LISTING_COSTS||{})[String(id)];if(lr&&lr.weight_class!=null)wc=lr.weight_class;}
+    var s=shipYenV2(wc,priceUsd);
+    if(s!=null)return s;
+  }catch(e){}
+  return (typeof n==='function')?n('shipUS'):2804;
+}
 var WCLASSES=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.5,10.0];
 var CAT_MASTER=[
  {k:'tcg_single',l:'トレカ（〜10枚）',wc:0.5},
@@ -970,7 +996,7 @@ function resolveWeight(it){
   var k=detectCategory(it.title||it.name);
   if(k){var c=catByKey(k);return {cat:k,wc:c.wc,manual:false};}
   var lr=(window.LISTING_COSTS||{})[String(it.id)];  // v1.9.109: 出品時に確定した重量区分を未判定時のフォールバックに
-  if(lr&&lr.weight_class!=null&&SHIP_OC[Number(lr.weight_class)]!=null)return {cat:'listing',wc:Number(lr.weight_class),manual:false};
+  if(lr&&lr.weight_class!=null&&SHIP_DHL[Number(lr.weight_class)]!=null)return {cat:'listing',wc:Number(lr.weight_class),manual:false};
   return {cat:null,wc:null,manual:false}; // 未判定
 }
 function shipLabelW(w){
@@ -978,9 +1004,11 @@ function shipLabelW(w){
   return shipLabel(w.wc);
 }
 function shipLabel(wc){
-  if(wc==='over10')return '⚠️ 10kg超・送料要手動（OC対象外）';
+  if(wc==='over10')return '⚠️ 10kg超・送料要手動（表対象外）';
   if(wc===null||wc===undefined)return '未判定（区分を選んでください）';
-  return wc.toFixed(1)+'kg → 送料 '+SHIP_OC[wc].toLocaleString()+'円';
+  var d=shipYenV2(wc,ECO_MAX_USD+1);
+  if(wc<ECO_MAX_WC){var e=shipYenV2(wc,0);return wc.toFixed(1)+'kg → Eco '+e.toLocaleString()+'円（$1200超はDHL '+d.toLocaleString()+'円）';}
+  return wc.toFixed(1)+'kg → DHL '+d.toLocaleString()+'円';
 }
 function onWcat(idx,key){
   var it=ITEMS[idx]; var c=catByKey(key); if(!c)return;
@@ -1105,8 +1133,8 @@ function handleIncoming(){
 
 (function(){var apis=[{url:'https://api.exchangerate-api.com/v4/latest/USD',pick:function(d){return d.rates&&d.rates.JPY;}},{url:'https://open.er-api.com/v6/latest/USD',pick:function(d){return d.rates&&d.rates.JPY;}},{url:'https://api.frankfurter.dev/v1/latest?base=USD&symbols=JPY',pick:function(d){return d.rates&&d.rates.JPY;}}];var i=0;function tn(){if(i>=apis.length){document.getElementById('rateNote').textContent='為替の自動取得に失敗。設定で手入力してください（現在155円）。';return;}fetch(apis[i].url).then(function(r){return r.json();}).then(function(d){var jpy=apis[i].pick(d);if(jpy){var adj=Math.round(jpy*100)/100;document.getElementById('rate').value=adj;document.getElementById('rateNote').textContent='為替レート自動取得：1ドル = '+adj+'円（設定で変更できます）';recalcAll();}else{i++;tn();}}).catch(function(){i++;tn();});}tn();})();
 
-function calcProfit(priceUsd,costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed'),refundRate=n('refund');var taxPct=10;/* 米国TAX目安。eBay手数料はTAX込み総額に課される(2026-07-08修正) */var fb=priceUsd*(1+taxPct/100);var fRak=fb*fvf/100,fIntl=fb*intl/100,fFx=fb*fx/100,fPromo=fb*promo/100;var fFixed=priceUsd>0?(priceUsd<=10?0.30:fixed):0;var fTot=fRak+fIntl+fFx+fPromo+fFixed;var netY=(priceUsd-fTot)*rate;var dutyY=dutyRate>0?(priceUsd*dutyRate/100*rate):0;var profit=netY-costYen-shipYen-dutyY;var salesY=priceUsd*rate;var margin=salesY>0?(profit/salesY*100):0;var refund=(costYen+fRak*rate)*refundRate/100;return {profit:profit,margin:margin,refund:refund};}
-function calcTarget(costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed');var t=n('targetMargin')/100;var taxPct=10;var r1=(fvf+intl+fx+promo)/100*(1+taxPct/100),d=dutyRate/100;var den=rate*(1-r1-d-t);if(den<=0)return null;return (fixed*rate+costYen+shipYen)/den;}
+function calcProfit(priceUsd,costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed'),refundRate=n('refund');var taxPct=10;/* 米国TAX目安。eBay手数料はTAX込み総額に課される(2026-07-08修正) */var fb=priceUsd*(1+taxPct/100);var fRak=fb*fvf/100,fIntl=fb*intl/100,fFx=fb*fx/100,fPromo=fb*promo/100;var fFixed=priceUsd>0?(priceUsd<=10?0.30:fixed):0;var fTot=fRak+fIntl+fFx+fPromo+fFixed;var netY=(priceUsd-fTot)*rate;var dutyY=dutyRate>0?(priceUsd*dutyRate/100*rate*DUTY_PROC_MULT):0;var profit=netY-costYen-shipYen-dutyY;var salesY=priceUsd*rate;var margin=salesY>0?(profit/salesY*100):0;var refund=(costYen+fRak*rate)*refundRate/100;return {profit:profit,margin:margin,refund:refund};}
+function calcTarget(costYen,shipYen,dutyRate){var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed');var t=n('targetMargin')/100;var taxPct=10;var r1=(fvf+intl+fx+promo)/100*(1+taxPct/100),d=dutyRate/100*DUTY_PROC_MULT;var den=rate*(1-r1-d-t);if(den<=0)return null;return (fixed*rate+costYen+shipYen)/den;}
 function minCost(idx){var a=supplies[idx]||[];if(!a.length)return null;
   var man=a.filter(function(x){return !x.url&&x.price>0;});
   if(man.length)return Math.min.apply(null,man.map(function(x){return x.price;}));
@@ -1567,7 +1595,7 @@ async function exportCosts(){
 function addUrl(idx){var el=document.getElementById('au'+idx);var u=el.value.trim();if(!u)return;if(!addUrls[idx])addUrls[idx]=[];addUrls[idx].push(u);el.value='';markTouched(idx);saveAddUrls();updateCard(idx);}
 function delAddUrl(idx,i){addUrls[idx].splice(i,1);markTouched(idx);saveAddUrls();updateCard(idx);}
 
-function recalc(idx){var cost=minCost(idx);var calc=document.getElementById('calc'+idx);if(!calc)return;if(cost===null){calc.classList.remove('show');return;}calc.classList.add('show');var dest=dests[idx]||'us';var dr=(dest==='us')?(duties[idx]!==undefined?duties[idx]:12.5):0;var ship=(dest==='us')?n('shipUS'):n('shipOther');document.getElementById('mc'+idx).textContent=cost.toLocaleString()+'円';var tp=calcTarget(cost,ship,dr);if(tp===null||tp<=0){document.getElementById('tp'+idx).textContent='計算不可';return;}var r=calcProfit(tp,cost,ship,dr);document.getElementById('tp'+idx).textContent=usd(tp);var pf=document.getElementById('pf'+idx);pf.textContent=yen(r.profit);pf.className='v '+(r.profit<0?'loss':'ok');document.getElementById('mg'+idx).textContent=r.margin.toFixed(1)+'%';document.getElementById('rf'+idx).textContent=yen(r.refund);}
+function recalc(idx){var cost=minCost(idx);var calc=document.getElementById('calc'+idx);if(!calc)return;if(cost===null){calc.classList.remove('show');return;}calc.classList.add('show');var dest=dests[idx]||'us';var dr=(dest==='us')?(duties[idx]!==undefined?duties[idx]:12.5):0;var ship;if(dest==='us'){var rw=resolveWeight(ITEMS[idx]);ship=(rw&&rw.ship!==undefined&&rw.ship!==null)?Number(rw.ship):(shipYenV2(rw?rw.wc:null,0)!=null?shipYenV2(rw.wc,0):n('shipUS'));}else{ship=n('shipOther');}document.getElementById('mc'+idx).textContent=cost.toLocaleString()+'円';var tp=calcTarget(cost,ship,dr);if(tp!==null&&tp>ECO_MAX_USD&&dest==='us'){var rw2=resolveWeight(ITEMS[idx]);if(!(rw2&&rw2.ship!==undefined&&rw2.ship!==null)){var s2=shipYenV2(rw2?rw2.wc:null,tp);if(s2!=null&&s2!==ship){ship=s2;tp=calcTarget(cost,ship,dr);}}}if(tp===null||tp<=0){document.getElementById('tp'+idx).textContent='計算不可';return;}var r=calcProfit(tp,cost,ship,dr);document.getElementById('tp'+idx).textContent=usd(tp);var pf=document.getElementById('pf'+idx);pf.textContent=yen(r.profit);pf.className='v '+(r.profit<0?'loss':'ok');document.getElementById('mg'+idx).textContent=r.margin.toFixed(1)+'%';document.getElementById('rf'+idx).textContent=yen(r.refund);}
 function recalcAll(){ITEMS.forEach(function(it,i){recalc(i);});}
 
 
@@ -2830,7 +2858,7 @@ function reLiveProfit(id,priceUsd){
     var rvw=(window.RE_REVIEWS||{})[String(id)]||{};
     var cost=reMinSupply(rvw);
     if(!(cost>0)||!(priceUsd>0)||typeof calcProfit!=='function')return null;
-    var ship=(typeof n==='function')?n('shipUS'):2115;
+    var ship=shipForId(id,priceUsd);
     return calcProfit(priceUsd,Number(cost),ship,12.5);
   }catch(e){return null;}
 }
@@ -3297,7 +3325,7 @@ function reCalcPriceForMargin(costYen,shipYen,dutyRate,marginPct){
   try{
     var rate=n('rate'),fvf=n('fvf'),intl=n('intl'),fx=n('fx'),promo=n('promo'),fixed=n('fixed');
     var t=Number(marginPct)/100;var taxPct=10;
-    var r1=(fvf+intl+fx+promo)/100*(1+taxPct/100),dd=dutyRate/100;
+    var r1=(fvf+intl+fx+promo)/100*(1+taxPct/100),dd=dutyRate/100*DUTY_PROC_MULT;
     var den=rate*(1-r1-dd-t);
     if(den<=0)return null;
     return Math.round(((fixed*rate+costYen+shipYen)/den)*100)/100;
@@ -3690,7 +3718,7 @@ function reSourcingBlock(c,rv){
   var calcHtml='';
   if(mn>0&&sellUsd>0&&typeof calcProfit==='function'){
     try{
-      var ship=(typeof n==='function')?n('shipUS'):2115;
+      var ship=shipForId(id,sellUsd);
       var r=calcProfit(sellUsd,Number(mn),ship,12.5);
       var col=r.profit<0?'#a33':'#1d5c2f';
       calcHtml='<span>最安仕入れ <b>'+mn.toLocaleString()+'円</b></span>'
