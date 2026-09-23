@@ -150,6 +150,11 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabInv .section.err h2{background:var(--warn-bg);color:var(--warn-ink)}
 #tabInv .section.in h2{background:var(--ok-bg);color:var(--ok)}
 #tabInv .section.in summary{font-size:14px;font-weight:700;cursor:pointer;list-style:none;background:var(--ok-bg);color:var(--ok);padding:6px 12px;border-radius:8px;display:inline-block}
+/* ▼ v1.9.121: 値下げ推奨セクション（計画の値下げ提案がある在庫あり商品を独立表示） */
+#tabInv .chip.drop{background:#e8f0fe;color:#1a56ab}
+#tabInv .section.drop h2{background:#e8f0fe;color:#1a56ab}
+#tabInv .dropbadge{font-size:11px;font-weight:700;background:#e8f0fe;color:#1a56ab;border:1px solid #c4d7f5;border-radius:5px;padding:1px 7px;margin-left:6px;white-space:nowrap}
+#tabInv .dropgo{font-size:11px;margin-left:6px;color:#1a56ab;text-decoration:none;border:1px solid #c4d7f5;border-radius:6px;padding:1px 7px;background:#fff;cursor:pointer;white-space:nowrap}
 #tabInv .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:12px}
 #tabInv .card.out{border-left:4px solid var(--danger)}
 #tabInv .card.err{border-left:4px solid var(--warn-ink)}
@@ -292,7 +297,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.120</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.121</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -353,6 +358,7 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
   <div class="bar">
     <span class="chip out" id="outChip" onclick="jumpTo('secOut')" title="クリックでジャンプ">在庫切れ 2</span>
     <span class="chip err" id="errChip" onclick="jumpTo('secErr')" title="クリックでジャンプ">要確認 2</span>
+    <span class="chip drop" id="dropChip" onclick="jumpTo('secDrop')" title="今朝の計画が値下げを提案している在庫あり商品。クリックでジャンプ" style="display:none">💰値下げ推奨 0</span>
     <span class="chip in" id="inChip" onclick="jumpTo('secIn')" title="クリックでジャンプ">在庫あり 4</span>
     <span class="chip maint" id="maintChip" onclick="onMaintJump()" title="クリックで売価メンテ順に並べ替え" style="display:none">⚠️売価メンテ 0</span>
     <span class="chip mainted" id="maintedChip" onclick="jumpMaintedFn()" title="対応済み（メンテ済み・監視なし）へジャンプ" style="display:none">メンテ済み ↓</span>
@@ -400,6 +406,7 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
 			<span class="load_msg"></span></div><div class="mn_float_doc_menu"> 
 			<ul class="mn_float_doc_menu_list"></ul></div></div></a></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au2" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(2)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots2"><div class="slot "><input class="pr" type="number" value="11500" onchange="editPrice(2,0,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z638274868</span><button class="del" onclick="delSupply(2,0)">×</button></div><div class="slot "><input class="pr" type="number" value="11000" onchange="editPrice(2,1,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z630528120</span><button class="del" onclick="delSupply(2,1)">×</button></div><div class="slot "><input class="pr" type="number" value="13000" onchange="editPrice(2,2,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z635440026</span><button class="del" onclick="delSupply(2,2)">×</button></div><div class="slot min"><span class="tag">最安</span><input class="pr" type="number" value="9888" onchange="editPrice(2,3,this.value)"><span style="font-size:11px">円</span><span class="u">https://jp.mercari.com/item/m40471519597</span><button class="del" onclick="delSupply(2,3)">×</button></div></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp2" placeholder="価格（円）"><button class="addbtn" onclick="addManual(2)">追加</button></div></div><div class="calc show" id="calc2"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc2">9,888円</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp2">$114.95</div></div><div class="m"><div class="l">利益</div><div class="v ok" id="pf2">¥928</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg2">5.0%</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf2">¥1,258</div></div></div></div></div>
   <div id="secErr" class="section err"><h2>要確認：URL未設定・監視対象外 2件</h2><div class="card err active" id="card3"><div class="head"><div><div class="name">Boa Hancock SR-P OP16-032 The Time Of Battle ONE PIECE Card Japanese 2026<span class="mentelabel">メンテ中</span></div><div class="meta">eBay #358716076492</div></div><span class="st err">要確認（URL未設定等）</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP16-032" oninput="onKw(3,this.value)"></div><button class="searchbtn" onclick="doSearch(3,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(3,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(3,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(3,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(3,this.value)"></div></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au3" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(3)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots3"><div class="slot min"><span class="tag">最安</span><input class="pr" type="number" value="12999" onchange="editPrice(3,0,this.value)"><span style="font-size:11px">円</span><span class="u">https://jp.mercari.com/item/m39520713159</span><button class="del" onclick="delSupply(3,0)">×</button></div><div class="slot "><input class="pr" type="number" value="15800" onchange="editPrice(3,1,this.value)"><span style="font-size:11px">円</span><span class="u">https://www.suruga-ya.jp/product/detail/GU745808</span><button class="del" onclick="delSupply(3,1)">×</button></div><div class="slot "><input class="pr" type="number" value="13800" onchange="editPrice(3,2,this.value)"><span style="font-size:11px">円</span><span class="u">https://paypayfleamarket.yahoo.co.jp/item/z637172200</span><button class="del" onclick="delSupply(3,2)">×</button></div></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp3" placeholder="価格（円）"><button class="addbtn" onclick="addManual(3)">追加</button></div></div><div class="calc show" id="calc3"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc3">12,999円</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp3">$144.58</div></div><div class="m"><div class="l">利益</div><div class="v ok" id="pf3">¥1,167</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg3">5.0%</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf3">¥1,638</div></div></div></div><div class="card err" id="card6"><div class="head"><div><div class="name">Prisoner of Impel Down OP16-042 TR R The Time Of Battle ONE PIECE Card Japanese</div><div class="meta">eBay #358716120651</div></div><span class="st err">要確認（URL未設定等）</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP16-042" oninput="onKw(6,this.value)"></div><button class="searchbtn" onclick="doSearch(6,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(6,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(6,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(6,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(6,this.value)"></div></div><div class="existing"><div class="lbl">仕入れ元URLを手動追加</div><div class="urladd"><input type="text" id="au6" placeholder="仕入れ元URLを貼り付け"><button class="addbtn" onclick="addUrl(6)">URL追加</button></div></div><div class="supply"><div class="lbl">仕入れ候補（検索→ブックマークレットで自動追加／価格はクリックで修正可・最安値を使用・最大5件）</div><div id="slots6"></div><div class="manualrow"><span style="font-size:11px;color:var(--muted)">手入力でも追加：</span><input type="number" id="mp6" placeholder="価格（円）"><button class="addbtn" onclick="addManual(6)">追加</button></div></div><div class="calc" id="calc6"><div class="m"><div class="l">最安仕入れ</div><div class="v" id="mc6">—</div></div><div class="m"><div class="l">適正売価</div><div class="v" id="tp6">—</div></div><div class="m"><div class="l">利益</div><div class="v" id="pf6">—</div></div><div class="m"><div class="l">利益率</div><div class="v" id="mg6">—</div></div><div class="m"><div class="l">還付(目安)</div><div class="v" id="rf6">—</div></div></div></div></div>
+  <div id="secDrop" class="section drop" style="display:none"></div>
   <div id="secIn" class="section in"><details><summary>在庫あり（対応不要） 4件 ▼</summary><div style="margin-top:10px"><div class="card in" id="card0"><div class="head"><div><div class="name">ZEHAHAHAHAHA TEACH R Parallel OP16-116 ONE PIECE The Time of Battle Japanese</div><div class="meta">eBay #358713488131</div></div><span class="st in">在庫あり</span></div><div class="searchrow"><div class="f" style="flex:1;min-width:170px"><label>検索キーワード（手で直せます）</label><input type="text" value="OP16-116" oninput="onKw(0,this.value)"></div><button class="searchbtn" onclick="doSearch(0,&#39;mercari&#39;)">メルカリ</button><button class="searchbtn alt" onclick="doSearch(0,&#39;paypay&#39;)">Yahoo!フリマ</button><button class="searchbtn alt" onclick="doSearch(0,&#39;suruga&#39;)">駿河屋</button><div class="f"><label>宛先</label><select onchange="onDest(0,this.value)"><option value="us" selected="">米国(DDP)</option><option value="other">その他</option></select></div><div class="f"><label>関税率%</label><input type="number" value="10" style="width:64px" oninput="onDuty(0,this.value)"></div></div><div class="existing"><div class="lbl">StockSyncers登録済みの仕入れ元URL：</div><a href="https://jp.mercari.com/item/m23915787484" target="_blank" rel="noopener" data-mnex-url="https://jp.mercari.com/item/m23915787484" data-mnex-title="仕入1" class="mnex_float_btn_parent" data-mnex-asin="true" data-ex-scan="{&quot;asin&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;},&quot;ean&quot;:{&quot;can_match_item_code&quot;:false,&quot;item_code&quot;:&quot;&quot;}}">仕入1<div class="mn_float_doc_btn_wrapper"><div class="mn_float_doc_btn hide"> 
 			 
 			 
@@ -639,6 +646,10 @@ window.ssDiag=function(){
   }catch(e){alert('診断に失敗: '+e.message);}
 };
 // ===== 送料自動化（v1.2）: カテゴリマスター・自動判定・重量永続化 =====
+/* ▼ v1.9.121: 在庫メンテタブに「💰値下げ推奨」セクション新設
+   計画（plan）の既定選択の提案が現在価格を下回る在庫あり商品を、在庫切れ/要確認/在庫ありと独立のセクションに集約。
+   そこで仕入れ候補・KWのメンテが可能。カードの「価格承認へ↗」で承認タブの該当商品へジャンプ（paGoItem）。
+   推奨の定義＝paDropList（承認タブ側・1%かつ$0.10以上の値下げ・n/m/r選択と反映済みは除外）。表示専用＝価格への書き込みは一切しない */
 /* ▼ v1.9.120: KW・重量のキャッシュ削除耐性（9/10消失・9/22 ownership問題の恒久対策）
    ①invHydrateFromCosts の致命バグ修正（未定義metaの参照でReferenceError→復元ループが途中死。v114以降ずっと復元が機能していなかった）
    ②exportCosts に所有権ガード: 画面のKW/重量が自動生成のままなら、ファイルの既存値（過去入力・backend復旧分）を保持して書く
@@ -1175,7 +1186,7 @@ function cardHtml(it,idx){
     })()+(sortMode==='mainte'&&mainteInfo(it).suspect
       ?(isPMainted(it)?'<span class="maintedbadge" title="この計画の警告後に仕入れ値を編集済み。次回の計画再生成に反映されます（警告が残れば再浮上します）">売価メンテ済み</span>':'')
       :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':(isTouchedId(it.id)?'<span class="maintedbadge" title="編集済み。保存ボタンで確定されます">メンテ済み（保存待ち）</span>':'')))+(it.manual_cost_override?'<span class="maintedbadge" title="仕入れ元URLの在庫判定は「なし」ですが、手入力原価で価格メンテを継続中のため在庫あり扱いにしています">手入力原価</span>':'')+(isSourceDead(it)?'<span class="maintedbadge" style="background:#fdf3e0;color:#8a5b00;border-color:#ecd9ae" title="eBayには実在庫（残'+it.ebay_quantity_available+'個）があるため在庫あり扱いですが、登録済みの仕入れ元は在庫切れです。売れたら次の補充先がない状態なので、余裕のある時に仕入れ元の追加を検討してください">仕入れ元切れ（eBay残'+it.ebay_quantity_available+'）</span>':'')+'</div>'+
-    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+'</div></div>'+((window.RESTOCK_BLOCKED||{})[String(it.id)]?('<span class="st err" style="background:#fdecec;color:#a33;border:1px solid #eec" title="'+esc(String((window.RESTOCK_BLOCKED||{})[String(it.id)]))+'。値上げ提案が価格承認に載ります。承認して価格が反映されると次のサイクルで自動的に在庫が復活します">⏸ 再入荷保留（赤字・値上げ承認待ち）</span>'):'')+'<span class="st '+t+'"'+(isWait?' style="background:#fdf6e6;color:#8a5b00;border:1px solid #ecd9ae" title="仕入れURLはシートに登録済みです。StockSyncersの再走査と毎時の在庫更新で、最大1時間ほどで在庫ありに変わります。操作は不要です"':'')+'>'+stLabel+'</span>'+
+    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+(function(){var d=dropInfo(it.id);return d?('　<span class="dropbadge" title="今朝の計画（'+d.label+'）が値下げを提案しています。ライバル安値への追随なので、仕入れ相場も下がっていないか確認してから承認を">💰提案 $'+d.p.toFixed(2)+'（'+d.pct.toFixed(1)+'%）</span><a class="dropgo" href="javascript:void(0)" onclick="window.paGoItem&&window.paGoItem(\''+String(it.id)+'\')">価格承認へ ↗</a>'):'';})()+'</div></div>'+((window.RESTOCK_BLOCKED||{})[String(it.id)]?('<span class="st err" style="background:#fdecec;color:#a33;border:1px solid #eec" title="'+esc(String((window.RESTOCK_BLOCKED||{})[String(it.id)]))+'。値上げ提案が価格承認に載ります。承認して価格が反映されると次のサイクルで自動的に在庫が復活します">⏸ 再入荷保留（赤字・値上げ承認待ち）</span>'):'')+'<span class="st '+t+'"'+(isWait?' style="background:#fdf6e6;color:#8a5b00;border:1px solid #ecd9ae" title="仕入れURLはシートに登録済みです。StockSyncersの再走査と毎時の在庫更新で、最大1時間ほどで在庫ありに変わります。操作は不要です"':'')+'>'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
     (isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':(stockType(it)==='out'?'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>':'<button class="endbtn subtle" onclick="endListing('+idx+')" title="この商品の扱いをやめる：eBayの出品を終了し、スプシの行も削除します（取り消し不可）">終了…</button>'))+'</div>'+
     '<div class="searchrow">'+
@@ -1340,6 +1351,7 @@ function lightRowHtml(it,i){
     (it.manual_cost_override?'<span class="lb m">手入力原価</span>':'')+
     (isDeferred(it)?'<span class="lb d">監視なし</span>':'')+
     (it.current_price_usd!=null?'<span style="font-size:11px;color:#888;flex-shrink:0">$'+Number(it.current_price_usd).toFixed(2)+'</span>':'')+
+    (function(){var d=dropInfo(it.id);return d?'<span class="dropbadge" style="flex-shrink:0" title="計画（'+d.label+'）が値下げを提案中">💰→$'+d.p.toFixed(2)+'</span>':'';})()+
     '<button class="openbtn" onclick="expandCard('+i+')">開く</button>'+
   '</div>';
 }
@@ -1443,12 +1455,24 @@ function jumpMaintedFn(){
   requestAnimationFrame(function(){near();requestAnimationFrame(finish);});
   setTimeout(function(){near();finish();},250);
 }
+// ▼ v1.9.121: 値下げ推奨の参照（計画データは承認タブ側 paDropList が正。ここは表示するだけ）
+function dropInfo(id){var m=window.__dropMap||{};return m[String(id)]||null;}
 function renderAll(){
   beginRenderCache();
+  window.__dropMap=(typeof window.paDropList==='function')?window.paDropList():{};
   var groups={out:[],err:[],in:[]};
   var hidden=0;
   ITEMS.forEach(function(it,i){ if(matchQuery(it)) groups[stockType(it)].push(i); else hidden++; });
   groups.out=sortIdx(groups.out); groups.err=sortIdx(groups.err); groups.in=sortIdx(groups.in);
+  // ▼ v1.9.121: 値下げ提案のある在庫あり商品（未対応のみ）を「💰値下げ推奨」セクションへ分離
+  //   在庫切れ・要確認は本来の対応が優先なので動かさない（カードにバッジだけ出る）。
+  //   メンテ済み（沈み対象）は通常の対応済みフローに残す＝対応すると自然にこのセクションから消える
+  var dropIdx=[];
+  groups.in=groups.in.filter(function(i){
+    if(dropInfo(ITEMS[i].id)&&sinkRank(i)===0){dropIdx.push(i);return false;}
+    return true;
+  });
+  dropIdx.sort(function(x,y){return dropInfo(ITEMS[x].id).pct-dropInfo(ITEMS[y].id).pct;}); // 下げ幅が大きい順
   _maintedAnchorDone=false;
   var suffix=query?('（絞り込み中・非表示'+hidden+'件）'):'';
   document.getElementById('outChip').textContent='在庫切れ '+groups.out.length;
@@ -1464,6 +1488,18 @@ function renderAll(){
   so.innerHTML='<h2>在庫切れ（補充が必要） '+groups.out.length+'件'+suffix+'</h2>'+(groups.out.length?renderCards(groups.out):'<div class="empty">'+(query?'絞り込みに該当なし':'在庫切れはありません')+'</div>');
   var se=document.getElementById('secErr');
   se.innerHTML='<h2>要確認：URL未設定・監視対象外 '+(groups.err.length-waitN)+'件'+(waitN?('　<small style="font-weight:normal;color:#8a5b00">＋🔗URL登録済み・再走査待ち '+waitN+'件（最大1時間で自動反映）</small>'):'')+suffix+'</h2>'+(groups.err.length?renderCards(groups.err):'<div class="empty">該当なし</div>');
+  // ▼ v1.9.121: 💰値下げ推奨セクション
+  (function(){
+    var sd=document.getElementById('secDrop'); if(!sd)return;
+    if(dropIdx.length){
+      sd.style.display='block';
+      sd.innerHTML='<h2>💰値下げ推奨（今朝の計画がライバル安値への追随値下げを提案） '+dropIdx.length+'件'+suffix
+        +'　<small style="font-weight:normal;color:#3a5a8a">仕入れ相場も下がっていないか確認→安い候補があれば差し替え→承認は価格承認タブで</small></h2>'
+        +renderCards(dropIdx);
+    }else{sd.style.display='none';sd.innerHTML='';}
+    var dc=document.getElementById('dropChip');
+    if(dc){dc.textContent='💰値下げ推奨 '+dropIdx.length;dc.style.display=dropIdx.length?'inline-block':'none';}
+  })();
   var si=document.getElementById('secIn');
   // 開閉状態（2026-08-02改）：手動の開閉は保持しつつ、まとめ取り候補（pending）を持つ在庫あり商品が
   // ある間は自動で開く（在庫あり商品の売価メンテで、メンテ中の商品が折りたたみの中に消えて
@@ -2145,6 +2181,52 @@ window.paJumpBlocked=function(){
       else{alert('要修正の商品：「'+String(target.title||'').slice(0,40)+'」（選んだ価格が現在価格の2倍超か半額以下です）。検索欄にタイトルを入れて探すこともできます');}
     };
     setTimeout(function(){seek(3);},150);
+  }catch(e){}
+};
+// ▼ v1.9.121: 在庫メンテタブ「💰値下げ推奨」連携
+//   値下げ推奨＝計画の既定選択（last_choice優先・無ければB案）の提案価格が現在価格を1%かつ$0.10以上下回る商品。
+//   変更なし(n)・手動(m)・ライバル指定(r)の明示選択と、24時間以内に反映済みの商品は対象外。
+window.paDropList=function(){
+  try{
+    if(typeof DATA==='undefined'||!DATA||!Array.isArray(DATA.items))return {};
+    var ap=appliedMap(),out={};
+    DATA.items.forEach(function(it){
+      var cur=(it.current_price_usd!=null)?Number(it.current_price_usd):null; if(cur==null||!(cur>0))return;
+      if(ap[String(it.item_id)])return;
+      var lc=it.last_choice&&it.last_choice.choice;
+      if(lc==='n'||lc==='m'||lc==='r')return;
+      var ch=(lc==='a'||lc==='b'||lc==='c')?lc:((it.option_b&&it.option_b.price_usd!=null)?'b':((it.recommended==='a'||it.recommended==='b'||it.recommended==='c')?it.recommended:'a'));
+      var o=(ch==='a'?it.option_a:(ch==='b'?it.option_b:it.option_c));
+      var p=(o&&o.price_usd!=null)?Number(o.price_usd):null; if(p==null)return;
+      var diff=p-cur;
+      if(diff<-Math.max(0.10,cur*0.01)){
+        out[String(it.item_id)]={cur:cur,p:p,pct:diff/cur*100,label:(ch==='a'?'A案':(ch==='b'?'B案':'C案'))};
+      }
+    });
+    return out;
+  }catch(e){return {};}
+};
+// 在庫メンテのカードから、価格承認タブの該当商品へジャンプ（paJumpBlockedと同型）
+window.paGoItem=function(id){
+  try{
+    showMainTab('pa');
+    if(typeof DATA==='undefined'||!DATA||!Array.isArray(DATA.items)){alert('価格計画が読み込まれていません');return;}
+    var vis=paFiltered(DATA.items).some(function(x){return String(x.item_id)===String(id);});
+    if(!vis&&window.paQuery){window.paQuery='';var si=document.getElementById('paSearch');if(si)si.value='';}
+    var sorted=paFiltered(DATA.items),idx=-1;
+    for(var i=0;i<sorted.length;i++){if(String(sorted[i].item_id)===String(id)){idx=i;break;}}
+    if(idx<0){alert('価格承認にこの商品の提案が見つかりません（計画が更新された可能性があります）');return;}
+    if(!window.PA_EXPANDED)window.PA_EXPANDED={};
+    window.PA_EXPANDED[String(id)]=true; // 1行化されていてもフルカードで開く
+    window.paPage=Math.floor(idx/PA_PAGE_SIZE)+1;render();
+    var seek=function(tries){
+      var el=document.querySelector('[data-item-id="'+String(id)+'"]');
+      if(el){el.scrollIntoView({behavior:'smooth',block:'center'});
+        el.style.outline='3px solid #2f6fed';el.style.outlineOffset='2px';
+        setTimeout(function(){el.style.outline='';el.style.outlineOffset='';},3500);}
+      else if(tries>0){setTimeout(function(){seek(tries-1);},350);}
+    };
+    setTimeout(function(){seek(4);},150);
   }catch(e){}
 };
 function appliedMap(){
