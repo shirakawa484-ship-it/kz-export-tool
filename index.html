@@ -297,7 +297,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.124</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.126</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -646,6 +646,10 @@ window.ssDiag=function(){
   }catch(e){alert('診断に失敗: '+e.message);}
 };
 // ===== 送料自動化（v1.2）: カテゴリマスター・自動判定・重量永続化 =====
+/* ▼ v1.9.126: 値下げ推奨の「🕊見送り」（A案・9/23診断で判定シロ確定後にユーザー承認）
+   打つ手なし（安い仕入れ候補が無い等）の商品をワンクリックで一覧から外す。記録={at,見送り時の下回り率pct,仕入れ値cost}。
+   保存はLS(ss_dropdismiss_v1)＝バッファ・costs_from_inventoryのdrop_dismissed＝正（export同梱・hydration復元・解除はトゥームストーン）。
+   自動復活=下回り率が+15pt超悪化 or 仕入れ値変化（⏰バッジ付きで本隊へ）。表示専用＝価格・赤字ガード4層には一切影響しない */
 /* ▼ v1.9.124: 表示改善（ユーザー指摘 9/23）——名称を「💰値下げ推奨」に統一し、在庫切れセクションと同じ要領で
    未対応の先頭30件をフルカード展開（EXPANDED登録＝編集時も畳まれない）。31件目以降は[開く]。中身は赤基準のまま */
 /* ▼ v1.9.123: セクションの中身を⚠️売価メンテ（赤警告）基準に変更（ユーザー指摘 9/23）。
@@ -1194,7 +1198,13 @@ function cardHtml(it,idx){
     })()+(sortMode==='mainte'&&mainteInfo(it).suspect
       ?(isPMainted(it)?'<span class="maintedbadge" title="この計画の警告後に仕入れ値を編集済み。次回の計画再生成に反映されます（警告が残れば再浮上します）">売価メンテ済み</span>':'')
       :(isMainted(it)?'<span class="maintedbadge" title="このセッションで編集し保存済み。リストの最下部にまとめています">メンテ済み</span>':(isTouchedId(it.id)?'<span class="maintedbadge" title="編集済み。保存ボタンで確定されます">メンテ済み（保存待ち）</span>':'')))+(it.manual_cost_override?'<span class="maintedbadge" title="仕入れ元URLの在庫判定は「なし」ですが、手入力原価で価格メンテを継続中のため在庫あり扱いにしています">手入力原価</span>':'')+(isSourceDead(it)?'<span class="maintedbadge" style="background:#fdf3e0;color:#8a5b00;border-color:#ecd9ae" title="eBayには実在庫（残'+it.ebay_quantity_available+'個）があるため在庫あり扱いですが、登録済みの仕入れ元は在庫切れです。売れたら次の補充先がない状態なので、余裕のある時に仕入れ元の追加を検討してください">仕入れ元切れ（eBay残'+it.ebay_quantity_available+'）</span>':'')+'</div>'+
-    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+(function(){var d=dropInfo(it.id);return d?('　<span class="dropbadge" title="今朝の計画（'+d.label+'）が値下げを提案しています。ライバル安値への追随なので、仕入れ相場も下がっていないか確認してから承認を">💰提案 $'+d.p.toFixed(2)+'（'+d.pct.toFixed(1)+'%）</span><a class="dropgo" href="javascript:void(0)" onclick="window.paGoItem&&window.paGoItem(\''+String(it.id)+'\')">価格承認へ ↗</a>'):'';})()+'</div></div>'+((window.RESTOCK_BLOCKED||{})[String(it.id)]?('<span class="st err" style="background:#fdecec;color:#a33;border:1px solid #eec" title="'+esc(String((window.RESTOCK_BLOCKED||{})[String(it.id)]))+'。値上げ提案が価格承認に載ります。承認して価格が反映されると次のサイクルで自動的に在庫が復活します">⏸ 再入荷保留（赤字・値上げ承認待ち）</span>'):'')+'<span class="st '+t+'"'+(isWait?' style="background:#fdf6e6;color:#8a5b00;border:1px solid #ecd9ae" title="仕入れURLはシートに登録済みです。StockSyncersの再走査と毎時の在庫更新で、最大1時間ほどで在庫ありに変わります。操作は不要です"':'')+'>'+stLabel+'</span>'+
+    '<div class="meta">eBay #'+it.id+(it.current_price_usd?'　<b style="color:#1d3557">現在 $'+Number(it.current_price_usd).toFixed(2)+'</b>':'')+(function(){var d=dropInfo(it.id);return d?('　<span class="dropbadge" title="今朝の計画（'+d.label+'）が値下げを提案しています。ライバル安値への追随なので、仕入れ相場も下がっていないか確認してから承認を">💰提案 $'+d.p.toFixed(2)+'（'+d.pct.toFixed(1)+'%）</span><a class="dropgo" href="javascript:void(0)" onclick="window.paGoItem&&window.paGoItem(\''+String(it.id)+'\')">価格承認へ ↗</a>'):'';})()+(function(){
+      // v1.9.126: 見送りボタン（赤警告持ちのみ）＋自動復活バッジ
+      var mi=mainteInfo(it);if(!mi.suspect)return '';
+      var st=dropDismissState(idx),h='';
+      if(st.mode==='revived')h+='　<span class="dropbadge" style="background:#fdecec;color:#a33;border-color:#eec" title="見送り後に状況が変わったため自動で一覧に戻しました">⏰'+esc(st.reason)+'</span>';
+      if(st.mode!=='dismissed')h+='<button class="dropgo" onclick="dropDismiss('+idx+')" title="安い仕入れ候補が無い・対応不要と判断した商品を一覧から外します。下回り率が+15pt超悪化するか仕入れ値が変わったら自動で戻ります">🕊見送り</button>';
+      return h;})()+'</div></div>'+((window.RESTOCK_BLOCKED||{})[String(it.id)]?('<span class="st err" style="background:#fdecec;color:#a33;border:1px solid #eec" title="'+esc(String((window.RESTOCK_BLOCKED||{})[String(it.id)]))+'。値上げ提案が価格承認に載ります。承認して価格が反映されると次のサイクルで自動的に在庫が復活します">⏸ 再入荷保留（赤字・値上げ承認待ち）</span>'):'')+'<span class="st '+t+'"'+(isWait?' style="background:#fdf6e6;color:#8a5b00;border:1px solid #ecd9ae" title="仕入れURLはシートに登録済みです。StockSyncersの再走査と毎時の在庫更新で、最大1時間ほどで在庫ありに変わります。操作は不要です"':'')+'>'+stLabel+'</span>'+
     (isManualDefer(it)?'<button class="deferbtn on" onclick="toggleDefer('+idx+')" title="監視なしを解除">監視なし ↺</button>':(isDeferred(it)?'<span class="deferbtn on" title="手入力原価のみ・URLなしのため自動で監視なし扱い（URL追加で解除）">監視なし（自動）</span>':'<button class="deferbtn" onclick="toggleDefer('+idx+')" title="このリストの最後尾へ">監視なし</button>'))+
     (isEndRequested(it)?'<span class="endpending">🕒出品終了 申請中</span>':(stockType(it)==='out'?'<button class="endbtn" onclick="endListing('+idx+')" title="eBayの出品を終了し、スプシの行も削除します（取り消し不可）">出品終了…</button>':'<button class="endbtn subtle" onclick="endListing('+idx+')" title="この商品の扱いをやめる：eBayの出品を終了し、スプシの行も削除します（取り消し不可）">終了…</button>'))+'</div>'+
     '<div class="searchrow">'+
@@ -1435,11 +1445,12 @@ function updateCard(idx){ // 触ったカード1枚だけ描き直す（①B）�
 function onSort(v){sortMode=v;try{localStorage.setItem('ss_sort_v1',v);}catch(e){}renderAll();}
 var _maintedAnchorDone=false;
 // ソート済みidx配列をカードHTML化。沈める区分の直前に「メンテ済み仕切り」を1回だけ挿入
+var _secDropRendering=false; // v1.9.125: 値下げ推奨セクション描画中フラグ（メンテ済み仕切りの抑止）
 function renderCards(idxArr){
   var html=''; var dividerDone=false; var _fullBudget=30;
   for(var k=0;k<idxArr.length;k++){
     var i=idxArr[k];
-    if(!dividerDone && sinkRank(i)===1){
+    if(!dividerDone && !_secDropRendering && sinkRank(i)===1){
       var cnt=0; for(var j=k;j<idxArr.length;j++){if(sinkRank(idxArr[j])===1)cnt++;}
       var anchor=_maintedAnchorDone?'':' id="jumpMainted"';
       html+='<div class="mainted-divider"'+anchor+'>── ここから下：対応済み（'+(sortMode==='mainte'?'売価メンテ済み':'メンテ済み')+'・監視なし）'+cnt+'件 ──</div>';
@@ -1465,6 +1476,40 @@ function jumpMaintedFn(){
 }
 // ▼ v1.9.121: 値下げ推奨の参照（計画データは承認タブ側 paDropList が正。ここは表示するだけ）
 function dropInfo(id){var m=window.__dropMap||{};return m[String(id)]||null;}
+// ▼ v1.9.126: 値下げ推奨の「見送り」（A案）
+//   保存: LS(ss_dropdismiss_v1)＝編集バッファ、costs_from_inventoryのdrop_dismissed＝正（exportCostsで同梱・hydrationで復元）。
+//   {at,pct(見送り時の下回り率),cost(見送り時の最安仕入れ)}を記録。LSの{removed:true}は「解除」のトゥームストーン（ファイル値に勝つ）。
+//   自動復活: 下回り率が見送り時+15pt超に悪化、または仕入れ値が変わった（前提が変化）とき。表示専用＝価格・赤字ガードには一切影響しない
+var LS_DROPDIS='ss_dropdismiss_v1';
+function loadDropDis(){try{return JSON.parse(localStorage.getItem(LS_DROPDIS)||'{}');}catch(e){return {};}}
+function saveDropDis(m){markDirty();try{localStorage.setItem(LS_DROPDIS,JSON.stringify(m));}catch(e){}}
+function dropDisRec(id){
+  var l=loadDropDis()[String(id)];
+  if(l&&l.removed)return null;               // 明示解除＝ファイルに残っていても無効
+  if(l&&l.at)return l;
+  var rec=(window.COSTS_INV||{})[String(id)]||{};var ma=(window.COSTS_META||{})[String(id)]||{};
+  return ma.drop_dismissed||rec.drop_dismissed||null;
+}
+function dropDismissState(i){
+  var it=ITEMS[i];if(!it)return {mode:'none'};
+  var rec=dropDisRec(it.id);if(!rec)return {mode:'none'};
+  var curPct=mainteInfo(it).pct, costNow=minCost(i);
+  if(rec.pct!=null&&curPct!=null&&Number(curPct)>Number(rec.pct)+15)return {mode:'revived',rec:rec,curPct:curPct,reason:'下回り率が悪化（'+Math.round(rec.pct)+'%→'+Math.round(curPct)+'%）'};
+  if(rec.cost!=null&&costNow!=null&&Number(rec.cost)!==Number(costNow))return {mode:'revived',rec:rec,curPct:curPct,reason:'仕入れ値が変化（'+Number(rec.cost).toLocaleString()+'円→'+Number(costNow).toLocaleString()+'円）'};
+  return {mode:'dismissed',rec:rec,curPct:curPct};
+}
+function dropDismiss(idx){
+  var it=ITEMS[idx];if(!it)return;
+  var m=loadDropDis();
+  m[String(it.id)]={at:new Date().toISOString(),pct:(mainteInfo(it).pct!=null?Number(mainteInfo(it).pct):null),cost:(minCost(idx)!=null?Number(minCost(idx)):null)};
+  saveDropDis(m);
+  showToast('見送りました。状況が悪化（下回り率+15pt超）するか仕入れ値が変わったら自動で戻ります');
+  renderAll();
+}
+function dropUndismiss(id){
+  var m=loadDropDis();m[String(id)]={removed:true};saveDropDis(m);
+  showToast('見送りを解除しました');renderAll();
+}
 function renderAll(){
   beginRenderCache();
   window.__dropMap=(typeof window.paDropList==='function')?window.paDropList():{};
@@ -1475,9 +1520,13 @@ function renderAll(){
   // ▼ v1.9.123: セクションの中身を⚠️売価メンテ（赤＝ライバルが損益分岐割れ＝仕入れ相場下落の疑い）に変更。
   //   値下げ提案だけの商品（青）は価格承認タブで承認すれば済むためセクション対象外——カードの参考バッジのみ。
   //   対応済み判定は従来どおり isPMainted（計画生成後の個別編集）。除外せず最下部へ沈める
-  var dropIdx=[];
+  var dropIdx=[],dropDisIdx=[];
   groups.in=groups.in.filter(function(i){
-    if(mainteInfo(ITEMS[i]).suspect){dropIdx.push(i);return false;}
+    if(mainteInfo(ITEMS[i]).suspect){
+      // v1.9.126: 見送り中（悪化していない）は別枠へ。悪化して復活(revived)した商品は本隊に戻す
+      if(dropDismissState(i).mode==='dismissed'){dropDisIdx.push(i);return false;}
+      dropIdx.push(i);return false;
+    }
     return true;
   });
   dropIdx.sort(function(x,y){ // 売価メンテ必要順と同じ：再出品が近い順→下回り率が高い順
@@ -1505,19 +1554,35 @@ function renderAll(){
   (function(){
     var sd=document.getElementById('secDrop'); if(!sd)return;
     var doneN=0;dropIdx.forEach(function(i2){if(isPMainted(ITEMS[i2]))doneN++;});
-    if(dropIdx.length){
+    if(dropIdx.length||dropDisIdx.length){
       sd.style.display='block';
       // v1.9.124: 在庫切れと同じ要領＝開いた状態で表示。未対応の先頭30件をEXPANDED登録（編集時のupdateCardでも畳まれない）。
       //   31件目以降は軽量1行＋[開く]（DOM量ガード）。対応済み（最下部）は畳んだまま
       var fullN=0;
       dropIdx.forEach(function(i2){if(fullN<30&&!isPMainted(ITEMS[i2])){EXPANDED[String(ITEMS[i2].id)]=1;fullN++;}});
-      var cardsHtml=renderCards(dropIdx);
+      // v1.9.125: このセクション内では「メンテ済み仕切り」を出さない（一括保存のメンテ済みを拾って
+      //   「ここから下：対応済み」と誤表示され、見出しの未対応件数と矛盾していた。対応済みの基準はisPMaintedのみ）
+      _secDropRendering=true;
+      var cardsHtml=dropIdx.length?renderCards(dropIdx):'<div class="empty">未対応はありません（全件見送り中）</div>';
+      _secDropRendering=false;
+      // v1.9.126: 見送り中の折りたたみ（1行＋解除ボタン。悪化・仕入れ変化で自動的に本隊へ戻る）
+      var disHtml='';
+      if(dropDisIdx.length){
+        disHtml='<details style="margin-top:10px"><summary style="font-size:13px;font-weight:700;cursor:pointer;color:#7a8194">🕊 見送り中 '+dropDisIdx.length+'件（悪化したら自動で戻ります） ▼</summary><div style="margin-top:8px">'
+          +dropDisIdx.map(function(i2){var it2=ITEMS[i2];var st=dropDismissState(i2);var r=st.rec||{};
+            return '<div class="lrow">'
+              +'<span class="ln" title="'+esc(it2.title||it2.name)+'">'+esc(it2.title||it2.name)+'</span>'
+              +'<span style="font-size:11px;color:#888;flex-shrink:0">見送り時'+(r.pct!=null?Math.round(r.pct)+'%':'—')+'→現在'+(st.curPct!=null?Math.round(st.curPct)+'%':'—')+'</span>'
+              +'<button class="openbtn" onclick="dropUndismiss(\''+String(it2.id)+'\')">見送り解除</button>'
+            +'</div>';}).join('')
+          +'</div></details>';
+      }
       sd.innerHTML='<h2>💰値下げ推奨（ライバルの安値があなたの損益分岐を下回り＝仕入れ直しか値下げが必要） '+(dropIdx.length-doneN)+'件'+(doneN?('（＋対応済み'+doneN+'・最下部）'):'')+suffix
-        +'　<small style="font-weight:normal;color:#8a5b00">①安い仕入れ候補を探して差し替え→保存　②それでも無理なら💰バッジの「価格承認へ↗」で値下げを承認</small></h2>'
-        +cardsHtml;
+        +'　<small style="font-weight:normal;color:#8a5b00">①安い仕入れ候補を探して差し替え→保存　②無理なら「価格承認へ↗」で値下げ　③どちらも不要なら「見送り」</small></h2>'
+        +cardsHtml+disHtml;
     }else{sd.style.display='none';sd.innerHTML='';}
     var dc=document.getElementById('dropChip');
-    if(dc){dc.textContent='💰値下げ推奨 '+(dropIdx.length-doneN)+(doneN?('（済'+doneN+'）'):'');dc.style.display=dropIdx.length?'inline-block':'none';}
+    if(dc){dc.textContent='💰値下げ推奨 '+(dropIdx.length-doneN)+(doneN?('（済'+doneN+'）'):'')+(dropDisIdx.length?('｜🕊'+dropDisIdx.length):'');dc.style.display=(dropIdx.length||dropDisIdx.length)?'inline-block':'none';}
   })();
   var si=document.getElementById('secIn');
   // 開閉状態（2026-08-02改）：手動の開閉は保持しつつ、まとめ取り候補（pending）を持つ在庫あり商品が
@@ -1570,6 +1635,16 @@ async function exportCosts(){
     if(cur!=null&&cur!==''&&cur!==auto)return cur;
     if(pv)return pv;
     return (cur!=null&&cur!=='')?cur:undefined;
+  }
+  // v1.9.126: 見送り(drop_dismissed)の解決——LSのトゥームストーン（解除）＞LSの見送り＞ファイルの既存値
+  var _ddLS=loadDropDis();
+  function _ddOut(id){
+    var l=_ddLS[String(id)];
+    if(l&&l.removed)return undefined;
+    if(l&&l.at)return {at:l.at,pct:(l.pct!=null?l.pct:undefined),cost:(l.cost!=null?l.cost:undefined)};
+    var pv=prevItems[String(id)]&&prevItems[String(id)].drop_dismissed;
+    var pm=prevMeta[String(id)]&&prevMeta[String(id)].drop_dismissed;
+    return pv||pm||undefined;
   }
   function _wOut(it){
     var w=resolveWeight(it);
@@ -1641,6 +1716,7 @@ async function exportCosts(){
       weight_class:(w.wc==null?undefined:w.wc), category:(w.cat||undefined),
       ship_yen_manual:(w.ship||undefined), wc_manual:(w.man===true?true:undefined), cost_manual_yen:(manualCost(i)||undefined),
       rival_query:(_rkw[String(it.id)]!==undefined?_rkw[String(it.id)].q:undefined),
+      drop_dismissed:_ddOut(it.id),  // v1.9.126: 値下げ推奨の見送り（ファイルが正・キャッシュ削除耐性）
       kw:_kwOut(it,i),  // v1.9.114同梱→v1.9.120保持ガード：自動生成値でファイルの既存KWを潰さない
       // ▼ 補充意思フラグ（v1.9.51）：eBay数量が0の商品を人間がこのツールで在庫メンテ（仕入れ候補を編集）した
       //   ＝補充完了の宣言。Python側はこれを見てeBay数量を0→1に自動復帰させる。
@@ -1678,6 +1754,7 @@ async function exportCosts(){
     var pm=prevMeta[id]||{};
     var dv=(dests[i]!=null?dests[i]:(pm.dest!=null?pm.dest:null)); if(dv!=null)e.dest=dv;
     var du=(duties[i]!=null?duties[i]:(pm.duty!=null?pm.duty:null)); if(du!=null)e.duty=du;
+    var dd=_ddOut(it.id); if(dd)e.drop_dismissed=dd;  // v1.9.126
     if(Object.keys(e).length)out.meta_all[id]=e;
   });
   Object.keys(prevMeta).forEach(function(id){if(out.meta_all[id]===undefined)out.meta_all[id]=prevMeta[id];});
@@ -1922,6 +1999,9 @@ function invHydrateFromCosts(){
       // ▼ 宛先・関税率: LSに無ければmeta_allから復元
       if(ma.dest!=null&&(dests[i]==null)&&(!meta[id]||meta[id].dest==null)){dests[i]=ma.dest;}
       if(ma.duty!=null&&(duties[i]==null)&&(!meta[id]||meta[id].duty==null)){duties[i]=ma.duty;}
+      // ▼ v1.9.126: 見送り(drop_dismissed): LSに一切記録が無い商品だけファイルから復元（キャッシュ削除後の復旧）
+      (function(){var dd=ma.drop_dismissed||rec.drop_dismissed;
+        if(dd&&dd.at){var dm=loadDropDis();if(dm[id]===undefined){dm[id]=dd;try{localStorage.setItem(LS_DROPDIS,JSON.stringify(dm));}catch(e2){}}}})();
     }catch(e){}  // 1件の不良レコードで全体の復元を止めない
   });
   if(wch){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(W));}catch(e){}}
