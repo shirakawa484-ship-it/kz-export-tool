@@ -292,7 +292,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.119</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.120</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -639,6 +639,11 @@ window.ssDiag=function(){
   }catch(e){alert('診断に失敗: '+e.message);}
 };
 // ===== 送料自動化（v1.2）: カテゴリマスター・自動判定・重量永続化 =====
+/* ▼ v1.9.120: KW・重量のキャッシュ削除耐性（9/10消失・9/22 ownership問題の恒久対策）
+   ①invHydrateFromCosts の致命バグ修正（未定義metaの参照でReferenceError→復元ループが途中死。v114以降ずっと復元が機能していなかった）
+   ②exportCosts に所有権ガード: 画面のKW/重量が自動生成のままなら、ファイルの既存値（過去入力・backend復旧分）を保持して書く
+   ③meta_all 新設: 全商品のKW・重量・宛先/関税率を候補の有無に関わらずエクスポートに同梱＝接続し直すだけで全件復元できる復元源
+   ④saveMeta: 自動生成KWをLSに書かない（「ユーザーの明示編集」判定を成立させる） */
 var LS_WEIGHT='ss_weight_v1';
 var SHIP_OC={0.5:2115,1.0:2599,1.5:2840,2.0:3108,2.5:3383,3.0:3540,3.5:3593,4.0:4022,4.5:4451,5.0:4718,5.5:5043,6.0:5366,6.5:5735,7.0:6184,7.5:6683,8.0:6871,8.5:7060,9.0:7249,9.5:8865,10.0:9089};
 /* ▼ v1.9.119: 送料モデルv2（発送運用変更 2026-09-19・backend shipping_model_v2 と完全一致必須）
@@ -1077,7 +1082,17 @@ function markDirty(){DIRTY=true;var b=document.getElementById('exportCostBtn');i
 function clearDirty(){DIRTY=false;var b=document.getElementById('exportCostBtn');if(b)b.classList.remove('dirty');}
 window.addEventListener('beforeunload',function(e){if(DIRTY){e.preventDefault();e.returnValue='';}});
 function saveSupplies(){markDirty();var b={};Object.keys(supplies).forEach(function(i){var it=ITEMS[i];if(it)b[it.id]=supplies[i];});try{localStorage.setItem(LS_SUPPLY,JSON.stringify(b));}catch(e){}}
-function saveMeta(){var b={};ITEMS.forEach(function(it,i){b[it.id]={kw:keywords[i],dest:dests[i],duty:duties[i]};});try{localStorage.setItem(LS_META,JSON.stringify(b));}catch(e){}}
+function saveMeta(){
+  // v1.9.120: 自動生成KW（extractKwと同値）はLSに書かない。LS_METAのkw＝「ユーザーが手で決めた値」だけにする。
+  //   （v119まで全keywordsを書いていたため、1回のonKwで自動値まで「明示編集」に化け、ファイルからのKW復元を永久にブロックしていた）
+  var b={};ITEMS.forEach(function(it,i){
+    var e={};var auto=extractKw(it.title||it.name);
+    if(keywords[i]!=null&&keywords[i]!==''&&keywords[i]!==auto)e.kw=keywords[i];
+    if(dests[i]!=null)e.dest=dests[i];
+    if(duties[i]!=null)e.duty=duties[i];
+    if(e.kw!==undefined||e.dest!==undefined||e.duty!==undefined)b[it.id]=e;
+  });
+  try{localStorage.setItem(LS_META,JSON.stringify(b));}catch(e){}}
 function saveAddUrls(){var b={};Object.keys(addUrls).forEach(function(i){var it=ITEMS[i];if(it)b[it.id]=addUrls[i];});try{localStorage.setItem(LS_ADDURL,JSON.stringify(b));}catch(e){}}
 function restoreAll(){
   var sup=loadJSON(LS_SUPPLY),meta=loadJSON(LS_META),au=loadJSON(LS_ADDURL);
@@ -1489,15 +1504,39 @@ function clearSupplies(idx){
 async function exportCosts(){
   // ▼ v1.9.115: 全置換を根絶。既存costs_from_inventory.jsonを読み、今の画面に無い商品のレコードは保持するrmwマージ。
   //   さらに消失ガード（reviews/drafts/rivalsと同じ二段防御）を適用——9/11のcost削除事故（1071→76件上書き）の根本対策
-  var prevItems={};
-  try{var prev=await autoReadJSON('costs_from_inventory.json');if(prev&&prev.items&&!Array.isArray(prev.items))prevItems=prev.items;}catch(e){}
+  var prevItems={},prevMeta={};
+  try{var prev=await autoReadJSON('costs_from_inventory.json');if(prev&&prev.items&&!Array.isArray(prev.items))prevItems=prev.items;if(prev&&prev.meta_all&&!Array.isArray(prev.meta_all))prevMeta=prev.meta_all;}catch(e){}
+  // ▼ v1.9.120: KW・重量の「所有権」ガード。画面/LSの値が自動生成のままなら、ファイルに残る既存値
+  //   （ユーザーの過去入力・backend復旧パッチ分）を保持して書く。ユーザーが手で変えた値（自動生成と異なる値）は常に最優先。
+  //   これが無いと、キャッシュ削除後の最初の保存でファイル内のKW・手動重量が自動値で上書き消滅する（9/22の教訓）
+  function _kwOut(it,i){
+    var cur=keywords[i], auto=extractKw(it.title||it.name);
+    var pv=(prevItems[String(it.id)]&&prevItems[String(it.id)].kw)||(prevMeta[String(it.id)]&&prevMeta[String(it.id)].kw)||null;
+    if(cur!=null&&cur!==''&&cur!==auto)return cur;
+    if(pv)return pv;
+    return (cur!=null&&cur!=='')?cur:undefined;
+  }
+  function _wOut(it){
+    var w=resolveWeight(it);
+    if(w.manual)return {wc:w.wc,cat:w.cat,ship:w.ship,man:true};  // LSに手動設定あり＝最新の意思＝最優先
+    var pv=prevItems[String(it.id)]||{},pm=prevMeta[String(it.id)]||{};
+    var pwc=(pv.weight_class!=null?pv.weight_class:(pm.weight_class!=null?pm.weight_class:null));
+    var pship=(pv.ship_yen_manual!=null?pv.ship_yen_manual:(pm.ship_yen_manual!=null?pm.ship_yen_manual:null));
+    var pcat=pv.category||pm.category||null;
+    var pman=(pv.wc_manual===true)||(pm.wc_manual===true);
+    // LSに手動なし（キャッシュ消失後など）：ファイルの手入力送料・手動由来の区分・未判定の穴埋めを保持
+    if(pship!=null||pman||((w.wc==null||w.wc==='over10')&&pwc!=null))
+      return {wc:(pwc!=null?pwc:w.wc),cat:(pcat||w.cat),ship:(pship!=null?Number(pship):undefined),man:pman};
+    return {wc:w.wc,cat:w.cat,ship:w.ship,man:false};
+  }
   // ▼ 送料未確定の完全ブロック：書き出し対象（仕入れ候補あり）に
   //   「10kg超 または カテゴリ・重量とも未判定」で送料手入力なしの商品があれば保存を中断
+  //   （v1.9.120: ファイル保持分で解決できる商品は_wOut経由でNG扱いにしない）
   var shipNG=[];
   ITEMS.forEach(function(it,i){
     var arr=supplies[i]||[]; if(!arr.length)return;
-    var w=resolveWeight(it);
-    if(!w.ship && (w.wc==='over10' || w.wc===null)) shipNG.push({idx:i,name:it.name});
+    var w=_wOut(it);
+    if(!w.ship && (w.wc==='over10' || w.wc==null)) shipNG.push({idx:i,name:it.name});
   });
   var shipSkip={};
   if(shipNG.length){
@@ -1542,12 +1581,12 @@ async function exportCosts(){
     if(!arr.length&&!aus.length){if(Array.isArray(rawArr))cleared[String(it.id)]=true;skipped.push(it.name.slice(0,20));return;}
     if(!arr.length)urlOnly++;
     var mn=minCost(i);
-    var w=resolveWeight(it);
+    var w=_wOut(it);  // v1.9.120: LSに手動なしならファイルの既存重量・手入力送料を保持
     out.items[String(it.id)]={cost_yen:mn, candidates:arr.map(function(s){return {price:s.price,url:s.url||''};}).concat(aus.map(function(u){return {price:null,url:u};})),
-      weight_class:(w.wc===null?undefined:w.wc), category:(w.cat||undefined),
-      ship_yen_manual:(w.ship||undefined), cost_manual_yen:(manualCost(i)||undefined),
+      weight_class:(w.wc==null?undefined:w.wc), category:(w.cat||undefined),
+      ship_yen_manual:(w.ship||undefined), wc_manual:(w.man===true?true:undefined), cost_manual_yen:(manualCost(i)||undefined),
       rival_query:(_rkw[String(it.id)]!==undefined?_rkw[String(it.id)].q:undefined),
-      kw:((keywords[i]!=null&&keywords[i]!=='')?keywords[i]:undefined),  // v1.9.114: 検索キーワードもファイルに同梱（localStorage消失時の復元源）
+      kw:_kwOut(it,i),  // v1.9.114同梱→v1.9.120保持ガード：自動生成値でファイルの既存KWを潰さない
       // ▼ 補充意思フラグ（v1.9.51）：eBay数量が0の商品を人間がこのツールで在庫メンテ（仕入れ候補を編集）した
       //   ＝補充完了の宣言。Python側はこれを見てeBay数量を0→1に自動復帰させる。
       //   古い仕入れ候補が残っているだけの商品を誤復活させないため、編集済みフラグ（isTouchedId）を必須条件にする。
@@ -1569,6 +1608,25 @@ async function exportCosts(){
   if(kept)msg+='。既存レコード保持：'+kept+'件';
   var shipSkipN=Object.keys(shipSkip).length;
   if(shipSkipN)msg+='。⚠️送料未確定で除外：'+shipSkipN+'件（送料区分を選んで再保存を）';
+  // ▼ v1.9.120: 全商品のKW・重量・宛先/関税率を meta_all に同梱（仕入れ候補の有無に関わらず）。
+  //   キャッシュ削除・ブラウザ乗換の後も「autoフォルダに接続し直すだけ」で全件復元できる恒久復元源。
+  //   backend(items読み)には未知キーとして無害。画面に無い商品の過去メタはrmw保持
+  out.meta_all={};
+  ITEMS.forEach(function(it,i){
+    var id=String(it.id),e={};
+    var kwv=_kwOut(it,i); if(kwv!=null)e.kw=kwv;
+    var w=_wOut(it);
+    if(w.wc!=null)e.weight_class=w.wc;
+    if(w.cat)e.category=w.cat;
+    if(w.ship!=null&&w.ship!==undefined)e.ship_yen_manual=w.ship;
+    if(w.man)e.wc_manual=true;
+    var pm=prevMeta[id]||{};
+    var dv=(dests[i]!=null?dests[i]:(pm.dest!=null?pm.dest:null)); if(dv!=null)e.dest=dv;
+    var du=(duties[i]!=null?duties[i]:(pm.duty!=null?pm.duty:null)); if(du!=null)e.duty=du;
+    if(Object.keys(e).length)out.meta_all[id]=e;
+  });
+  Object.keys(prevMeta).forEach(function(id){if(out.meta_all[id]===undefined)out.meta_all[id]=prevMeta[id];});
+  msg+='。総レコード：'+Object.keys(out.items).length+'件／メタ同梱：'+Object.keys(out.meta_all).length+'件';
   if(!reLossGuard('ss_guard_costs_v1',Object.keys(out.items).length,'仕入れ値(costs_from_inventory)'))return;
   (async function(){
     var saved=false;
@@ -1769,26 +1827,47 @@ function reParseRestockBlocked(rst){
   return out;
 }
 function invHydrateFromCosts(){
-  // v1.9.114: costs_from_inventory（自分が保存したファイル）から、LSに無い手動設定だけを静かに復元する。
-  // LSにある値（＝より新しい編集）が常に優先。復元対象：手入力送料/手動区分（未判定の商品のみ）・検索キーワード
-  var recs=window.COSTS_INV||{};var W=loadWeights();var wch=false,kch=0;
+  // v1.9.114→v1.9.120全面改修: costs_from_inventory（items＋meta_all）から、LSに明示値が無い設定を復元する。
+  // ★v119までの致命バグ: この関数がrestoreAllのローカル変数metaを参照→ReferenceErrorで復元ループが
+  //   途中死し、try/catchに握りつぶされて「接続してもKW・重量・候補が戻らない」を起こしていた（9/22判明）。
+  // ルール: LSの明示値（自動生成KWと異なる値・手動重量設定）が常に優先。それが無ければファイルが正。
+  var recs=window.COSTS_INV||{};var metas=window.COSTS_META||{};
+  var meta=loadJSON(LS_META);var W=loadWeights();var wch=false,kch=0;
   ITEMS.forEach(function(it,i){
-    var rec=recs[String(it.id)];if(!rec)return;
-    if(!W[String(it.id)]){
-      // v1.9.117: 「今の解決結果が未確定（送料NG条件と同一判定）」なら必ずファイルから復元する。
-      //   v114の !detectCategory 条件は、タイトルがカテゴリ語に一致するのに wc が決まらない商品を取りこぼしていた
-      var cw=resolveWeight(it);
-      var undecided=(!cw.ship&&(cw.wc==='over10'||cw.wc===null||cw.wc===undefined));
-      if(undecided){
-        var fw=(rec.weight_class==='over10')?'over10':(rec.weight_class!=null?Number(rec.weight_class):null);
-        if(fw!=null&&isNaN(fw)&&fw!=='over10')fw=null;
-        if(rec.ship_yen_manual!=null){W[String(it.id)]={cat:rec.category||'custom',wc:fw,ship:Number(rec.ship_yen_manual)};wch=true;}
-        else if(fw!=null&&fw!=='over10'){W[String(it.id)]={cat:rec.category||'custom',wc:fw};wch=true;}
+    try{
+      var id=String(it.id);
+      var rec=recs[id]||{},ma=metas[id]||{};
+      if(recs[id]===undefined&&metas[id]===undefined)return;
+      // ▼ 重量: LSに設定が無ければファイルから復元。
+      //   手入力送料(ship_yen_manual)は無条件で復元（手入力＝定義上ユーザーの意思）。
+      //   区分(wc)は「現解決が未確定」または「ファイル側が手動フラグ(wc_manual)」の時に復元
+      if(!W[id]){
+        var cw=resolveWeight(it);
+        var undecided=(!cw.ship&&(cw.wc==='over10'||cw.wc==null));
+        var rwc=(ma.weight_class!=null?ma.weight_class:rec.weight_class);
+        var fw=(rwc==='over10')?'over10':(rwc!=null?Number(rwc):null);
+        if(fw!=null&&fw!=='over10'&&isNaN(fw))fw=null;
+        var fs=(ma.ship_yen_manual!=null?ma.ship_yen_manual:rec.ship_yen_manual);
+        var fc=ma.category||rec.category||'custom';
+        var fman=(ma.wc_manual===true)||(rec.wc_manual===true);
+        if(fs!=null){W[id]={cat:fc,wc:fw,ship:Number(fs)};wch=true;}
+        else if((undecided||fman)&&fw!=null&&fw!=='over10'){W[id]={cat:fc,wc:fw};wch=true;}
       }
-    }
-    if(supplies[i]===undefined&&Array.isArray(rec.candidates)&&rec.candidates.length){supplies[i]=rec.candidates.filter(function(c){return c&&(c.price!=null||c.url);}).map(function(c){return {price:(c.price!=null?Number(c.price):null),url:String(c.url||'')};});wch=true;}  // v1.9.115: 仕入れ候補もファイルから復元（LSに一切無い時のみ）
-    if((keywords[i]==null||keywords[i]==='')&&rec.kw){keywords[i]=rec.kw;kch++;}
-    else if(rec.kw&&(!meta[it.id]||meta[it.id].kw==null)&&keywords[i]!==rec.kw){keywords[i]=rec.kw;kch++;}
+      if(supplies[i]===undefined&&Array.isArray(rec.candidates)&&rec.candidates.length){supplies[i]=rec.candidates.filter(function(c){return c&&(c.price!=null||c.url);}).map(function(c){return {price:(c.price!=null?Number(c.price):null),url:String(c.url||'')};});wch=true;}  // v1.9.115: 仕入れ候補もファイルから復元（LSに一切無い時のみ）
+      // ▼ KW: LSの明示値（自動生成と異なる値）だけが優先。空・自動生成のままならファイルのKWを採用
+      //   （backend復旧パッチが書いたkwもここで画面に載る）
+      var fkw=(ma.kw!=null&&ma.kw!=='')?ma.kw:((rec.kw!=null&&rec.kw!=='')?rec.kw:null);
+      if(fkw){
+        var auto=extractKw(it.title||it.name);
+        var mk=(meta[id]&&meta[id].kw!=null)?meta[id].kw:null;
+        var explicit=(mk!=null&&mk!==''&&mk!==auto);  // v119以前のLS_META（自動値混入）にも耐える判定
+        if(keywords[i]==null||keywords[i]===''){keywords[i]=fkw;kch++;}
+        else if(!explicit&&keywords[i]!==fkw){keywords[i]=fkw;kch++;}
+      }
+      // ▼ 宛先・関税率: LSに無ければmeta_allから復元
+      if(ma.dest!=null&&(dests[i]==null)&&(!meta[id]||meta[id].dest==null)){dests[i]=ma.dest;}
+      if(ma.duty!=null&&(duties[i]==null)&&(!meta[id]||meta[id].duty==null)){duties[i]=ma.duty;}
+    }catch(e){}  // 1件の不良レコードで全体の復元を止めない
   });
   if(wch){try{localStorage.setItem(LS_WEIGHT,JSON.stringify(W));}catch(e){}}
   if(wch||kch)renderAll();
@@ -2588,7 +2667,7 @@ async function autoLoadAll(verbose){
   // v1.9.109: 出品時コスト（costs_from_listings）を価格明細・送料区分のフォールバックに使う（③cost橋渡し拡張のブラウザ側）
   try{var lc=await autoReadJSON('costs_from_listings.json');window.LISTING_COSTS=(lc&&lc.items&&!Array.isArray(lc.items))?lc.items:{};invApplyListingCosts();}catch(e){window.LISTING_COSTS=window.LISTING_COSTS||{};}
   // v1.9.114: LS→auto移行。costs_from_inventory.json を正として、localStorage欠落時（キャッシュ削除後）に手動送料区分・KWを復元
-  try{var ci=await autoReadJSON('costs_from_inventory.json');window.COSTS_INV=(ci&&ci.items&&!Array.isArray(ci.items))?ci.items:{};invHydrateFromCosts();}catch(e){window.COSTS_INV=window.COSTS_INV||{};}
+  try{var ci=await autoReadJSON('costs_from_inventory.json');window.COSTS_INV=(ci&&ci.items&&!Array.isArray(ci.items))?ci.items:{};window.COSTS_META=(ci&&ci.meta_all&&!Array.isArray(ci.meta_all))?ci.meta_all:{};invHydrateFromCosts();}catch(e){window.COSTS_INV=window.COSTS_INV||{};window.COSTS_META=window.COSTS_META||{};}
   var plan=await autoReadJSON('plan_latest.json');
   if(plan&&plan.items){ window.paLoadPlan(plan,'plan_latest.json（自動）'); msgs.push('計画 '+(plan.items||[]).length+'件'); }
   window.APPLIED=await autoReadJSON('applied_latest.json');
