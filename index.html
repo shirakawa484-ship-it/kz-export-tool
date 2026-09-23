@@ -150,9 +150,9 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 #tabInv .section.err h2{background:var(--warn-bg);color:var(--warn-ink)}
 #tabInv .section.in h2{background:var(--ok-bg);color:var(--ok)}
 #tabInv .section.in summary{font-size:14px;font-weight:700;cursor:pointer;list-style:none;background:var(--ok-bg);color:var(--ok);padding:6px 12px;border-radius:8px;display:inline-block}
-/* ▼ v1.9.121: 値下げ推奨セクション（計画の値下げ提案がある在庫あり商品を独立表示） */
-#tabInv .chip.drop{background:#e8f0fe;color:#1a56ab}
-#tabInv .section.drop h2{background:#e8f0fe;color:#1a56ab}
+/* ▼ v1.9.121→123: 売価メンテセクション（赤警告の在庫あり商品を独立表示）＋値下げ提案の参考バッジ（青） */
+#tabInv .chip.drop{background:#fff3d6;color:#8a5b00}
+#tabInv .section.drop h2{background:#fff3d6;color:#8a5b00}
 #tabInv .dropbadge{font-size:11px;font-weight:700;background:#e8f0fe;color:#1a56ab;border:1px solid #c4d7f5;border-radius:5px;padding:1px 7px;margin-left:6px;white-space:nowrap}
 #tabInv .dropgo{font-size:11px;margin-left:6px;color:#1a56ab;text-decoration:none;border:1px solid #c4d7f5;border-radius:6px;padding:1px 7px;background:#fff;cursor:pointer;white-space:nowrap}
 #tabInv .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:12px}
@@ -297,7 +297,7 @@ details.wdet summary{font-size:11px;color:var(--muted);cursor:pointer}
 </head>
 <body>
 <div class="shellhead">
-  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.121</span></h1>
+  <h1>eBay輸出メンテツール <span style="font-weight:400;font-size:12px;color:#888;cursor:pointer;text-decoration:underline dotted" onclick="window.ssDiag&&window.ssDiag()" title="クリックで保存領域の診断">統合版 v1.9.123</span></h1>
   <div class="tabs">
     <button class="tabbtn on" id="btnInv" onclick="showMainTab('inv')">在庫メンテ</button>
     <button class="tabbtn" id="btnPa" onclick="showMainTab('pa')">価格承認 <span id="paBadge">0</span></button>
@@ -358,7 +358,7 @@ loop();})();">まとめ取り v6（メルカリ検索結果ページで押す・
   <div class="bar">
     <span class="chip out" id="outChip" onclick="jumpTo('secOut')" title="クリックでジャンプ">在庫切れ 2</span>
     <span class="chip err" id="errChip" onclick="jumpTo('secErr')" title="クリックでジャンプ">要確認 2</span>
-    <span class="chip drop" id="dropChip" onclick="jumpTo('secDrop')" title="今朝の計画が値下げを提案している在庫あり商品。クリックでジャンプ" style="display:none">💰値下げ推奨 0</span>
+    <span class="chip drop" id="dropChip" onclick="jumpTo('secDrop')" title="ライバルの安値があなたの損益分岐を下回っている在庫あり商品（仕入れ相場下落の疑い）。クリックでセクションへジャンプ" style="display:none">⚠️売価メンテ 0</span>
     <span class="chip in" id="inChip" onclick="jumpTo('secIn')" title="クリックでジャンプ">在庫あり 4</span>
     <span class="chip maint" id="maintChip" onclick="onMaintJump()" title="クリックで売価メンテ順に並べ替え" style="display:none">⚠️売価メンテ 0</span>
     <span class="chip mainted" id="maintedChip" onclick="jumpMaintedFn()" title="対応済み（メンテ済み・監視なし）へジャンプ" style="display:none">メンテ済み ↓</span>
@@ -646,6 +646,12 @@ window.ssDiag=function(){
   }catch(e){alert('診断に失敗: '+e.message);}
 };
 // ===== 送料自動化（v1.2）: カテゴリマスター・自動判定・重量永続化 =====
+/* ▼ v1.9.123: セクションの中身を⚠️売価メンテ（赤警告）基準に変更（ユーザー指摘 9/23）。
+   赤＝ライバルが損益分岐割れ＝仕入れ直しが必要→在庫メンテに集約。青（値下げ提案のみ）＝承認タブで完結→カードの参考バッジのみ。
+   旧⚠️売価メンテチップ（ソート切替型）は新チップ＋セクションに置き換えて非表示化（ソートはプルダウンに残置） */
+/* ▼ v1.9.122: 値下げ推奨の「対応済み」判定を修正——一括保存のメンテ済み(isMainted)で除外しない
+   （保存した日にセクションが空になる欠陥）。⚠️売価メンテと同じ isPMainted（計画生成後の個別編集）で
+   最下部へ沈める方式に変更。除外はしない */
 /* ▼ v1.9.121: 在庫メンテタブに「💰値下げ推奨」セクション新設
    計画（plan）の既定選択の提案が現在価格を下回る在庫あり商品を、在庫切れ/要確認/在庫ありと独立のセクションに集約。
    そこで仕入れ候補・KWのメンテが可能。カードの「価格承認へ↗」で承認タブの該当商品へジャンプ（paGoItem）。
@@ -1464,15 +1470,21 @@ function renderAll(){
   var hidden=0;
   ITEMS.forEach(function(it,i){ if(matchQuery(it)) groups[stockType(it)].push(i); else hidden++; });
   groups.out=sortIdx(groups.out); groups.err=sortIdx(groups.err); groups.in=sortIdx(groups.in);
-  // ▼ v1.9.121: 値下げ提案のある在庫あり商品（未対応のみ）を「💰値下げ推奨」セクションへ分離
-  //   在庫切れ・要確認は本来の対応が優先なので動かさない（カードにバッジだけ出る）。
-  //   メンテ済み（沈み対象）は通常の対応済みフローに残す＝対応すると自然にこのセクションから消える
+  // ▼ v1.9.123: セクションの中身を⚠️売価メンテ（赤＝ライバルが損益分岐割れ＝仕入れ相場下落の疑い）に変更。
+  //   値下げ提案だけの商品（青）は価格承認タブで承認すれば済むためセクション対象外——カードの参考バッジのみ。
+  //   対応済み判定は従来どおり isPMainted（計画生成後の個別編集）。除外せず最下部へ沈める
   var dropIdx=[];
   groups.in=groups.in.filter(function(i){
-    if(dropInfo(ITEMS[i].id)&&sinkRank(i)===0){dropIdx.push(i);return false;}
+    if(mainteInfo(ITEMS[i]).suspect){dropIdx.push(i);return false;}
     return true;
   });
-  dropIdx.sort(function(x,y){return dropInfo(ITEMS[x].id).pct-dropInfo(ITEMS[y].id).pct;}); // 下げ幅が大きい順
+  dropIdx.sort(function(x,y){ // 売価メンテ必要順と同じ：再出品が近い順→下回り率が高い順
+    var mx=mainteInfo(ITEMS[x]),my=mainteInfo(ITEMS[y]);
+    var dx=(mx.days!=null?mx.days:9999),dy=(my.days!=null?my.days:9999);
+    if(dx!==dy)return dx-dy;
+    return (my.pct||0)-(mx.pct||0);
+  });
+  dropIdx.sort(function(x,y){var px=isPMainted(ITEMS[x])?1:0,py=isPMainted(ITEMS[y])?1:0;return px-py;}); // 個別対応済みは最下部（安定ソート）
   _maintedAnchorDone=false;
   var suffix=query?('（絞り込み中・非表示'+hidden+'件）'):'';
   document.getElementById('outChip').textContent='在庫切れ '+groups.out.length;
@@ -1480,9 +1492,8 @@ function renderAll(){
   document.getElementById('errChip').textContent='要確認 '+(groups.err.length-waitN)+(waitN?('（🔗待ち'+waitN+'）'):'');
   document.getElementById('inChip').textContent='在庫あり '+groups.in.length;
   // 件数＝「未対応の⚠️」のみ（対応済み・絞り込み非表示分は数えない）。画面に見える作業残と一致させる
-  (function(){var n=0;ITEMS.forEach(function(it){if(matchQuery(it)&&mainteInfo(it).suspect&&!isPMainted(it))n++;});
-    var c=document.getElementById('maintChip');
-    if(c){c.textContent='⚠️売価メンテ '+n;c.style.display=n?'inline-block':'none';}})();
+  // v1.9.123: 旧⚠️売価メンテチップ（ソート切替型）は専用セクション＋新チップに置き換え。常に非表示（ソート自体はプルダウンから利用可）
+  (function(){var c=document.getElementById('maintChip');if(c)c.style.display='none';})();
 
   var so=document.getElementById('secOut');
   so.innerHTML='<h2>在庫切れ（補充が必要） '+groups.out.length+'件'+suffix+'</h2>'+(groups.out.length?renderCards(groups.out):'<div class="empty">'+(query?'絞り込みに該当なし':'在庫切れはありません')+'</div>');
@@ -1491,14 +1502,15 @@ function renderAll(){
   // ▼ v1.9.121: 💰値下げ推奨セクション
   (function(){
     var sd=document.getElementById('secDrop'); if(!sd)return;
+    var doneN=0;dropIdx.forEach(function(i2){if(isPMainted(ITEMS[i2]))doneN++;});
     if(dropIdx.length){
       sd.style.display='block';
-      sd.innerHTML='<h2>💰値下げ推奨（今朝の計画がライバル安値への追随値下げを提案） '+dropIdx.length+'件'+suffix
-        +'　<small style="font-weight:normal;color:#3a5a8a">仕入れ相場も下がっていないか確認→安い候補があれば差し替え→承認は価格承認タブで</small></h2>'
+      sd.innerHTML='<h2>⚠️売価メンテ（ライバルの安値が損益分岐を下回り＝仕入れ相場下落の疑い） '+(dropIdx.length-doneN)+'件'+(doneN?('（＋対応済み'+doneN+'・最下部）'):'')+suffix
+        +'　<small style="font-weight:normal;color:#8a5b00">安い仕入れ候補を探して差し替え→保存。値下げの承認は価格承認タブで（💰バッジの「価格承認へ↗」）</small></h2>'
         +renderCards(dropIdx);
     }else{sd.style.display='none';sd.innerHTML='';}
     var dc=document.getElementById('dropChip');
-    if(dc){dc.textContent='💰値下げ推奨 '+dropIdx.length;dc.style.display=dropIdx.length?'inline-block':'none';}
+    if(dc){dc.textContent='⚠️売価メンテ '+(dropIdx.length-doneN)+(doneN?('（済'+doneN+'）'):'');dc.style.display=dropIdx.length?'inline-block':'none';}
   })();
   var si=document.getElementById('secIn');
   // 開閉状態（2026-08-02改）：手動の開閉は保持しつつ、まとめ取り候補（pending）を持つ在庫あり商品が
